@@ -7,6 +7,7 @@ using System.Linq;
 using System.Security.Policy;
 using System.Text;
 using System.Threading.Tasks;
+using static PLCTest.Models.Enums;
 
 namespace PLCTest.ClientProtocolManagement.Melsec
 {
@@ -15,6 +16,63 @@ namespace PLCTest.ClientProtocolManagement.Melsec
     /// </summary>
     public class MelsecMc3EBinaryClientProtocol : IPLCClientProtocol
     {
+        /// <summary>
+        /// 获取寄存器的实际编码
+        /// </summary>
+        /// <param name="area"></param>
+        /// <returns></returns>
+        public byte GetMemoryCode(MemoryArea MemoryArea)
+        {
+            switch (MemoryArea)
+            {
+                case MemoryArea.X:
+                    return 0x9C;
+                case MemoryArea.Y:
+                    return 0x9D;
+                case MemoryArea.M:
+                    return 0x90;
+                case MemoryArea.D:
+                    return 0xA8;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(MemoryArea), "无效寄存器类型");
+            }
+        }
+        public byte[] GetWriteBitData(bool[] bools)
+        {
+            int mLength = (bools.Length + 1) / 2;
+            byte[] mData = new byte[mLength];
+
+            for (int i = 0; i < mLength; i++)
+            {
+                // 第 2*i 位 → 高4位 0x10
+                if (bools[i * 2])
+                {
+                    mData[i] += 0x10;
+                }
+                // 判断是否存在下一组bit
+                int secondBitIndex = i * 2 + 1;
+                if (secondBitIndex < bools.Length)
+                {
+                    // 第 2*i+1 位 → 低4位 0x01
+                    if (bools[secondBitIndex])
+                    {
+                        mData[i] += 0x01;
+                    }
+                }
+            }
+           return mData;
+        }
+
+        public byte[] GetWriteWordData(short[] shorts)
+        {
+            byte[] mData = new byte[shorts.Length * 2];
+            for (int i = 0; i < shorts.Length; i++)
+            {
+                byte[] mbyte = BitConverter.GetBytes(shorts[i]);
+                mbyte.CopyTo(mData, i * 2);
+            }
+           return mData;
+        }
         /// <summary>
         /// 构建完整的报文数据包
         /// </summary>
@@ -228,5 +286,7 @@ namespace PLCTest.ClientProtocolManagement.Melsec
         {
             return data[0] == 0xD0 && data[1] == 0x00;
         }
+
+ 
     }
 }

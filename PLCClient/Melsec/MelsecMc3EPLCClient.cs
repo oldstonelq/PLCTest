@@ -54,7 +54,8 @@ namespace PLCTest.PLCClient.Melsec
         public MelsecMc3EPLCClient(IClientCommunication comm)
         {
             _comm = comm;
-            communicationProtocol= new MelsecMc3EBinaryClientProtocol();
+            //communicationProtocol= new MelsecMc3EBinaryClientProtocol();
+            communicationProtocol = new MelsecMc3EAsciiClientProtocol();
         }
 
         #region 公有方法
@@ -142,7 +143,8 @@ namespace PLCTest.PLCClient.Melsec
             //2.拼接数据报文
             //3.构建完整报文
             //4.发送报告并接收返回数据
-            byte[] BuildReadData=communicationProtocol.BuildReadData((byte)area, address, 1, true);
+            byte MemoryCode = communicationProtocol.GetMemoryCode(area);
+            byte[] BuildReadData=communicationProtocol.BuildReadData(MemoryCode, address, 1, true);
             byte[] BuildCompletePack = communicationProtocol.BuildCompletePack(BuildReadData);
             byte[] mReByte = _comm.SendAndRecevieData(BuildCompletePack);
             //5.数据校验与解析
@@ -173,7 +175,8 @@ namespace PLCTest.PLCClient.Melsec
             //2.拼接数据报文
             //3.构建完整报文
             //4.发送报告并接收返回数据
-            byte[] BuildReadData = communicationProtocol.BuildReadData((byte)area, address, size, true);
+            byte MemoryCode = communicationProtocol.GetMemoryCode(area);
+            byte[] BuildReadData = communicationProtocol.BuildReadData(MemoryCode, address, size, true);
             byte[] BuildCompletePack = communicationProtocol.BuildCompletePack(BuildReadData);
             byte[] mReByte = _comm.SendAndRecevieData(BuildCompletePack);
             //5.数据校验与解析
@@ -198,17 +201,13 @@ namespace PLCTest.PLCClient.Melsec
                 return result;
             }
             //2.计算数据
-            byte[] mData = new byte[1];
-            // 第 2*i 位 → 高4位 0x10
-            if (value)
-            {
-                mData[0] += 0x10;
-            }
+            byte[] mData = communicationProtocol.GetWriteBitData(new bool[1] { value });
             //完整的报文  数据头+实际数据
             //3.拼接数据报文
             //4.构建完整报文
             //5.发送报告并接收返回数据
-            byte[] BuildWriteData = communicationProtocol.BuildWriteData((byte)area, address, 1, true, mData);
+            byte MemoryCode = communicationProtocol.GetMemoryCode(area);
+            byte[] BuildWriteData = communicationProtocol.BuildWriteData(MemoryCode, address, 1, true, mData);
             byte[] BuildCompletePack = communicationProtocol.BuildCompletePack(BuildWriteData);
             byte[] mReByte = _comm.SendAndRecevieData(BuildCompletePack);
             //6.数据校验与解析
@@ -239,32 +238,13 @@ namespace PLCTest.PLCClient.Melsec
                 return result;
             }
             //3.计算打包后字节长度：每2个bit封装1个byte，向上取整
-            int mLength = (values.Length + 1) / 2;
-            byte[] mData = new byte[mLength];
-
-            for (int i = 0; i < mLength; i++)
-            {
-                // 第 2*i 位 → 高4位 0x10
-                if (values[i * 2])
-                {
-                    mData[i] += 0x10;
-                }
-                // 判断是否存在下一组bit
-                int secondBitIndex = i * 2 + 1;
-                if (secondBitIndex < values.Length)
-                {
-                    // 第 2*i+1 位 → 低4位 0x01
-                    if (values[secondBitIndex])
-                    {
-                        mData[i] += 0x01;
-                    }
-                }
-            }
+            byte[] mData = communicationProtocol.GetWriteBitData(values);
             //完整的报文  数据头+实际数据
             //4.拼接数据报文
             //5.构建完整报文
             //6.发送报告并接收返回数据
-            byte[] BuildWriteData = communicationProtocol.BuildWriteData((byte)area, address, values.Length, true, mData);
+            byte MemoryCode = communicationProtocol.GetMemoryCode(area);
+            byte[] BuildWriteData = communicationProtocol.BuildWriteData(MemoryCode, address, values.Length, true, mData);
             byte[] BuildCompletePack = communicationProtocol.BuildCompletePack(BuildWriteData);
             byte[] mReByte = _comm.SendAndRecevieData(BuildCompletePack);
             //7.数据校验与解析
@@ -291,7 +271,8 @@ namespace PLCTest.PLCClient.Melsec
             //2.拼接数据报文
             //3.构建完整报文
             //4.发送报告并接收返回数据
-            byte[] BuildReadData = communicationProtocol.BuildReadData((byte)area, address, 1, false);
+            byte MemoryCode = communicationProtocol.GetMemoryCode(area);
+            byte[] BuildReadData = communicationProtocol.BuildReadData(MemoryCode, address, 1, false);
             byte[] BuildCompletePack = communicationProtocol.BuildCompletePack(BuildReadData);
             byte[] mReByte = _comm.SendAndRecevieData(BuildCompletePack);
             //5.数据校验与解析
@@ -322,7 +303,8 @@ namespace PLCTest.PLCClient.Melsec
             //2.拼接数据报文
             //3.构建完整报文
             //4.发送报告并接收返回数据
-            byte[] BuildReadData = communicationProtocol.BuildReadData((byte)area, address, size, false);
+            byte MemoryCode = communicationProtocol.GetMemoryCode(area);
+            byte[] BuildReadData = communicationProtocol.BuildReadData(MemoryCode, address, size, false);
             byte[] BuildCompletePack = communicationProtocol.BuildCompletePack(BuildReadData);
             byte[] mReByte = _comm.SendAndRecevieData(BuildCompletePack);
             //5.数据校验与解析
@@ -347,17 +329,14 @@ namespace PLCTest.PLCClient.Melsec
                 return result;
             }
             //2.计算打包后字节长度：每个short占2个字节
-            byte[] mData = new byte[2];
-            for (int i = 0; i < 1; i++)
-            {
-                byte[] mbyte = BitConverter.GetBytes(value);
-                mbyte.CopyTo(mData, i * 2);
-            }
+            byte[] mData = communicationProtocol.GetWriteWordData(new short[1] { value });
+         
             //完整的报文  数据头+实际数据
             //3.拼接数据报文
             //4.构建完整报文
             //5.发送报告并接收返回数据
-            byte[] BuildWriteData = communicationProtocol.BuildWriteData((byte)area, address, 1, false, mData);
+            byte MemoryCode = communicationProtocol.GetMemoryCode(area);
+            byte[] BuildWriteData = communicationProtocol.BuildWriteData(MemoryCode, address, 1, false, mData);
             byte[] BuildCompletePack = communicationProtocol.BuildCompletePack(BuildWriteData);
             byte[] mReByte = _comm.SendAndRecevieData(BuildCompletePack);
             //6.数据校验与解析
@@ -388,17 +367,13 @@ namespace PLCTest.PLCClient.Melsec
                 return result;
             }
             //3.计算打包后字节长度：每个short占2个字节
-            byte[] mData = new byte[values.Length * 2];
-            for (int i = 0; i < values.Length; i++)
-            {
-                byte[] mbyte = BitConverter.GetBytes(values[i]);
-                mbyte.CopyTo(mData, i * 2);
-            }
+            byte[] mData = communicationProtocol.GetWriteWordData(values);
             //完整的报文  数据头+实际数据
             //4.拼接数据报文
             //3.构建完整报文
             //4.发送报告并接收返回数据
-            byte[] BuildWriteData = communicationProtocol.BuildWriteData((byte)area, address, values.Length, false, mData);
+            byte MemoryCode = communicationProtocol.GetMemoryCode(area);
+            byte[] BuildWriteData = communicationProtocol.BuildWriteData(MemoryCode, address, values.Length, false, mData);
             byte[] BuildCompletePack = communicationProtocol.BuildCompletePack(BuildWriteData);
             byte[] mReByte = _comm.SendAndRecevieData(BuildCompletePack);
             //5.数据校验与解析

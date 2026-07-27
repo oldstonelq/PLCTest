@@ -1,23 +1,54 @@
 ﻿using PLCTest.Models;
+using PLCTest.PLCInterface;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using static PLCTest.Models.Enums;
 
 namespace PLCTest.ClientProtocolManagement.Melsec
 {
     /// <summary>
     /// 三菱3EASCII通讯协议
     /// </summary>
-    public class MelsecMc3EAsciiClientProtocol
+    public class MelsecMc3EAsciiClientProtocol : IPLCClientProtocol
     {
+        /// <summary>
+        /// 获取寄存器的实际编码
+        /// </summary>
+        /// <param name="area"></param>
+        /// <returns></returns>
+        public byte GetMemoryCode(MemoryArea MemoryArea)
+        {
+            return Encoding.ASCII.GetBytes(MemoryArea.ToString())[0];
+        }
+        public byte[] GetWriteBitData(bool[] bools)
+        {
+            byte[] mData = new byte[bools.Length];
+            for (int i = 0; i < bools.Length; i++)
+            {
+                mData[i] = bools[i] ? (byte)0x31 : (byte)0x30;
+            }
+            return mData;
+        }
+
+        public byte[] GetWriteWordData(short[] shorts)
+        {
+            byte[] mData = new byte[shorts.Length * 4];
+            for (int i = 0; i < shorts.Length; i++)
+            {
+                byte[] mbyte = Encoding.ASCII.GetBytes(Convert.ToString(shorts[i], 16).ToUpper().PadLeft(4, '0'));
+                mbyte.CopyTo(mData, i * 4);
+            }
+          return mData;
+        }
         /// <summary>
         /// 完整的包
         /// </summary>
         /// <param name="_data">数据区数组</param>
         /// <returns>完整的数据包</returns>
-        public byte[] CompletePack(byte[] _data)
+        public byte[] BuildCompletePack(byte[] _data)
         {
             byte[] Command = new byte[22 + _data.Length];
             // 副标题
@@ -61,7 +92,7 @@ namespace PLCTest.ClientProtocolManagement.Melsec
         /// <param name="length">地址长度</param>
         /// <param name="isBit">是否为位操作</param>
         /// <returns>数据区数组</returns>
-        public byte[] BuildReadData(string memory, int adress, int length, bool isBit)
+        public byte[] BuildReadData(byte memory, int adress, int length, bool isBit)
         {
             byte[] Data = new byte[20];
             //读:0401
@@ -75,7 +106,7 @@ namespace PLCTest.ClientProtocolManagement.Melsec
             Data[6] = 0x30;
             Data[7] = isBit ? (byte)0x31 : (byte)0x30;
             //软元件类型
-            Data[8] = Encoding.ASCII.GetBytes(memory)[0];
+            Data[8] = memory;
             Data[9] = Encoding.ASCII.GetBytes("*")[0];
             //起始地址
             string Adress = adress.ToString().PadLeft(6, '0');
@@ -96,7 +127,7 @@ namespace PLCTest.ClientProtocolManagement.Melsec
         /// <param name="isBit">是否为位操作</param>
         /// <param name="data">写入的数据</param>
         /// <returns>数据区数组</returns>
-        public byte[] BuildWriteData(string memory, int adress, int length, bool isBit, byte[] data)
+        public byte[] BuildWriteData(byte memory, int adress, int length, bool isBit, byte[] data)
         {
             byte[] Data = new byte[20 + data.Length];
             //写:1401
@@ -110,7 +141,7 @@ namespace PLCTest.ClientProtocolManagement.Melsec
             Data[6] = 0x30;
             Data[7] = isBit ? (byte)0x31 : (byte)0x30;
             //软元件类型
-            Data[8] = Encoding.ASCII.GetBytes(memory)[0];
+            Data[8] = memory;
             Data[9] = Encoding.ASCII.GetBytes("*")[0];
             //起始地址
             string Adress = adress.ToString().PadLeft(6, '0');
@@ -133,37 +164,27 @@ namespace PLCTest.ClientProtocolManagement.Melsec
         public Result<bool[]> ParseReadBitResponse(byte[] _data, int size)
         {
             Result<bool[]> result = new Result<bool[]>();
-
-            if (_data == null || _data.Length <= 11)
+            string mReStr = Encoding.ASCII.GetString(_data);
+            if (_data == null || mReStr.Length <22)
             {
                 result.ErrorMsg = "返回数据长度错误";
                 return result;
             }
-            if (!CheckResponseHeader(_data))
-            {
-                result.ErrorMsg = "响应副标题错误";
-                return result;
-            }
-            if (BitConverter.ToUInt16(_data, 9) != 0)
+            //if (!CheckResponseHeader(_data))
+            //{
+            //    result.ErrorMsg = "响应副标题错误";
+            //    return result;
+            //}
+            if (Convert.ToUInt16(mReStr.Substring(18, 4), 16) != 0)
             {
                 result.ErrorMsg = "结束代码错误";
                 return result;
             }
 
-            // 解析返回数据：每字节存 2 个位（高4位=偶数位，低4位=奇数位）
+            // 解析返回数据
             bool[] RealData = new bool[size];
-            int byteCount = (size + 1) / 2;
-            int dataOffset = 11;
-            for (int bIdx = 0; bIdx < byteCount && dataOffset + bIdx < _data.Length; bIdx++)
-            {
-                byte val = _data[dataOffset + bIdx];
-                int idx0 = bIdx * 2;
-                if (idx0 < size)
-                    RealData[idx0] = (val & 0x10) != 0;
-                int idx1 = bIdx * 2 + 1;
-                if (idx1 < size)
-                    RealData[idx1] = (val & 0x01) != 0;
-            }
+            RealData = mReStr.Substring(22, size).Select(o => o == '1').Take(size).ToArray();
+
             result.IsSuccess = true;
             result.Data = RealData;
             return result;
@@ -177,38 +198,29 @@ namespace PLCTest.ClientProtocolManagement.Melsec
         public Result<short[]> ParseReadWordResponse(byte[] _data, int size)
         {
             Result<short[]> result = new Result<short[]>();
-
-            if (_data == null || _data.Length <= 11)
+            string mReStr = Encoding.ASCII.GetString(_data);
+            if (_data == null || mReStr.Length <22)
             {
                 result.ErrorMsg = "返回数据长度错误";
                 return result;
             }
-            if (!CheckResponseHeader(_data))
-            {
-                result.ErrorMsg = "响应副标题错误";
-                return result;
-            }
-            if (BitConverter.ToUInt16(_data, 9) != 0)
+            //if (!CheckResponseHeader(_data))
+            //{
+            //    result.ErrorMsg = "响应副标题错误";
+            //    return result;
+            //}
+            if (Convert.ToUInt16(mReStr.Substring(18, 4), 16) != 0)
             {
                 result.ErrorMsg = "结束代码错误";
                 return result;
             }
-
-            // 解析返回数据：每字 2 字节（小端）
-            int dataOffset = 11;
-            int dataLen = _data.Length - dataOffset;
-            int expectedLen = size * 2;
-            if (dataLen < expectedLen)
-            {
-                result.ErrorMsg = "返回数据长度不足";
-                return result;
-            }
-
+            //解析返回数据
             short[] RealData = new short[size];
             for (int i = 0; i < size; i++)
             {
-                RealData[i] = BitConverter.ToInt16(_data, dataOffset + i * 2);
+                RealData[i] = Convert.ToInt16(mReStr.Substring(22 + 4 * i, 4), 16);
             }
+
             result.IsSuccess = true;
             result.Data = RealData;
             return result;
@@ -221,18 +233,18 @@ namespace PLCTest.ClientProtocolManagement.Melsec
         public Result<bool> ParseWriteResponse(byte[] _data)
         {
             Result<bool> result = new Result<bool>();
-
-            if (_data == null || _data.Length < 11)
+            string mReStr = Encoding.ASCII.GetString(_data);
+            if (_data == null || mReStr.Length <22)
             {
                 result.ErrorMsg = "返回数据长度错误";
                 return result;
             }
-            if (!CheckResponseHeader(_data))
-            {
-                result.ErrorMsg = "响应副标题错误";
-                return result;
-            }
-            if (BitConverter.ToUInt16(_data, 9) != 0)
+            //if (!CheckResponseHeader(_data))
+            //{
+            //    result.ErrorMsg = "响应副标题错误";
+            //    return result;
+            //}
+            if (Convert.ToUInt16(mReStr.Substring(18, 4), 16) != 0)
             {
                 result.ErrorMsg = "结束代码错误";
                 return result;
@@ -250,5 +262,7 @@ namespace PLCTest.ClientProtocolManagement.Melsec
         {
             return data[0] == 0xD0 && data[1] == 0x00;
         }
+
+   
     }
 }

@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using static PLCTest.Models.Enums;
 
 namespace PLCTest.PLCInterface
 {
@@ -12,6 +13,23 @@ namespace PLCTest.PLCInterface
     /// </summary>
     public interface IPLCClientProtocol
     {
+        /// <summary>
+        /// 获取寄存器地址的真实编码
+        /// </summary>
+        /// <returns></returns>
+        byte GetMemoryCode(MemoryArea area);
+        /// <summary>
+        /// 写入位数据转Byte数组
+        /// </summary>
+        /// <param name="bools"></param>
+        /// <returns></returns>
+        byte[] GetWriteBitData(bool[] bools);
+        /// <summary>
+        /// 写入字数据转Byte数组
+        /// </summary>
+        /// <param name="shorts"></param>
+        /// <returns></returns>
+        byte[] GetWriteWordData(short[] shorts);
         /// <summary>
         /// 创建读取数据包
         /// </summary>

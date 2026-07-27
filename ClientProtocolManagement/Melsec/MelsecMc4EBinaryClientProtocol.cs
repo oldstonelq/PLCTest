@@ -11,8 +11,18 @@ namespace PLCTest.ClientProtocolManagement.Melsec
     /// <summary>
     /// 三菱MC4E二进制通讯协议
     /// </summary>
-    public class MelsecMc4EBinaryClientProtocol : IPLCClientProtocol
+    public class MelsecMc4EBinaryClientProtocol
     {
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="area"></param>
+        /// <returns></returns>
+        /// <exception cref="NotImplementedException"></exception>
+        public byte GetMemoryCode(Enums.MemoryArea area)
+        {
+            throw new NotImplementedException();
+        }
         /// <summary>
         /// 构建完整的报文数据包
         /// </summary>
@@ -232,5 +242,7 @@ namespace PLCTest.ClientProtocolManagement.Melsec
         {
             return data[0] == 0xD4 && data[1] == 0x00;
         }
+
+       
     }
 }
