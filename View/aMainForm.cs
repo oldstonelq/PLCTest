@@ -77,7 +77,7 @@ namespace PLCTest.View
                 MessageBox.Show("Please Check PLCInformation Port");
                 return;
             }
-            pLCControl = new MelsecMc4EPLCClient(new TcpClientCommunication(tb_PLCInformationIP.Text, port));
+            pLCControl = new MelsecMc3EPLCClient(new TcpClientCommunication(tb_PLCInformationIP.Text, port));
             pLCControl.Connect();
         }
         /// <summary>

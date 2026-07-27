@@ -11,9 +11,9 @@ using System.Threading.Tasks;
 namespace PLCTest.ClientProtocolManagement.Melsec
 {
     /// <summary>
-    /// 三菱3E通讯协议
+    /// 三菱3E二进制通讯协议
     /// </summary>
-    public class MelsecMc3EClientProtocol : IPLCClientProtocol
+    public class MelsecMc3EBinaryClientProtocol : IPLCClientProtocol
     {
         /// <summary>
         /// 构建完整的报文数据包

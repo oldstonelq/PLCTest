@@ -48,7 +48,7 @@ namespace PLCTest.PLCClient.Melsec
         public MelsecMc4EPLCClient(IClientCommunication comm)
         {
             _comm = comm;
-            communicationProtocol = new MelsecMc4EClientProtocol();
+            communicationProtocol = new MelsecMc4EBinaryClientProtocol();
         }
 
         #region 公有方法

@@ -48,7 +48,9 @@
   <ItemGroup>
     <Compile Include="ClientCommunication\SerialPortClientCommunication.cs" />
     <Compile Include="ClientCommunication\TcpClientCommunication.cs" />
-    <Compile Include="ClientProtocolManagement\Melsec\MelsecMc4EClientProtocol.cs" />
+    <Compile Include="ClientProtocolManagement\Melsec\MelsecMc3EAsciiClientProtocol.cs" />
+    <Compile Include="ClientProtocolManagement\Melsec\MelsecMc4EAsciiClientProtocol.cs" />
+    <Compile Include="ClientProtocolManagement\Melsec\MelsecMc4EBinaryClientProtocol.cs" />
     <Compile Include="CustomControl\mGroupBox.cs">
       <SubType>Component</SubType>
     </Compile>
@@ -66,7 +68,7 @@
     <Compile Include="PLCInterface\IPLCClient.cs" />
     <Compile Include="Models\Enums .cs" />
     <Compile Include="Models\Result.cs" />
-    <Compile Include="ClientProtocolManagement\Melsec\MelsecMc3EClientProtocol.cs" />
+    <Compile Include="ClientProtocolManagement\Melsec\MelsecMc3EBinaryClientProtocol.cs" />
     <Compile Include="SeverProtocolManagement\Melsec\MelsecMc3ESeverProtocol.cs" />
     <Compile Include="SeverCommunication\SerialSeverCommunication.cs" />
     <Compile Include="SeverCommunication\TcpSeverCommunication.cs" />
