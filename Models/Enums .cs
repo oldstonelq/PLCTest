@@ -16,10 +16,12 @@ namespace PLCTest.Models
         /// </summary>
         public enum MemoryArea
         {
-            X = 0x9C,
-            Y = 0x9D,
-            M = 0x90,
-            D = 0xA8,
+            X,
+            Y,
+            M,
+            D,
+            DB,
+            R
         }
     }
 }

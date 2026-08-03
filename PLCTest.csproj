@@ -46,60 +46,66 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="ClientCommunication\SerialPortClientCommunication.cs" />
-    <Compile Include="ClientCommunication\TcpClientCommunication.cs" />
-    <Compile Include="ClientProtocolManagement\Melsec\MelsecMc3EAsciiClientProtocol.cs" />
-    <Compile Include="ClientProtocolManagement\Melsec\MelsecMc4EAsciiClientProtocol.cs" />
-    <Compile Include="ClientProtocolManagement\Melsec\MelsecMc4EBinaryClientProtocol.cs" />
-    <Compile Include="CustomControl\mGroupBox.cs">
+    <Compile Include="Client\ClientCommunication\SerialPortClientCommunication.cs" />
+    <Compile Include="Client\ClientCommunication\TcpClientCommunication.cs" />
+    <Compile Include="Client\ClientProtocolManagement\Inovance\InovanceModbusRtuClientProtocol.cs" />
+    <Compile Include="Client\ClientProtocolManagement\Inovance\InovanceModbusTCPClientProtocol.cs" />
+    <Compile Include="Client\ClientProtocolManagement\Melsec\MelsecMc3EAsciiClientProtocol.cs" />
+    <Compile Include="Client\ClientProtocolManagement\Melsec\MelsecMc4EAsciiClientProtocol.cs" />
+    <Compile Include="Client\ClientProtocolManagement\Melsec\MelsecMc4EBinaryClientProtocol.cs" />
+    <Compile Include="Client\ClientProtocolManagement\Siemens\SiemensS71200ClientProtocol.cs" />
+    <Compile Include="Client\PLCClient\Inovance\InovanceTcpPLCClient.cs" />
+    <Compile Include="View\CustomControl\mGroupBox.cs">
       <SubType>Component</SubType>
     </Compile>
-    <Compile Include="CustomControl\mGroupBox.Designer.cs">
+    <Compile Include="View\CustomControl\mGroupBox.Designer.cs">
       <DependentUpon>mGroupBox.cs</DependentUpon>
     </Compile>
-    <Compile Include="PLCClient\Melsec\MelsecMc4EPLCClient.cs" />
-    <Compile Include="SeverInterface\IPLCServer.cs" />
-    <Compile Include="SeverInterface\ISeverCommunication.cs" />
-    <Compile Include="PLCInterface\IPLCClientProtocol.cs" />
-    <Compile Include="SeverInterface\ISeverProtocol.cs" />
+    <Compile Include="Models\PLCAddress.cs" />
+    <Compile Include="Client\PLCClient\Melsec\MelsecMc4EPLCClient.cs" />
+    <Compile Include="Client\PLCClient\Siemens\SiemensS7Client.cs" />
+    <Compile Include="Sever\SeverInterface\IPLCServer.cs" />
+    <Compile Include="Sever\SeverInterface\ISeverCommunication.cs" />
+    <Compile Include="Client\PLCInterface\IPLCClientProtocol.cs" />
+    <Compile Include="Sever\SeverInterface\ISeverProtocol.cs" />
     <Compile Include="Models\RequestInfo.cs" />
-    <Compile Include="PLCClient\Melsec\MelsecMc3EPLCClient.cs" />
-    <Compile Include="PLCInterface\IClientCommunication.cs" />
-    <Compile Include="PLCInterface\IPLCClient.cs" />
+    <Compile Include="Client\PLCClient\Melsec\MelsecMc3EPLCClient.cs" />
+    <Compile Include="Client\PLCInterface\IClientCommunication.cs" />
+    <Compile Include="Client\PLCInterface\IPLCClient.cs" />
     <Compile Include="Models\Enums .cs" />
     <Compile Include="Models\Result.cs" />
-    <Compile Include="ClientProtocolManagement\Melsec\MelsecMc3EBinaryClientProtocol.cs" />
-    <Compile Include="SeverProtocolManagement\Melsec\MelsecMc3ESeverProtocol.cs" />
-    <Compile Include="SeverCommunication\SerialSeverCommunication.cs" />
-    <Compile Include="SeverCommunication\TcpSeverCommunication.cs" />
+    <Compile Include="Client\ClientProtocolManagement\Melsec\MelsecMc3EBinaryClientProtocol.cs" />
+    <Compile Include="Sever\SeverProtocolManagement\Melsec\MelsecMc3ESeverProtocol.cs" />
+    <Compile Include="Sever\SeverCommunication\SerialSeverCommunication.cs" />
+    <Compile Include="Sever\SeverCommunication\TcpSeverCommunication.cs" />
     <Compile Include="Tool\ConverterTool.cs" />
     <Compile Include="Tool\OtherTool.cs" />
     <Compile Include="Tool\StructureHelp.cs" />
-    <Compile Include="PLCSever\Melsec\MelsecMc3EPLCSever.cs" />
-    <Compile Include="View\aMainForm.cs">
+    <Compile Include="Sever\PLCSever\Melsec\MelsecMc3EPLCSever.cs" />
+    <Compile Include="View\Forms\aMainForm.cs">
       <SubType>Form</SubType>
     </Compile>
-    <Compile Include="View\aMainForm.Designer.cs">
+    <Compile Include="View\Forms\aMainForm.Designer.cs">
       <DependentUpon>aMainForm.cs</DependentUpon>
     </Compile>
-    <Compile Include="View\PLCClientForm.cs">
+    <Compile Include="View\Forms\PLCClientForm.cs">
       <SubType>Form</SubType>
     </Compile>
-    <Compile Include="View\PLCClientForm.Designer.cs">
+    <Compile Include="View\Forms\PLCClientForm.Designer.cs">
       <DependentUpon>PLCClientForm.cs</DependentUpon>
     </Compile>
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="View\PLCSeverForm.cs">
+    <Compile Include="View\Forms\PLCSeverForm.cs">
       <SubType>Form</SubType>
     </Compile>
-    <Compile Include="View\PLCSeverForm.Designer.cs">
+    <Compile Include="View\Forms\PLCSeverForm.Designer.cs">
       <DependentUpon>PLCSeverForm.cs</DependentUpon>
     </Compile>
-    <EmbeddedResource Include="View\aMainForm.resx">
+    <EmbeddedResource Include="View\Forms\aMainForm.resx">
       <DependentUpon>aMainForm.cs</DependentUpon>
     </EmbeddedResource>
-    <EmbeddedResource Include="View\PLCClientForm.resx">
+    <EmbeddedResource Include="View\Forms\PLCClientForm.resx">
       <DependentUpon>PLCClientForm.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Properties\Resources.resx">
@@ -112,7 +118,7 @@
       <DependentUpon>Resources.resx</DependentUpon>
       <DesignTime>True</DesignTime>
     </Compile>
-    <EmbeddedResource Include="View\PLCSeverForm.resx">
+    <EmbeddedResource Include="View\Forms\PLCSeverForm.resx">
       <DependentUpon>PLCSeverForm.cs</DependentUpon>
     </EmbeddedResource>
     <None Include="Properties\Settings.settings">
@@ -129,9 +135,7 @@
     <None Include="App.config" />
   </ItemGroup>
   <ItemGroup>
-    <Folder Include="PLCClient\Inovance\" />
-    <Folder Include="PLCClient\Omron\" />
-    <Folder Include="PLCClient\Siemens\" />
+    <Folder Include="Client\PLCClient\Omron\" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
