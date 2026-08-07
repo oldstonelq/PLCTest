@@ -47,7 +47,22 @@ namespace PLCTest.ClientCommunication
         /// </summary>
         private const int BufferMaxLength = 4096;
         #endregion
-
+        /// <summary>
+        /// 沟站函数
+        /// </summary>
+        /// <param name="portName"></param>
+        /// <param name="baudRate"></param>
+        /// <param name="parity"></param>
+        /// <param name="dataBits"></param>
+        /// <param name="stopBits"></param>
+        public SerialCommunication(string portName, int baudRate, Parity parity, int dataBits, StopBits stopBits)
+        {
+            PortName = portName;
+            BaudRate = baudRate;
+            Parity = parity;
+            DataBits = dataBits;
+            StopBits = stopBits;
+        }
         #region 连接状态
         public bool IsConnected
         {

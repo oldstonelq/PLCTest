@@ -1,6 +1,7 @@
 ﻿using PLCTest.Client.ClientProtocolManagement.Inovance;
 using PLCTest.Client.PLCClient.Inovance;
 using PLCTest.ClientCommunication;
+using PLCTest.Models;
 using PLCTest.PLCClient;
 using PLCTest.PLCClient.Melsec;
 using PLCTest.PLCInterface;
@@ -92,10 +93,16 @@ namespace PLCTest.View
                 return;
             }
             // 使用依赖注入：将通信实现和协议实现注入到客户端，避免硬编码
-            var comm = new TcpClientCommunication(tb_PLCInformationIP.Text, port);
-            var protocol = new InovanceModbusRtuClientProtocol();
-            pLCControl = new InovanceTcpPLCClient(comm, protocol);
+
+             var builder = new PLCClientBuilder()
+            .UseTcp(tb_PLCInformationIP.Text, port)
+            .UseMelsecMc1EAscii();
+            pLCControl = builder.BuildMelsecMcPLCClient();
             pLCControl.Connect();
+            //var comm = new TcpClientCommunication(tb_PLCInformationIP.Text, port);
+            //var protocol = new InovanceModbusRtuClientProtocol();
+            //pLCControl = new InovanceTcpPLCClient(comm, protocol);
+            //pLCControl.Connect();
         }
         /// <summary>
         /// 断开PLC客户端连接
@@ -245,25 +252,28 @@ namespace PLCTest.View
         /// </summary>
         private void RefreshPLCUI()
         {
-            if (pLCControl != null && pLCControl.IsConnected)
+            if (pLCControl != null)
             {
-                lab_ConnectStatus.Text = "Connected";
-                lab_ConnectStatus.BackColor = Color.Green;
+                if (pLCControl.IsConnected)
+                {
+                    lab_ConnectStatus.Text = "Connected";
+                    lab_ConnectStatus.BackColor = Color.Green;
 
-                tb_PLCInformationIP.ReadOnly = true;
-                tb_PLCInformationPort.ReadOnly = true;
+                    tb_PLCInformationIP.ReadOnly = true;
+                    tb_PLCInformationPort.ReadOnly = true;
 
-                btn_Connect.Enabled = false;
-                btn_Disconnect.Enabled = true;
-                btn_PLCInformationMemoryView.Enabled = true;
-            }
-            else if (pLCControl != null && pLCControl.IsConnected == false)
-            {
-                lab_ConnectStatus.Text = "waiting";
-                lab_ConnectStatus.BackColor = Color.Orange;
-                btn_Connect.Enabled = false;
-                btn_Disconnect.Enabled = true;
-                btn_PLCInformationMemoryView.Enabled = false;
+                    btn_Connect.Enabled = false;
+                    btn_Disconnect.Enabled = true;
+                    btn_PLCInformationMemoryView.Enabled = true;
+                }
+                else
+                {
+                    lab_ConnectStatus.Text = "waiting";
+                    lab_ConnectStatus.BackColor = Color.Orange;
+                    btn_Connect.Enabled = false;
+                    btn_Disconnect.Enabled = true;
+                    btn_PLCInformationMemoryView.Enabled = false;
+                }
             }
             else
             {

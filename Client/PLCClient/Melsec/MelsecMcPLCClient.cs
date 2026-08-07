@@ -17,7 +17,7 @@ namespace PLCTest.PLCClient.Melsec
     /// <summary>
     /// 三菱PLC-MC协议客户端（3E帧数据结构）
     /// </summary>
-    public class MelsecMc3EPLCClient : IPLCClient
+    public class MelsecMcPLCClient : IPLCClient
     {
         /// <summary>
         /// 通讯方式接口
@@ -52,7 +52,7 @@ namespace PLCTest.PLCClient.Melsec
         /// </summary>
         /// <param name="comm">通讯方式</param>
         /// <param name="protocol">协议实现（可选），若为 null 则使用默认的 MelsecMc3EBinaryClientProtocol。</param>
-        public MelsecMc3EPLCClient(IClientCommunication comm, IPLCClientProtocol protocol = null)
+        public MelsecMcPLCClient(IClientCommunication comm, IPLCClientProtocol protocol = null)
         {
             _comm = comm ?? throw new ArgumentNullException(nameof(comm));
             // 使用构造注入替代硬编码，便于单元测试与替换协议实现

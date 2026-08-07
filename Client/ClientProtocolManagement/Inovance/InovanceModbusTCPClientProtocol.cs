@@ -14,7 +14,7 @@ namespace PLCTest.Client.ClientProtocolManagement.Inovance
     /// 将请求 PDU 构建为 Modbus PDU，并通过 BuildCompletePack 封装为 MBAP + PDU。
     /// 该实现支持读取/写入线圈（位）和保持寄存器（字）。
     /// </summary>
-    public class InovanceModbusTCPClientProtocol : IPLCClientProtocol
+    public class InovanceModbusTcpClientProtocol : IPLCClientProtocol
     {
         /// <summary>
         /// 事务标识符（Transaction Identifier），用于区分请求和响应。每次发送请求时递增。

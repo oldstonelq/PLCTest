@@ -167,7 +167,7 @@ namespace PLCTest.ClientCommunication
                 Array.Copy(recvBuffer, result, recvLen);
                 return result;
             }
-            catch (Exception)
+            catch (Exception ex)
             {
                 return new byte[0];
             }

@@ -172,8 +172,11 @@ namespace PLCTest.View
 
             if (pLCControl != null && pLCControl.IsConnected)
             {
-                pLCControl.WriteBit(PLCAddress.Bit(WriteArea, WriteAddress), WriteValue == 1);
-                // pLCControl.WriteBitArray(WriteArea, WriteAddress, new bool[1] {true} );
+                var writeresult=pLCControl.WriteBit(PLCAddress.Bit(WriteArea, WriteAddress), WriteValue == 1);
+                if (!writeresult.IsSuccess)
+                {
+                    MessageBox.Show("Write Error Reson :" + writeresult.ErrorMsg);
+                }
             }
             else
             {
@@ -206,7 +209,11 @@ namespace PLCTest.View
 
             if (pLCControl != null && pLCControl.IsConnected)
             {
-                pLCControl.WriteWord(PLCAddress.Word(WriteArea, WriteAddress), WriteValue);
+                var writeresult= pLCControl.WriteWord(PLCAddress.Word(WriteArea, WriteAddress), WriteValue);
+                if (!writeresult.IsSuccess)
+                {
+                    MessageBox.Show("Write Error Reson :"+writeresult .ErrorMsg);
+                }
             }
             else
             {
