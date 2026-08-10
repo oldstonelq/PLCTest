@@ -221,7 +221,7 @@ namespace PLCTest.Client.ClientProtocolManagement.Melsec
 
             // 解析返回数据
             bool[] RealData = new bool[size];
-            RealData = mReStr.Substring(22, size).Select(o => o == '1').Take(size).ToArray();
+            RealData = mReStr.Substring(4, size).Select(o => o == '1').Take(size).ToArray();
 
             result.IsSuccess = true;
             result.Data = RealData;
