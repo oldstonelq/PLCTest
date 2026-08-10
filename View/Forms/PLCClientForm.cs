@@ -7,6 +7,7 @@ using System.ComponentModel;
 using System.Data;
 using System.Drawing;
 using System.Drawing.Imaging;
+using System.Globalization;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -22,7 +23,7 @@ namespace PLCTest.View
         /// <summary>
         /// PLC实例
         /// </summary>
-        IPLCClient pLCControl = null;
+        IPLCClient PLCControl = null;
         /// <summary>
         /// 当前读取寄存器区域
         /// </summary>
@@ -70,11 +71,12 @@ namespace PLCTest.View
         /// <summary>
         /// 构造函数
         /// </summary>
-        /// <param name="melsecMcPLCControl"></param>
-        public PLCClientForm(IPLCClient melsecMcPLCControl)
+        /// <param name="plccontrol"></param>
+        public PLCClientForm(IPLCClient plccontrol)
         {
             InitializeComponent();
-            this.pLCControl = melsecMcPLCControl;
+            this.PLCControl = plccontrol;
+            PLCControl.ShowCommMessageEvent += AddInfo;
         }
         /// <summary>
         /// 窗体加载
@@ -170,9 +172,9 @@ namespace PLCTest.View
                 return;
             }
 
-            if (pLCControl != null && pLCControl.IsConnected)
+            if (PLCControl != null && PLCControl.IsConnected)
             {
-                var writeresult=pLCControl.WriteBit(PLCAddress.Bit(WriteArea, WriteAddress), WriteValue == 1);
+                var writeresult=PLCControl.WriteBit(PLCAddress.Bit(WriteArea, WriteAddress), WriteValue == 1);
                 if (!writeresult.IsSuccess)
                 {
                     MessageBox.Show("Write Error Reson :" + writeresult.ErrorMsg);
@@ -207,9 +209,9 @@ namespace PLCTest.View
                 return;
             }
 
-            if (pLCControl != null && pLCControl.IsConnected)
+            if (PLCControl != null && PLCControl.IsConnected)
             {
-                var writeresult= pLCControl.WriteWord(PLCAddress.Word(WriteArea, WriteAddress), WriteValue);
+                var writeresult= PLCControl.WriteWord(PLCAddress.Word(WriteArea, WriteAddress), WriteValue);
                 if (!writeresult.IsSuccess)
                 {
                     MessageBox.Show("Write Error Reson :"+writeresult .ErrorMsg);
@@ -228,7 +230,7 @@ namespace PLCTest.View
         /// <param name="e">事件参数</param>
         private void btn_ClearLength_Click(object sender, EventArgs e)
         {
-            if (pLCControl != null && pLCControl.IsConnected)
+            if (PLCControl != null && PLCControl.IsConnected)
             {
                 if (!OtherTool.StringTryParseInt(tb_ClearLength.Text, out var ClearLength,1))
                 {
@@ -239,12 +241,12 @@ namespace PLCTest.View
                     if (CurrentReadArea == MemoryArea.D)
                     {
                         short[] clearData = new short[ClearLength];
-                        var res = pLCControl.WriteWordArray(PLCAddress.Word(CurrentReadArea, CurrentReadAddress, null, ClearLength), clearData);
+                        var res = PLCControl.WriteWordArray(PLCAddress.Word(CurrentReadArea, CurrentReadAddress, null, ClearLength), clearData);
                     }
                     else
                     {
                         bool[] clearData = new bool[ClearLength];
-                        var res = pLCControl.WriteBitArray(PLCAddress.Bit(CurrentReadArea, CurrentReadAddress, null, ClearLength), clearData);
+                        var res = PLCControl.WriteBitArray(PLCAddress.Bit(CurrentReadArea, CurrentReadAddress, null, ClearLength), clearData);
                     }
                 }
             }
@@ -260,17 +262,17 @@ namespace PLCTest.View
         /// <param name="e">事件参数。</param>
         private void btn_ClearAll_Click(object sender, EventArgs e)
         {
-            if (pLCControl != null && pLCControl.IsConnected)
+            if (PLCControl != null && PLCControl.IsConnected)
             {
                 if (CurrentReadArea == MemoryArea.D)
                 {
                     short[] clearData = new short[CurrentReadLength];
-                    pLCControl.WriteWordArray(PLCAddress.Word(CurrentReadArea, CurrentReadAddress, null, CurrentReadLength), clearData);
+                    PLCControl.WriteWordArray(PLCAddress.Word(CurrentReadArea, CurrentReadAddress, null, CurrentReadLength), clearData);
                 }
                 else
                 {
                     bool[] clearData = new bool[CurrentReadLength];
-                    pLCControl.WriteBitArray(PLCAddress.Bit(CurrentReadArea, CurrentReadAddress, null, CurrentReadLength), clearData);
+                    PLCControl.WriteBitArray(PLCAddress.Bit(CurrentReadArea, CurrentReadAddress, null, CurrentReadLength), clearData);
                 }
             }
             else
@@ -303,7 +305,7 @@ namespace PLCTest.View
         /// </summary>
         private void RefreshBtn()
         {
-            if (pLCControl != null && pLCControl.IsConnected)
+            if (PLCControl != null && PLCControl.IsConnected)
             {
                 btn_WriteBitData.Enabled = true;
                 btn_WriteWordData.Enabled = true;
@@ -426,7 +428,7 @@ namespace PLCTest.View
                     }
                 }
                 ///放到最后，如果没有工作，就清空表格
-                if (!IsWorking||pLCControl == null || pLCControl.IsConnected == false)
+                if (!IsWorking||PLCControl == null || PLCControl.IsConnected == false)
                 {
                     DGV.Rows.Clear();
                 }
@@ -449,11 +451,11 @@ namespace PLCTest.View
             {
                 try
                 {
-                    if (pLCControl != null && pLCControl.IsConnected)
+                    if (PLCControl != null && PLCControl.IsConnected)
                     {
                         if (CurrentReadArea== MemoryArea.D)
                         {
-                            var readresult = pLCControl.ReadWordArray(PLCAddress.Word(CurrentReadArea, CurrentReadAddress, null, CurrentReadLength));
+                            var readresult = PLCControl.ReadWordArray(PLCAddress.Word(CurrentReadArea, CurrentReadAddress, null, CurrentReadLength));
                             if (readresult.IsSuccess)
                             {
                                 CurrentReadshort = readresult.Data;
@@ -461,7 +463,7 @@ namespace PLCTest.View
                         }
                         else
                         {
-                            var readresult = pLCControl.ReadBitArray(PLCAddress.Bit(CurrentReadArea, CurrentReadAddress, null, CurrentReadLength));
+                            var readresult = PLCControl.ReadBitArray(PLCAddress.Bit(CurrentReadArea, CurrentReadAddress, null, CurrentReadLength));
                             if (readresult.IsSuccess)
                             {
                                 CurrentReadBit = readresult.Data;
@@ -547,7 +549,7 @@ namespace PLCTest.View
                     //2.根据当前的值和列数，计算出要写入PLC的值
                     int bitPosition = 16 - columnindex; // 列1对应bit15，列16对应bit0  
                     short writeValue = (short)ConverterTool.SetBitToOne(CurrentValue, bitPosition);
-                    var res = pLCControl.WriteWord(PLCAddress.Word(CurrentReadArea, CurrentReadAddress + rowindex), writeValue);
+                    var res = PLCControl.WriteWord(PLCAddress.Word(CurrentReadArea, CurrentReadAddress + rowindex), writeValue);
                     if (!res.IsSuccess)
                     {
                         MessageBox.Show("Write Error ");
@@ -563,7 +565,7 @@ namespace PLCTest.View
                     {
                         return;
                     }
-                    var res = pLCControl.WriteBit(PLCAddress.Bit(CurrentReadArea, CurrentReadAddress + rowindex), CurrentValue==0);
+                    var res = PLCControl.WriteBit(PLCAddress.Bit(CurrentReadArea, CurrentReadAddress + rowindex), CurrentValue==0);
                     if (!res.IsSuccess)
                     {
                         MessageBox.Show("Write Error ");
@@ -616,6 +618,21 @@ namespace PLCTest.View
             _readCts = null;
             _readTask = null;
             base.OnFormClosing(e);
+        }
+        /// <summary>
+        /// 增加日志打印到文本框
+        /// </summary>
+        /// <param name="info"></param>
+        private void AddInfo(string info)
+        {
+            if (tb_Info.InvokeRequired)
+            {
+                tb_Info.Invoke(new Action<string>(AddInfo), info);
+            }
+            else
+            {
+                tb_Info.AppendText(info + "\r\n");
+            }
         }
     }
 }

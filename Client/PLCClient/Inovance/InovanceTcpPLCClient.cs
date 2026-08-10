@@ -45,7 +45,7 @@ namespace PLCTest.Client.PLCClient.Inovance
         /// 构造函数
         /// </summary>
         /// <param name="comm">通讯方式</param>
-        /// <param name="protocol">协议实现（可选），若为 null 则使用默认的 MelsecMc3EBinaryClientProtocol。</param>
+        /// <param name="protocol">协议实现（可选），若为 null 则使用默认的 MelsecMc3EBinaryClientProtocol</param>
         public InovanceTcpPLCClient(IClientCommunication comm, IPLCClientProtocol protocol = null)
         {
             _comm = comm ?? throw new ArgumentNullException(nameof(comm));
@@ -136,7 +136,9 @@ namespace PLCTest.Client.PLCClient.Inovance
             //2.拼接数据报文并构建完整报文
             byte[] BuildReadData = communicationProtocol.BuildReadData(address);
             byte[] BuildCompletePack = communicationProtocol.BuildCompletePack(BuildReadData);
+            ShowCommMessageEvent?.Invoke($"发送报文: {BitConverter.ToString(BuildCompletePack)}");
             byte[] mReByte = _comm.SendAndRecevieData(BuildCompletePack);
+            ShowCommMessageEvent?.Invoke($"接收报文: {BitConverter.ToString(mReByte)}");
             //3.数据校验与解析
             var res = communicationProtocol.ParseReadBitResponse(mReByte, 1);
             result.IsSuccess = res.IsSuccess;
@@ -162,7 +164,9 @@ namespace PLCTest.Client.PLCClient.Inovance
             //2.拼接数据报文并构建完整报文
             byte[] BuildReadData = communicationProtocol.BuildReadData(address);
             byte[] BuildCompletePack = communicationProtocol.BuildCompletePack(BuildReadData);
+            ShowCommMessageEvent?.Invoke($"发送报文: {BitConverter.ToString(BuildCompletePack)}");
             byte[] mReByte = _comm.SendAndRecevieData(BuildCompletePack);
+            ShowCommMessageEvent?.Invoke($"接收报文: {BitConverter.ToString(mReByte)}");
             //3.数据校验与解析
             result = communicationProtocol.ParseReadBitResponse(mReByte, address.Length);
 
@@ -188,7 +192,9 @@ namespace PLCTest.Client.PLCClient.Inovance
             //3.拼接数据报文并构建完整报文
             byte[] BuildWriteData = communicationProtocol.BuildWriteData(address, mData);
             byte[] BuildCompletePack = communicationProtocol.BuildCompletePack(BuildWriteData);
+            ShowCommMessageEvent?.Invoke($"发送报文: {BitConverter.ToString(BuildCompletePack)}");
             byte[] mReByte = _comm.SendAndRecevieData(BuildCompletePack);
+            ShowCommMessageEvent?.Invoke($"接收报文: {BitConverter.ToString(mReByte)}");
             //4.数据校验与解析
             result = communicationProtocol.ParseWriteResponse(mReByte);
 
@@ -220,7 +226,9 @@ namespace PLCTest.Client.PLCClient.Inovance
             //4.拼接数据报文并构建完整报文
             byte[] BuildWriteData = communicationProtocol.BuildWriteData(address, mData);
             byte[] BuildCompletePack = communicationProtocol.BuildCompletePack(BuildWriteData);
+            ShowCommMessageEvent?.Invoke($"发送报文: {BitConverter.ToString(BuildCompletePack)}");
             byte[] mReByte = _comm.SendAndRecevieData(BuildCompletePack);
+            ShowCommMessageEvent?.Invoke($"接收报文: {BitConverter.ToString(mReByte)}");
             //5.数据校验与解析
             result = communicationProtocol.ParseWriteResponse(mReByte);
             return result;
@@ -242,7 +250,9 @@ namespace PLCTest.Client.PLCClient.Inovance
             //2.拼接数据报文并构建完整报文
             byte[] BuildReadData = communicationProtocol.BuildReadData(address);
             byte[] BuildCompletePack = communicationProtocol.BuildCompletePack(BuildReadData);
+            ShowCommMessageEvent?.Invoke($"发送报文: {BitConverter.ToString(BuildCompletePack)}");
             byte[] mReByte = _comm.SendAndRecevieData(BuildCompletePack);
+            ShowCommMessageEvent?.Invoke($"接收报文: {BitConverter.ToString(mReByte)}");
             //3.数据校验与解析
             var res = communicationProtocol.ParseReadWordResponse(mReByte, 1);
             result.IsSuccess = res.IsSuccess;
@@ -267,7 +277,9 @@ namespace PLCTest.Client.PLCClient.Inovance
             //2.拼接数据报文并构建完整报文
             byte[] BuildReadData = communicationProtocol.BuildReadData(address);
             byte[] BuildCompletePack = communicationProtocol.BuildCompletePack(BuildReadData);
+            ShowCommMessageEvent?.Invoke($"发送报文: {BitConverter.ToString(BuildCompletePack)}");
             byte[] mReByte = _comm.SendAndRecevieData(BuildCompletePack);
+            ShowCommMessageEvent?.Invoke($"接收报文: {BitConverter.ToString(mReByte)}");
             //3.数据校验与解析
             result = communicationProtocol.ParseReadWordResponse(mReByte, address.Length);
             return result;
@@ -292,7 +304,9 @@ namespace PLCTest.Client.PLCClient.Inovance
             //3.拼接数据报文并构建完整报文
             byte[] BuildWriteData = communicationProtocol.BuildWriteData(address, mData);
             byte[] BuildCompletePack = communicationProtocol.BuildCompletePack(BuildWriteData);
+            ShowCommMessageEvent?.Invoke($"发送报文: {BitConverter.ToString(BuildCompletePack)}");
             byte[] mReByte = _comm.SendAndRecevieData(BuildCompletePack);
+            ShowCommMessageEvent?.Invoke($"接收报文: {BitConverter.ToString(mReByte)}");
             //4.数据校验与解析
             result = communicationProtocol.ParseWriteResponse(mReByte);
             return result;
@@ -323,7 +337,9 @@ namespace PLCTest.Client.PLCClient.Inovance
             //4.拼接数据报文并构建完整报文
             byte[] BuildWriteData = communicationProtocol.BuildWriteData(address, mData);
             byte[] BuildCompletePack = communicationProtocol.BuildCompletePack(BuildWriteData);
+            ShowCommMessageEvent?.Invoke($"发送报文: {BitConverter.ToString(BuildCompletePack)}");
             byte[] mReByte = _comm.SendAndRecevieData(BuildCompletePack);
+            ShowCommMessageEvent?.Invoke($"接收报文: {BitConverter.ToString(mReByte)}");
             //5.数据校验与解析
             result = communicationProtocol.ParseWriteResponse(mReByte);
             return result;
