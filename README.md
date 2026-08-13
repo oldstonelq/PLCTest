@@ -1,1 +1,4 @@
-三菱PLC客户端和服务端的模拟程序
+PLC客户端和服务端模拟器
+目前支持三菱以及汇川PLC
+已经实现MC1E以及3E协议
+已经实现汇川ModBusTCP以及ModBusRTU通讯
