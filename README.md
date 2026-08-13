@@ -4,7 +4,7 @@
 
 ## 软件架构
 
-![](E:\刘晴\个人项目\PLCClient\PLCClient\Document\md\项目架构总览.png)
+![](./Document/md/项目架构总览.png)
 
 ### 核心功能
 
