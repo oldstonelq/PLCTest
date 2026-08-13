@@ -9,6 +9,9 @@ using static PLCTest.Models.Enums;
 
 namespace PLCTest.Client.ClientProtocolManagement.Melsec
 {
+    /// <summary>
+    /// 三菱MC协议1E二进制协议实现类
+    /// </summary>
     public class MelsecMc1EBinaryClientProtocol : IPLCClientProtocol
     {
         /// <summary>

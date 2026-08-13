@@ -55,9 +55,13 @@
     <Compile Include="Client\ClientProtocolManagement\Melsec\MelsecMc3EAsciiClientProtocol.cs" />
     <Compile Include="Client\ClientProtocolManagement\Melsec\MelsecMc4EAsciiClientProtocol.cs" />
     <Compile Include="Client\ClientProtocolManagement\Melsec\MelsecMc4EBinaryClientProtocol.cs" />
+    <Compile Include="Client\ClientProtocolManagement\Omron\OmronFinsTcpClientProtocol.cs" />
     <Compile Include="Client\ClientProtocolManagement\Siemens\SiemensS71200ClientProtocol.cs" />
-    <Compile Include="Client\PLCClient\Inovance\InovanceTcpPLCClient.cs" />
+    <Compile Include="Client\ClientProtocolManagement\Template\TemplateClientProtocol.cs" />
+    <Compile Include="Client\PLCClient\Inovance\InovancePlcClient.cs" />
     <Compile Include="Client\PLCClientBuilder.cs" />
+    <Compile Include="Client\PLCClient\Omron\OmronPlcClient.cs" />
+    <Compile Include="Client\PLCClient\Template\TemplatePlcClient.cs" />
     <Compile Include="View\CustomControl\mGroupBox.cs">
       <SubType>Component</SubType>
     </Compile>
@@ -65,13 +69,13 @@
       <DependentUpon>mGroupBox.cs</DependentUpon>
     </Compile>
     <Compile Include="Models\PLCAddress.cs" />
-    <Compile Include="Client\PLCClient\Siemens\SiemensS7Client.cs" />
+    <Compile Include="Client\PLCClient\Siemens\SiemensPlcClient.cs" />
     <Compile Include="Sever\SeverInterface\IPLCServer.cs" />
     <Compile Include="Sever\SeverInterface\ISeverCommunication.cs" />
     <Compile Include="Client\PLCInterface\IPLCClientProtocol.cs" />
     <Compile Include="Sever\SeverInterface\ISeverProtocol.cs" />
     <Compile Include="Models\RequestInfo.cs" />
-    <Compile Include="Client\PLCClient\Melsec\MelsecMcPLCClient.cs" />
+    <Compile Include="Client\PLCClient\Melsec\MelsecPlcClient.cs" />
     <Compile Include="Client\PLCInterface\IClientCommunication.cs" />
     <Compile Include="Client\PLCInterface\IPLCClient.cs" />
     <Compile Include="Models\Enums .cs" />
@@ -137,9 +141,7 @@
   <ItemGroup>
     <None Include="App.config" />
   </ItemGroup>
-  <ItemGroup>
-    <Folder Include="Client\PLCClient\Omron\" />
-  </ItemGroup>
+  <ItemGroup />
   <ItemGroup>
     <Content Include="Document\Melsec\3E报文.png" />
     <Content Include="Document\Melsec\4E报文.png" />

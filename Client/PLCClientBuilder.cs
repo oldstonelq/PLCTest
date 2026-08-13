@@ -1,9 +1,11 @@
 ﻿using PLCTest.Client.ClientProtocolManagement.Inovance;
 using PLCTest.Client.ClientProtocolManagement.Melsec;
 using PLCTest.Client.PLCClient.Inovance;
+using PLCTest.Client.PLCClient.Omron;
 using PLCTest.ClientCommunication;
 using PLCTest.ClientProtocolManagement.Melsec;
 using PLCTest.PLCClient.Melsec;
+using PLCTest.PLCClient.Siemens;
 using PLCTest.PLCInterface;
 using System;
 using System.Collections.Generic;
@@ -140,17 +142,26 @@ namespace PLCTest.Models
         /// 构建汇川PLC客户端实例，使用指定的通讯方式和协议进行数据交换
         /// </summary>
         /// <returns></returns>
-        public IPLCClient BuildInovanceClient()
+        public IPLCClient BuildInovancePlcClient()
         {
-            return new InovanceTcpPLCClient(_communication, _protocol);
+            return new InovancePlcClient(_communication, _protocol);
         }
         /// <summary>
         /// 构建三菱PLC客户端实例，使用指定的通讯方式和协议进行数据交换
         /// </summary>
         /// <returns></returns>
-        public IPLCClient BuildMelsecMcPLCClient()
+        public IPLCClient BuildMelsecMcPlcClient()
         {
-            return new MelsecMcPLCClient(_communication, _protocol);
+            return new MelsecPlcClient(_communication, _protocol);
+        }
+
+        public IPLCClient BuildOmronPlcClient()
+        {
+            return new OmronPlcClient(_communication, _protocol);
+        }
+        public IPLCClient BuildSiemensPlcClient()
+        {
+            return new SiemensPlcClient(_communication, _protocol);
         }
         #endregion
     }

@@ -1,4 +1,4 @@
-﻿using PLCTest.ClientProtocolManagement.Siemens;
+﻿using PLCTest.Client.ClientProtocolManagement.Inovance;
 using PLCTest.Models;
 using PLCTest.PLCInterface;
 using System;
@@ -7,14 +7,13 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using static PLCTest.Models.Enums;
 
-namespace PLCTest.PLCClient.Siemens
+namespace PLCTest.Client.PLCClient.Template
 {
     /// <summary>
-    /// 西门子S7客户端
+    /// PLC客户端模板类，未实现的新协议可以复制粘贴使用并逐步实现
     /// </summary>
-    public class SiemensS7Client
+    public class TemplatePlcClient : IPLCClient
     {
         /// <summary>
         /// 通讯方式接口
@@ -23,7 +22,7 @@ namespace PLCTest.PLCClient.Siemens
         /// <summary>
         /// 通讯协议接口
         /// </summary>
-        private SiemensS71200ClientProtocol protocol;
+        protected IPLCClientProtocol communicationProtocol;
         /// <summary>
         /// 连接状态:
         /// </summary>
@@ -47,12 +46,14 @@ namespace PLCTest.PLCClient.Siemens
         /// <summary>
         /// 构造函数
         /// </summary>
-        /// <param name="comm"></param>
-        public SiemensS7Client(IClientCommunication comm)
+        /// <param name="comm">通讯方式</param>
+        /// <param name="protocol">协议实现（可选），若为 null 则使用默认的 InovanceModbusTcpClientProtocol</param>
+        public TemplatePlcClient(IClientCommunication comm, IPLCClientProtocol protocol = null)
         {
-            _comm = comm;
+            _comm = comm ?? throw new ArgumentNullException(nameof(comm));
+            // 使用构造注入替代硬编码，便于单元测试与替换协议实现
+            communicationProtocol = protocol;
         }
-
         #region 公有方法
         /// <summary>
         /// 连接方法
@@ -119,108 +120,89 @@ namespace PLCTest.PLCClient.Siemens
                 _comm = null;
             }
         }
-
-        #endregion
         /// <summary>
-        /// 读取位数据
+        /// 读取单个位数据。
         /// </summary>
-        /// <param name="area"></param>
-        /// <param name="address"></param>
-        /// <returns></returns>
-        /// <exception cref="NotImplementedException"></exception>
-        public Result<bool> ReadBit(MemoryArea area, int _db, int address)
+        /// <param name="address">统一地址模型</param>
+        /// <returns>读取结果。</returns>
+        public Result<bool> ReadBit(PLCAddress address)
         {
             throw new NotImplementedException();
         }
         /// <summary>
-        /// 读取位数组数据
+        /// 读取位数组数据。
         /// </summary>
-        /// <param name="area"></param>
-        /// <param name="address"></param>
-        /// <param name="size"></param>
-        /// <returns></returns>
-        /// <exception cref="NotImplementedException"></exception>
-        public Result<bool[]> ReadBitArray(MemoryArea area, int _db, int address, int size)
+        /// <param name="address">统一地址模型</param>
+        /// <returns>读取结果。</returns>
+        public Result<bool[]> ReadBitArray(PLCAddress address)
         {
             throw new NotImplementedException();
         }
         /// <summary>
-        /// 写入位数据
+        /// 写入单个位数据。
         /// </summary>
-        /// <param name="area"></param>
-        /// <param name="address"></param>
-        /// <param name="value"></param>
-        /// <returns></returns>
-        /// <exception cref="NotImplementedException"></exception>
-        public Result<bool> WriteBit(MemoryArea area, int _db, int address, bool value)
+        /// <param name="address">统一地址模型</param>
+        /// <param name="value">写入值</param>
+        /// <returns>写入结果。</returns>
+        public Result<bool> WriteBit(PLCAddress address, bool value)
         {
             throw new NotImplementedException();
         }
         /// <summary>
-        /// 写入位数组数据
+        /// 写入位数组数据。
         /// </summary>
-        /// <param name="area"></param>
-        /// <param name="address"></param>
-        /// <param name="values"></param>
-        /// <returns></returns>
-        /// <exception cref="NotImplementedException"></exception>
-        public Result<bool> WriteBitArray(MemoryArea area, int _db, int address, bool[] values)
+        /// <param name="address">统一地址模型</param>
+        /// <param name="values">位数据数组</param>
+        /// <returns>写入结果。</returns>
+        public Result<bool> WriteBitArray(PLCAddress address, bool[] values)
         {
             throw new NotImplementedException();
         }
         /// <summary>
-        /// 读取字数据
+        /// 读取单个字数据
         /// </summary>
-        /// <param name="area"></param>
-        /// <param name="address"></param>
-        /// <returns></returns>
-        /// <exception cref="NotImplementedException"></exception>
-        public Result<short> ReadWord(MemoryArea area, int _db, int address)
+        /// <param name="address">统一地址模型</param>
+        /// <returns>读取结果。</returns>
+        public Result<short> ReadWord(PLCAddress address)
         {
             throw new NotImplementedException();
         }
         /// <summary>
         /// 读取字数组数据
         /// </summary>
-        /// <param name="area"></param>
-        /// <param name="address"></param>
-        /// <param name="size"></param>
-        /// <returns></returns>
-        /// <exception cref="NotImplementedException"></exception>
-        public Result<short[]> ReadWordArray(MemoryArea area, int _db, int address, int size)
+        /// <param name="address">统一地址模型</param>
+        /// <returns>读取结果。</returns>
+        public Result<short[]> ReadWordArray(PLCAddress address)
         {
             throw new NotImplementedException();
         }
         /// <summary>
-        /// 写入字数据
+        /// 写入单个字数据。
         /// </summary>
-        /// <param name="area"></param>
-        /// <param name="address"></param>
-        /// <param name="value"></param>
-        /// <returns></returns>
-        /// <exception cref="NotImplementedException"></exception>
-        public Result<bool> WriteWord(MemoryArea area, int _db, int address, short value)
+        /// <param name="address">统一地址模型</param>
+        /// <param name="value">写入值</param>
+        /// <returns>写入结果。</returns>
+        public Result<bool> WriteWord(PLCAddress address, short value)
         {
             throw new NotImplementedException();
         }
         /// <summary>
         /// 写入字数组数据
         /// </summary>
-        /// <param name="area"></param>
-        /// <param name="address"></param>
-        /// <param name="values"></param>
-        /// <returns></returns>
-        /// <exception cref="NotImplementedException"></exception>
-        public Result<bool> WriteWordArray(MemoryArea area, int _db, int address, short[] values)
+        /// <param name="address">统一地址模型</param>
+        /// <param name="values">字数据数组</param>
+        /// <returns>写入结果。</returns>
+        public Result<bool> WriteWordArray(PLCAddress address, short[] values)
         {
             throw new NotImplementedException();
         }
+        #endregion
 
         #region 私有方法
         /// <summary>
-        /// 私有心跳循环方法，用于保持与PLC的连接状态
+        /// 心跳循环，用于在连接断开时自动重连
         /// </summary>
-        /// <param name="token"></param>
+        /// <param name="token">取消令牌</param>
         private async Task HeartBeatLoop(CancellationToken token)
         {
             try
@@ -256,8 +238,6 @@ namespace PLCTest.PLCClient.Siemens
                 // 取消时安全退出
             }
         }
-
-      
         #endregion
     }
 }

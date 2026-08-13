@@ -97,7 +97,7 @@ namespace PLCTest.View
              var builder = new PLCClientBuilder()
             .UseTcp(tb_PLCInformationIP.Text, port)
             .UseMelsecMc1EAscii();
-            pLCControl = builder.BuildMelsecMcPLCClient();
+            pLCControl = builder.BuildMelsecMcPlcClient();
             pLCControl.Connect();
             //var comm = new TcpClientCommunication(tb_PLCInformationIP.Text, port);
             //var protocol = new InovanceModbusRtuClientProtocol();

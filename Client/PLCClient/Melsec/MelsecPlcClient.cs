@@ -3,15 +3,20 @@ using PLCTest.Models;
 using PLCTest.PLCInterface;
 using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.Linq;
+using System.Security.Policy;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using static PLCTest.Models.Enums;
 
-namespace PLCTest.Client.PLCClient.Inovance
+namespace PLCTest.PLCClient.Melsec
 {
-    public class InovanceTcpPLCClient:IPLCClient
+    /// <summary>
+    /// 汇川PLC客户端类，使用汇川协议进行通讯
+    /// </summary>
+    public class MelsecPlcClient : IPLCClient
     {
         /// <summary>
         /// 通讯方式接口
@@ -24,7 +29,7 @@ namespace PLCTest.Client.PLCClient.Inovance
         /// <summary>
         /// 连接状态:
         /// </summary>
-        public bool IsConnected => _comm == null ? false : _comm.IsConnected;
+        public bool IsConnected => _comm==null ?false: _comm.IsConnected;
         /// <summary>
         /// 取消令牌
         /// </summary>
@@ -45,8 +50,8 @@ namespace PLCTest.Client.PLCClient.Inovance
         /// 构造函数
         /// </summary>
         /// <param name="comm">通讯方式</param>
-        /// <param name="protocol">协议实现（可选），若为 null 则使用默认的 MelsecMc3EBinaryClientProtocol</param>
-        public InovanceTcpPLCClient(IClientCommunication comm, IPLCClientProtocol protocol = null)
+        /// <param name="protocol">协议实现（可选），若为 null 则使用默认的 MelsecMc3EBinaryClientProtocol。</param>
+        public MelsecPlcClient(IClientCommunication comm, IPLCClientProtocol protocol = null)
         {
             _comm = comm ?? throw new ArgumentNullException(nameof(comm));
             // 使用构造注入替代硬编码，便于单元测试与替换协议实现
@@ -251,10 +256,12 @@ namespace PLCTest.Client.PLCClient.Inovance
             byte[] BuildReadData = communicationProtocol.BuildReadData(address);
             byte[] BuildCompletePack = communicationProtocol.BuildCompletePack(BuildReadData);
             ShowCommMessageEvent?.Invoke($"发送报文: {BitConverter.ToString(BuildCompletePack)}");
+
             byte[] mReByte = _comm.SendAndRecevieData(BuildCompletePack);
             ShowCommMessageEvent?.Invoke($"接收报文: {BitConverter.ToString(mReByte)}");
             //3.数据校验与解析
             var res = communicationProtocol.ParseReadWordResponse(mReByte, 1);
+
             result.IsSuccess = res.IsSuccess;
             result.ErrorMsg = res.ErrorMsg;
             result.Data = res.Data != null && res.Data.Length > 0 ? res.Data[0] : (short)0;
@@ -370,10 +377,10 @@ namespace PLCTest.Client.PLCClient.Inovance
                             //未连接，尝试重新连接
                             for (int i = 0; i < 3 && !IsConnected && !token.IsCancellationRequested; i++)
                             {
-                                _comm.ConnectServer();
+                               _comm.ConnectServer();
                             }
                         }
-                        await Task.Delay(1000).ConfigureAwait(false);
+                        await Task.Delay(1000).ConfigureAwait (false);
                     }
                     catch (Exception)
                     {

@@ -10,7 +10,7 @@ using static PLCTest.Models.Enums;
 namespace PLCTest.ClientProtocolManagement.Melsec
 {
     /// <summary>
-    /// 三菱MC3EAscii通讯协议
+    /// 三菱MC4EAscii通讯协议
     /// </summary>
     public class MelsecMc4EAsciiClientProtocol : IPLCClientProtocol
     {
