@@ -117,6 +117,22 @@ namespace PLCTest.Models
             _protocol = protocol;
             return this;
         }
+        public PLCClientBuilder UseMelsecMc4EAscii()
+        {
+            var protocol = new MelsecMc4EAsciiClientProtocol();
+            _protocol = protocol;
+            return this;
+        }
+        /// <summary>
+        /// 三菱PLC通讯协议，使用MC协议的3E Binary模式进行数据交换
+        /// </summary>
+        /// <returns></returns>
+        public PLCClientBuilder UseMelsecMc4EBinary()
+        {
+            var protocol = new MelsecMc4EBinaryClientProtocol();
+            _protocol = protocol;
+            return this;
+        }
         #endregion
 
         #region 构建客户端

@@ -33,13 +33,6 @@ namespace PLCTest.View
             this.components = new System.ComponentModel.Container();
             this.tableLayoutPanel1 = new System.Windows.Forms.TableLayoutPanel();
             this.timer1 = new System.Windows.Forms.Timer(this.components);
-            this.gb_PLCInformation = new CustomControl.mGroupBox(this.components);
-            this.btn_Disconnect = new System.Windows.Forms.Button();
-            this.btn_Connect = new System.Windows.Forms.Button();
-            this.tb_PLCInformationPort = new System.Windows.Forms.TextBox();
-            this.tb_PLCInformationIP = new System.Windows.Forms.TextBox();
-            this.lab_PLCInformationPort = new System.Windows.Forms.Label();
-            this.lab_PLCInformationIP = new System.Windows.Forms.Label();
             this.gb_ServiceInformation = new CustomControl.mGroupBox(this.components);
             this.btn_CloseServer = new System.Windows.Forms.Button();
             this.btn_OpenServer = new System.Windows.Forms.Button();
@@ -52,6 +45,13 @@ namespace PLCTest.View
             this.gb_ServiceInformationFunction = new CustomControl.mGroupBox(this.components);
             this.btn_Trigger = new System.Windows.Forms.Button();
             this.btn_ServiceInformationMemoryView = new System.Windows.Forms.Button();
+            this.gb_PLCInformation = new CustomControl.mGroupBox(this.components);
+            this.btn_Disconnect = new System.Windows.Forms.Button();
+            this.btn_Connect = new System.Windows.Forms.Button();
+            this.tb_PLCInformationPort = new System.Windows.Forms.TextBox();
+            this.tb_PLCInformationIP = new System.Windows.Forms.TextBox();
+            this.lab_PLCInformationPort = new System.Windows.Forms.Label();
+            this.lab_PLCInformationIP = new System.Windows.Forms.Label();
             this.gb_ConnectionStatus = new CustomControl.mGroupBox(this.components);
             this.label12 = new System.Windows.Forms.Label();
             this.label11 = new System.Windows.Forms.Label();
@@ -71,9 +71,9 @@ namespace PLCTest.View
             this.gb_PLCInformationFunction = new CustomControl.mGroupBox(this.components);
             this.btn_PLCInformationMemoryView = new System.Windows.Forms.Button();
             this.tableLayoutPanel1.SuspendLayout();
-            this.gb_PLCInformation.SuspendLayout();
             this.gb_ServiceInformation.SuspendLayout();
             this.gb_ServiceInformationFunction.SuspendLayout();
+            this.gb_PLCInformation.SuspendLayout();
             this.gb_ConnectionStatus.SuspendLayout();
             this.gb_ConnectStatus.SuspendLayout();
             this.gb_PLCInformationFunction.SuspendLayout();
@@ -85,7 +85,7 @@ namespace PLCTest.View
             this.tableLayoutPanel1.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 67.39659F));
             this.tableLayoutPanel1.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 32.6034F));
             this.tableLayoutPanel1.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 112F));
-            this.tableLayoutPanel1.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 105F));
+            this.tableLayoutPanel1.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 108F));
             this.tableLayoutPanel1.Controls.Add(this.gb_ServiceInformation, 0, 0);
             this.tableLayoutPanel1.Controls.Add(this.gb_ServiceInformationFunction, 1, 0);
             this.tableLayoutPanel1.Controls.Add(this.gb_PLCInformation, 2, 0);
@@ -107,78 +107,6 @@ namespace PLCTest.View
             this.timer1.Interval = 1000;
             this.timer1.Tick += new System.EventHandler(this.timer1_Tick);
             // 
-            // gb_PLCInformation
-            // 
-            this.gb_PLCInformation.BorderColor = System.Drawing.Color.Black;
-            this.tableLayoutPanel1.SetColumnSpan(this.gb_PLCInformation, 2);
-            this.gb_PLCInformation.Controls.Add(this.btn_Disconnect);
-            this.gb_PLCInformation.Controls.Add(this.btn_Connect);
-            this.gb_PLCInformation.Controls.Add(this.tb_PLCInformationPort);
-            this.gb_PLCInformation.Controls.Add(this.tb_PLCInformationIP);
-            this.gb_PLCInformation.Controls.Add(this.lab_PLCInformationPort);
-            this.gb_PLCInformation.Controls.Add(this.lab_PLCInformationIP);
-            this.gb_PLCInformation.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.gb_PLCInformation.Location = new System.Drawing.Point(419, 3);
-            this.gb_PLCInformation.Name = "gb_PLCInformation";
-            this.gb_PLCInformation.Size = new System.Drawing.Size(212, 99);
-            this.gb_PLCInformation.TabIndex = 2;
-            this.gb_PLCInformation.TabStop = false;
-            this.gb_PLCInformation.Text = "PLC Information";
-            // 
-            // btn_Disconnect
-            // 
-            this.btn_Disconnect.Location = new System.Drawing.Point(119, 59);
-            this.btn_Disconnect.Name = "btn_Disconnect";
-            this.btn_Disconnect.Size = new System.Drawing.Size(89, 33);
-            this.btn_Disconnect.TabIndex = 8;
-            this.btn_Disconnect.Text = "Disconnect";
-            this.btn_Disconnect.UseVisualStyleBackColor = true;
-            this.btn_Disconnect.Click += new System.EventHandler(this.btn_Disconnect_Click);
-            // 
-            // btn_Connect
-            // 
-            this.btn_Connect.Location = new System.Drawing.Point(6, 60);
-            this.btn_Connect.Name = "btn_Connect";
-            this.btn_Connect.Size = new System.Drawing.Size(107, 33);
-            this.btn_Connect.TabIndex = 7;
-            this.btn_Connect.Text = "Connect";
-            this.btn_Connect.UseVisualStyleBackColor = true;
-            this.btn_Connect.Click += new System.EventHandler(this.btn_Connect_Click);
-            // 
-            // tb_PLCInformationPort
-            // 
-            this.tb_PLCInformationPort.Location = new System.Drawing.Point(127, 32);
-            this.tb_PLCInformationPort.Name = "tb_PLCInformationPort";
-            this.tb_PLCInformationPort.Size = new System.Drawing.Size(62, 21);
-            this.tb_PLCInformationPort.TabIndex = 5;
-            this.tb_PLCInformationPort.Text = "8192";
-            // 
-            // tb_PLCInformationIP
-            // 
-            this.tb_PLCInformationIP.Location = new System.Drawing.Point(6, 32);
-            this.tb_PLCInformationIP.Name = "tb_PLCInformationIP";
-            this.tb_PLCInformationIP.Size = new System.Drawing.Size(100, 21);
-            this.tb_PLCInformationIP.TabIndex = 4;
-            this.tb_PLCInformationIP.Text = "127.0.0.1";
-            // 
-            // lab_PLCInformationPort
-            // 
-            this.lab_PLCInformationPort.AutoSize = true;
-            this.lab_PLCInformationPort.Location = new System.Drawing.Point(125, 16);
-            this.lab_PLCInformationPort.Name = "lab_PLCInformationPort";
-            this.lab_PLCInformationPort.Size = new System.Drawing.Size(29, 12);
-            this.lab_PLCInformationPort.TabIndex = 2;
-            this.lab_PLCInformationPort.Text = "Port";
-            // 
-            // lab_PLCInformationIP
-            // 
-            this.lab_PLCInformationIP.AutoSize = true;
-            this.lab_PLCInformationIP.Location = new System.Drawing.Point(15, 16);
-            this.lab_PLCInformationIP.Name = "lab_PLCInformationIP";
-            this.lab_PLCInformationIP.Size = new System.Drawing.Size(17, 12);
-            this.lab_PLCInformationIP.TabIndex = 1;
-            this.lab_PLCInformationIP.Text = "IP";
-            // 
             // gb_ServiceInformation
             // 
             this.gb_ServiceInformation.BorderColor = System.Drawing.Color.Black;
@@ -193,7 +121,7 @@ namespace PLCTest.View
             this.gb_ServiceInformation.Dock = System.Windows.Forms.DockStyle.Fill;
             this.gb_ServiceInformation.Location = new System.Drawing.Point(3, 3);
             this.gb_ServiceInformation.Name = "gb_ServiceInformation";
-            this.gb_ServiceInformation.Size = new System.Drawing.Size(275, 99);
+            this.gb_ServiceInformation.Size = new System.Drawing.Size(273, 99);
             this.gb_ServiceInformation.TabIndex = 0;
             this.gb_ServiceInformation.TabStop = false;
             this.gb_ServiceInformation.Text = "Service Information";
@@ -283,9 +211,9 @@ namespace PLCTest.View
             this.gb_ServiceInformationFunction.Controls.Add(this.btn_Trigger);
             this.gb_ServiceInformationFunction.Controls.Add(this.btn_ServiceInformationMemoryView);
             this.gb_ServiceInformationFunction.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.gb_ServiceInformationFunction.Location = new System.Drawing.Point(284, 3);
+            this.gb_ServiceInformationFunction.Location = new System.Drawing.Point(282, 3);
             this.gb_ServiceInformationFunction.Name = "gb_ServiceInformationFunction";
-            this.gb_ServiceInformationFunction.Size = new System.Drawing.Size(129, 99);
+            this.gb_ServiceInformationFunction.Size = new System.Drawing.Size(128, 99);
             this.gb_ServiceInformationFunction.TabIndex = 1;
             this.gb_ServiceInformationFunction.TabStop = false;
             this.gb_ServiceInformationFunction.Text = "Function";
@@ -309,6 +237,78 @@ namespace PLCTest.View
             this.btn_ServiceInformationMemoryView.UseVisualStyleBackColor = true;
             this.btn_ServiceInformationMemoryView.Click += new System.EventHandler(this.btn_ServiceInformationMemoryView_Click);
             // 
+            // gb_PLCInformation
+            // 
+            this.gb_PLCInformation.BorderColor = System.Drawing.Color.Black;
+            this.tableLayoutPanel1.SetColumnSpan(this.gb_PLCInformation, 2);
+            this.gb_PLCInformation.Controls.Add(this.btn_Disconnect);
+            this.gb_PLCInformation.Controls.Add(this.btn_Connect);
+            this.gb_PLCInformation.Controls.Add(this.tb_PLCInformationPort);
+            this.gb_PLCInformation.Controls.Add(this.tb_PLCInformationIP);
+            this.gb_PLCInformation.Controls.Add(this.lab_PLCInformationPort);
+            this.gb_PLCInformation.Controls.Add(this.lab_PLCInformationIP);
+            this.gb_PLCInformation.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.gb_PLCInformation.Location = new System.Drawing.Point(416, 3);
+            this.gb_PLCInformation.Name = "gb_PLCInformation";
+            this.gb_PLCInformation.Size = new System.Drawing.Size(215, 99);
+            this.gb_PLCInformation.TabIndex = 2;
+            this.gb_PLCInformation.TabStop = false;
+            this.gb_PLCInformation.Text = "PLC Information";
+            // 
+            // btn_Disconnect
+            // 
+            this.btn_Disconnect.Location = new System.Drawing.Point(119, 59);
+            this.btn_Disconnect.Name = "btn_Disconnect";
+            this.btn_Disconnect.Size = new System.Drawing.Size(89, 33);
+            this.btn_Disconnect.TabIndex = 8;
+            this.btn_Disconnect.Text = "Disconnect";
+            this.btn_Disconnect.UseVisualStyleBackColor = true;
+            this.btn_Disconnect.Click += new System.EventHandler(this.btn_Disconnect_Click);
+            // 
+            // btn_Connect
+            // 
+            this.btn_Connect.Location = new System.Drawing.Point(6, 60);
+            this.btn_Connect.Name = "btn_Connect";
+            this.btn_Connect.Size = new System.Drawing.Size(107, 33);
+            this.btn_Connect.TabIndex = 7;
+            this.btn_Connect.Text = "Connect";
+            this.btn_Connect.UseVisualStyleBackColor = true;
+            this.btn_Connect.Click += new System.EventHandler(this.btn_Connect_Click);
+            // 
+            // tb_PLCInformationPort
+            // 
+            this.tb_PLCInformationPort.Location = new System.Drawing.Point(127, 32);
+            this.tb_PLCInformationPort.Name = "tb_PLCInformationPort";
+            this.tb_PLCInformationPort.Size = new System.Drawing.Size(62, 21);
+            this.tb_PLCInformationPort.TabIndex = 5;
+            this.tb_PLCInformationPort.Text = "8192";
+            // 
+            // tb_PLCInformationIP
+            // 
+            this.tb_PLCInformationIP.Location = new System.Drawing.Point(6, 32);
+            this.tb_PLCInformationIP.Name = "tb_PLCInformationIP";
+            this.tb_PLCInformationIP.Size = new System.Drawing.Size(100, 21);
+            this.tb_PLCInformationIP.TabIndex = 4;
+            this.tb_PLCInformationIP.Text = "127.0.0.1";
+            // 
+            // lab_PLCInformationPort
+            // 
+            this.lab_PLCInformationPort.AutoSize = true;
+            this.lab_PLCInformationPort.Location = new System.Drawing.Point(125, 16);
+            this.lab_PLCInformationPort.Name = "lab_PLCInformationPort";
+            this.lab_PLCInformationPort.Size = new System.Drawing.Size(29, 12);
+            this.lab_PLCInformationPort.TabIndex = 2;
+            this.lab_PLCInformationPort.Text = "Port";
+            // 
+            // lab_PLCInformationIP
+            // 
+            this.lab_PLCInformationIP.AutoSize = true;
+            this.lab_PLCInformationIP.Location = new System.Drawing.Point(15, 16);
+            this.lab_PLCInformationIP.Name = "lab_PLCInformationIP";
+            this.lab_PLCInformationIP.Size = new System.Drawing.Size(17, 12);
+            this.lab_PLCInformationIP.TabIndex = 1;
+            this.lab_PLCInformationIP.Text = "IP";
+            // 
             // gb_ConnectionStatus
             // 
             this.gb_ConnectionStatus.BorderColor = System.Drawing.Color.Black;
@@ -328,7 +328,7 @@ namespace PLCTest.View
             this.gb_ConnectionStatus.Dock = System.Windows.Forms.DockStyle.Fill;
             this.gb_ConnectionStatus.Location = new System.Drawing.Point(3, 108);
             this.gb_ConnectionStatus.Name = "gb_ConnectionStatus";
-            this.gb_ConnectionStatus.Size = new System.Drawing.Size(410, 100);
+            this.gb_ConnectionStatus.Size = new System.Drawing.Size(407, 100);
             this.gb_ConnectionStatus.TabIndex = 3;
             this.gb_ConnectionStatus.TabStop = false;
             this.gb_ConnectionStatus.Text = "Connection Status";
@@ -453,7 +453,7 @@ namespace PLCTest.View
             this.gb_ConnectStatus.Controls.Add(this.lab_ConnectPort);
             this.gb_ConnectStatus.Controls.Add(this.lab_ConnectStatus);
             this.gb_ConnectStatus.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.gb_ConnectStatus.Location = new System.Drawing.Point(419, 108);
+            this.gb_ConnectStatus.Location = new System.Drawing.Point(416, 108);
             this.gb_ConnectStatus.Name = "gb_ConnectStatus";
             this.gb_ConnectStatus.Size = new System.Drawing.Size(106, 100);
             this.gb_ConnectStatus.TabIndex = 4;
@@ -483,9 +483,9 @@ namespace PLCTest.View
             this.gb_PLCInformationFunction.BorderColor = System.Drawing.Color.Black;
             this.gb_PLCInformationFunction.Controls.Add(this.btn_PLCInformationMemoryView);
             this.gb_PLCInformationFunction.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.gb_PLCInformationFunction.Location = new System.Drawing.Point(531, 108);
+            this.gb_PLCInformationFunction.Location = new System.Drawing.Point(528, 108);
             this.gb_PLCInformationFunction.Name = "gb_PLCInformationFunction";
-            this.gb_PLCInformationFunction.Size = new System.Drawing.Size(100, 100);
+            this.gb_PLCInformationFunction.Size = new System.Drawing.Size(103, 100);
             this.gb_PLCInformationFunction.TabIndex = 5;
             this.gb_PLCInformationFunction.TabStop = false;
             this.gb_PLCInformationFunction.Text = "Function";
@@ -513,11 +513,11 @@ namespace PLCTest.View
             this.Text = "Form1";
             this.Load += new System.EventHandler(this.aMainForm_Load);
             this.tableLayoutPanel1.ResumeLayout(false);
-            this.gb_PLCInformation.ResumeLayout(false);
-            this.gb_PLCInformation.PerformLayout();
             this.gb_ServiceInformation.ResumeLayout(false);
             this.gb_ServiceInformation.PerformLayout();
             this.gb_ServiceInformationFunction.ResumeLayout(false);
+            this.gb_PLCInformation.ResumeLayout(false);
+            this.gb_PLCInformation.PerformLayout();
             this.gb_ConnectionStatus.ResumeLayout(false);
             this.gb_ConnectionStatus.PerformLayout();
             this.gb_ConnectStatus.ResumeLayout(false);

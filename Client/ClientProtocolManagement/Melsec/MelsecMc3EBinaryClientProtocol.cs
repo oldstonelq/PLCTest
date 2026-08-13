@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
+using System.Runtime.Remoting.Messaging;
 using System.Security.Policy;
 using System.Text;
 using System.Threading.Tasks;
@@ -23,16 +24,64 @@ namespace PLCTest.ClientProtocolManagement.Melsec
         /// <returns>寄存器地址的真实编码</returns>
         public int GetMemoryCode(MemoryArea MemoryArea)
         {
-            switch (MemoryArea)
+            switch (MemoryArea)    //软元件                    类型     编号范围   进制 
             {
-                case MemoryArea.X:
+                case MemoryArea.SM://特殊继电器               位数据   000000~001023  10进制
+                    return 0x91;
+                case MemoryArea.SD://特殊寄存器               字数据   000000~001023  10进制
+                    return 0xA9;
+                case MemoryArea.X://输入                      位数据   000000~0007FF  16进制
                     return 0x9C;
-                case MemoryArea.Y:
+                case MemoryArea.Y://输出                      位数据   000000~0007FF  16进制
                     return 0x9D;
-                case MemoryArea.M:
+                case MemoryArea.M://内部继电器*2              位数据   000000~008191  10进制
                     return 0x90;
-                case MemoryArea.D:
+                case MemoryArea.L://锁存继电器*2              位数据   000000~002027  10进制
+                    return 0x92;
+                case MemoryArea.F://报警器                    位数据   000000~001023  10进制
+                    return 0x93;
+                case MemoryArea.V://变址继电器                位数据   000000~001023  10进制
+                    return 0x94;
+                case MemoryArea.B://链接继电器                位数据   000000~0007FF  16进制
+                    return 0xA0;
+                case MemoryArea.D://数据寄存器                字数据   000000~011135  10进制
                     return 0xA8;
+                case MemoryArea.W://链接寄存器                字数据   000000~0007FF  16进制
+                    return 0xB4;
+                case MemoryArea.TS://定时器*3 -触点           位数据   000000~000511  10进制
+                    return 0XC1;
+                case MemoryArea.TC://定时器*3 -线圈           位数据   000000~000511  10进制
+                    return 0xC0;
+                case MemoryArea.TN://定时器*3 -当前值         字数据   000000~000511  10进制
+                    return 0xC2;
+                case MemoryArea.SS://累计定时器*3 -触点       位数据   000000~000511  10进制
+                    return 0xC7;
+                case MemoryArea.SC://累计定时器*3 -线圈       位数据   000000~000511  10进制
+                    return 0xC6;
+                case MemoryArea.SN://累计定时器*3 -当前值     字数据   000000~000511  10进制
+                    return 0xC8;
+                case MemoryArea.CS://计数器*3 -触点           位数据   000000~000511  10进制
+                    return 0xC4;
+                case MemoryArea.CC://计数器*3 -线圈           位数据   000000~000511  10进制
+                    return 0xC3;
+                case MemoryArea.CN://计数器*3 -当前值         字数据   000000~000511  10进制
+                    return 0xC5;
+                case MemoryArea.SB://链接特殊继电器           位数据   000000~0003FF  16进制
+                    return 0xA1;
+                case MemoryArea.SW://链接特殊寄存器           字数据   000000~0003FF  16进制
+                    return 0xB5;
+                case MemoryArea.S://步进继电器*2              位数据   000000~002027  10进制
+                    return 0x98;
+                case MemoryArea.DX://直接输入                 位数据   000000~0007FF  16进制
+                    return 0xA2;
+                case MemoryArea.DY://直接输出                 位数据   000000~0007FF  16进制
+                    return 0xA3;
+                case MemoryArea.Z://变址寄存器                字数据   000000~000009  10进制
+                    return 0xCC;
+                case MemoryArea.R://文件寄存器*4              字数据   000000~032767  16进制
+                    return 0xAF;
+                case MemoryArea.ZR://文件寄存器*6             字数据   000000~00FFFF  16进制
+                    return 0xB0;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(MemoryArea), "无效寄存器类型");
             }
@@ -229,7 +278,7 @@ namespace PLCTest.ClientProtocolManagement.Melsec
             // 解析返回数据：每字节存 2 个位（高4位=偶数位，低4位=奇数位）
             bool[] RealData = new bool[size];
             int byteCount = (size + 1) / 2;
-            int dataOffset = 11;
+            int dataOffset = 11;//数据起始位置
             for (int bIdx = 0; bIdx < byteCount && dataOffset + bIdx < _data.Length; bIdx++)
             {
                 byte val = _data[dataOffset + bIdx];
@@ -271,7 +320,7 @@ namespace PLCTest.ClientProtocolManagement.Melsec
             }
 
             // 解析返回数据：每字 2 字节（小端）
-            int dataOffset = 11;
+            int dataOffset = 11;//数据起始位置
             int dataLen = _data.Length - dataOffset;
             int expectedLen = size * 2;
             if (dataLen < expectedLen)
@@ -292,11 +341,6 @@ namespace PLCTest.ClientProtocolManagement.Melsec
         /// <summary>
         /// 校验 3E 响应副标题（0xD0 0x00）
         /// </summary>
-        /// <summary>
-        /// 校验响应副标题是否为三菱 3E 二进制响应头。
-        /// </summary>
-        /// <param name="data">响应报文。</param>
-        /// <returns>是否匹配。</returns>
         private static bool CheckResponseHeader(byte[] data)
         {
             return data[0] == 0xD0 && data[1] == 0x00;

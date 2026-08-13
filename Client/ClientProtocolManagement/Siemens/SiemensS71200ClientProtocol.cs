@@ -35,7 +35,7 @@ namespace PLCTest.ClientProtocolManagement.Siemens
                 case MemoryArea.X: return 0x81;
                 case MemoryArea.Y: return 0x82;
                 case MemoryArea.M: return 0x83;
-                case MemoryArea.DB: return 0x84;
+                //case MemoryArea.DB: return 0x84;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(area), "无效的存储区类型");
             }

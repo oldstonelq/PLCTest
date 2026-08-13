@@ -20,16 +20,26 @@ namespace PLCTest.Client.ClientProtocolManagement.Melsec
         {
             switch (MemoryArea)
             {
-                case MemoryArea.X: 
-                    return 0x5820;   // X 输入位
-                case MemoryArea.Y:
-                    return 0x5920;   // Y 输出位
-                case MemoryArea.M:
-                    return 0x4D20;   // M 中间继电器
-                case MemoryArea.D: 
-                    return 0x4420;   // D 数据寄存器(字)
+                case MemoryArea.D:
+                    return 0x4420;   //数据寄存器
                 case MemoryArea.R:
-                    return 0x5220;   // R 数据寄存器(字)
+                    return 0x5220;   //扩展寄存器
+                case MemoryArea.TN:
+                    return 0x544E;   //定时器-当前值 
+                case MemoryArea.TS:
+                    return 0x5453;   //定时器-触点
+                case MemoryArea.CN:
+                    return 0x434E;   //计数器-当前值
+                case MemoryArea.CS:
+                    return 0x4353;   //计数器-触点
+                case MemoryArea.X:
+                    return 0x5820;   //输入
+                case MemoryArea.Y:
+                    return 0x5920;   //输出
+                case MemoryArea.M:
+                    return 0x4D20;   //辅助继电器
+                case MemoryArea.S:
+                    return 0x5320;   //状态
                 default:
                     throw new ArgumentOutOfRangeException(nameof(MemoryArea), "无效寄存器类型");
             }

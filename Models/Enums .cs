@@ -16,16 +16,34 @@ namespace PLCTest.Models
         /// </summary>
         public enum MemoryArea
         {
+            SM,
+            SD,
             X,
             Y,
             M,
+            L,
+            F,
+            V,
+            B,
             D,
-            DB,
-            R,
+            W,
+            TS,
+            TC,
+            TN,
+            SS,
+            SC,
+            SN,
+            CS,
+            CC,
+            CN,
+            SB,
+            SW,
             S,
-            T,
-            C,
-            W
+            DX,
+            DY,
+            Z,
+            R,
+            ZR,
         }
         /// <summary>
         /// PLC类型枚举
