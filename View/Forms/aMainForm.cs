@@ -2,8 +2,7 @@
 using PLCTest.Client.PLCClient.Inovance;
 using PLCTest.ClientCommunication;
 using PLCTest.Models;
-using PLCTest.PLCClient;
-using PLCTest.PLCClient.Melsec;
+using PLCTest.Client.PLCClient.Melsec;
 using PLCTest.PLCInterface;
 using PLCTest.PLCSever;
 using PLCTest.PLCSever.Melsec;

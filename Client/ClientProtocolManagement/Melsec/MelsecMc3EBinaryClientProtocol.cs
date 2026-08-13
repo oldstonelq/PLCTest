@@ -10,7 +10,7 @@ using System.Text;
 using System.Threading.Tasks;
 using static PLCTest.Models.Enums;
 
-namespace PLCTest.ClientProtocolManagement.Melsec
+namespace PLCTest.Client.ClientProtocolManagement.Melsec
 {
     /// <summary>
     /// 三菱3E二进制通讯协议

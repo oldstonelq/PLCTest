@@ -8,8 +8,7 @@ namespace PLCTest.SeverCommunication
 {
     /// <summary>
     /// 串口“服务端”通信实现（对 ISeverCommunication 的适配）
-    /// 注意：由于 ISeverCommunication 使用 Socket 表示客户端，串口场景下会使用 null 作为客户端标识，
-    /// SendToClient 方法会忽略传入的 Socket 并直接向串口写数据。
+    /// 注意：串口无客户端概念，client 标识恒为 null，SendToClient 会忽略 client 参数并直接向串口写数据。
     /// </summary>
     public class SerialSeverCommunication : ISeverCommunication
     {
@@ -30,9 +29,9 @@ namespace PLCTest.SeverCommunication
         /// </summary>
         public int ClientCount => IsRunning ? 1 : 0;
         /// <summary>
-        /// 接收数据委托
+        /// 接收数据委托（串口无客户端概念，client 恒为 null）
         /// </summary>
-        public event Action<byte[]> OnDataReceived;
+        public event Action<byte[], object> OnDataReceived;
         /// <summary>
         /// 构造函数
         /// </summary>
@@ -77,9 +76,9 @@ namespace PLCTest.SeverCommunication
         }
 
         /// <summary>
-        /// 向串口发送数据
+        /// 向串口发送数据（串口无客户端概念，忽略 client 参数）
         /// </summary>
-        public void SendToClient(byte[] data)
+        public void SendToClient(byte[] data, object client)
         {
             if (data == null || data.Length == 0) return;
             if (!IsRunning) return;
@@ -107,7 +106,7 @@ namespace PLCTest.SeverCommunication
                 int read = serialPort.Read(buffer, 0, bytesToRead);
                 if (read > 0)
                 {
-                    ThreadPool.QueueUserWorkItem(_ => OnDataReceived?.Invoke(buffer));
+                    ThreadPool.QueueUserWorkItem(_ => OnDataReceived?.Invoke(buffer, null));
                 }
             }
             catch { }

@@ -1,17 +1,12 @@
-﻿using PLCTest.ClientProtocolManagement.Melsec;
+﻿using PLCTest.Client.ClientProtocolManagement.Melsec;
 using PLCTest.Models;
 using PLCTest.PLCInterface;
 using System;
-using System.Collections.Generic;
-using System.Drawing;
-using System.Linq;
-using System.Security.Policy;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using static PLCTest.Models.Enums;
 
-namespace PLCTest.PLCClient.Melsec
+namespace PLCTest.Client.PLCClient.Melsec
 {
     /// <summary>
     /// 汇川PLC客户端类，使用汇川协议进行通讯

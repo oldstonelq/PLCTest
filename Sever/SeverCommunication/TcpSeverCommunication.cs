@@ -64,14 +64,9 @@ namespace PLCTest.SeverCommunication
         }
 
         /// <summary>
-        /// 当前正在处理的客户端Socket
+        /// 客户端数据到达事件（附带客户端 Socket）
         /// </summary>
-        private Socket _currentClient;
-
-        /// <summary>
-        /// 客户端数据到达事件
-        /// </summary>
-        public event Action<byte[]> OnDataReceived;
+        public event Action<byte[], object> OnDataReceived;
 
         /// <summary>
         /// 构造函数
@@ -275,24 +270,24 @@ namespace PLCTest.SeverCommunication
                         }
                         byte[] receivedData = new byte[len];
                         Array.Copy(byt, 0, receivedData, 0, len);
-                        _currentClient = rcvSocket;
-                        OnDataReceived?.Invoke(receivedData);
+                        OnDataReceived?.Invoke(receivedData, rcvSocket);
                     }
                 }
             });
         }
         /// <summary>
-        /// 向当前客户端发送数据
+        /// 向指定客户端发送数据
         /// </summary>
         /// <param name="data">要发送的字节数据</param>
-        public void SendToClient(byte[] data)
+        /// <param name="client">目标客户端 Socket</param>
+        public void SendToClient(byte[] data, object client)
         {
-            var client = _currentClient;
-            if (client == null || data == null || data.Length == 0) return;
-            if (!client.Connected) return;
+            var socket = client as Socket;
+            if (socket == null || data == null || data.Length == 0) return;
+            if (!socket.Connected) return;
             try
             {
-                client.Send(data);
+                socket.Send(data);
             }
             catch { }
         }

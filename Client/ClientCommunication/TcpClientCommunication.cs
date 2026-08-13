@@ -147,30 +147,23 @@ namespace PLCTest.ClientCommunication
         /// <exception cref="Exception">未连接、读写超时、通讯中断抛出异常</exception>
         public byte[] SendAndRecevieData(byte[] sendData)
         {
-            try
-            {
-                if (!IsConnected || _stream == null)
-                    throw new Exception("TCP未建立连接，无法发送数据");
+            if (!IsConnected || _stream == null)
+                throw new Exception("TCP未建立连接，无法发送数据");
 
-                // 下发指令
-                _stream.Write(sendData, 0, sendData.Length);
+            // 下发指令
+            _stream.Write(sendData, 0, sendData.Length);
 
-                // 接收缓冲区
-                byte[] recvBuffer = new byte[BufferMaxLength];
-                int recvLen = _stream.Read(recvBuffer, 0, BufferMaxLength);
+            // 接收缓冲区
+            byte[] recvBuffer = new byte[BufferMaxLength];
+            int recvLen = _stream.Read(recvBuffer, 0, BufferMaxLength);
 
-                if (recvLen <= 0)
-                    throw new Exception("无返回数据，连接已断开");
+            if (recvLen <= 0)
+                throw new Exception("无返回数据，连接已断开");
 
-                // 截取有效长度报文返回
-                byte[] result = new byte[recvLen];
-                Array.Copy(recvBuffer, result, recvLen);
-                return result;
-            }
-            catch (Exception ex)
-            {
-                return new byte[0];
-            }
+            // 截取有效长度报文返回
+            byte[] result = new byte[recvLen];
+            Array.Copy(recvBuffer, result, recvLen);
+            return result;
         }
         #endregion
 

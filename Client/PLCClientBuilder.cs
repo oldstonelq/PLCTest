@@ -1,18 +1,14 @@
 ﻿using PLCTest.Client.ClientProtocolManagement.Inovance;
 using PLCTest.Client.ClientProtocolManagement.Melsec;
+using PLCTest.Client.ClientProtocolManagement.Omron;
+using PLCTest.Client.ClientProtocolManagement.Siemens;
 using PLCTest.Client.PLCClient.Inovance;
 using PLCTest.Client.PLCClient.Omron;
 using PLCTest.ClientCommunication;
-using PLCTest.ClientProtocolManagement.Melsec;
-using PLCTest.PLCClient.Melsec;
-using PLCTest.PLCClient.Siemens;
+using PLCTest.Client.PLCClient.Melsec;
+using PLCTest.Client.PLCClient.Siemens;
 using PLCTest.PLCInterface;
-using System;
-using System.Collections.Generic;
 using System.IO.Ports;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace PLCTest.Models
 {
@@ -53,7 +49,7 @@ namespace PLCTest.Models
         /// <returns></returns>
         public PLCClientBuilder UseSerial(string portName, int baudRate, Parity parity, int dataBits, StopBits stopBits)
         {
-            _communication = new SerialCommunication(portName, baudRate, parity, dataBits, StopBits.One);
+            _communication = new SerialCommunication(portName, baudRate, parity, dataBits, stopBits);
             return this;
         }
         #endregion
@@ -132,6 +128,26 @@ namespace PLCTest.Models
         public PLCClientBuilder UseMelsecMc4EBinary()
         {
             var protocol = new MelsecMc4EBinaryClientProtocol();
+            _protocol = protocol;
+            return this;
+        }
+        /// <summary>
+        /// 欧姆龙PLC通讯协议，使用FINS TCP协议进行数据交换
+        /// </summary>
+        /// <returns></returns>
+        public PLCClientBuilder UseOmronFinsTcp()
+        {
+            var protocol = new OmronFinsTcpClientProtocol();
+            _protocol = protocol;
+            return this;
+        }
+        /// <summary>
+        /// 西门子PLC通讯协议，使用S7协议进行数据交换
+        /// </summary>
+        /// <returns></returns>
+        public PLCClientBuilder UseSiemensS71200()
+        {
+            var protocol = new SiemensS71200ClientProtocol();
             _protocol = protocol;
             return this;
         }

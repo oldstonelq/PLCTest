@@ -1,4 +1,5 @@
 ﻿using PLCTest.Models;
+using PLCTest.PLCInterface;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -10,7 +11,7 @@ namespace PLCTest.Client.ClientProtocolManagement.Omron
     /// <summary>
     /// 欧姆龙FINS TCP通讯协议
     /// </summary>
-    public class OmronFinsTcpClientProtocol
+    public class OmronFinsTcpClientProtocol : IPLCClientProtocol
     {
         /// <summary>
         ///获取寄存器地址的真实编码

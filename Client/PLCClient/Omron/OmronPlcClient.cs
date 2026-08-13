@@ -1,4 +1,4 @@
-﻿using PLCTest.ClientProtocolManagement.Melsec;
+﻿using PLCTest.Client.ClientProtocolManagement.Omron;
 using PLCTest.Models;
 using PLCTest.PLCInterface;
 using System;
@@ -48,12 +48,12 @@ namespace PLCTest.Client.PLCClient.Omron
         /// 构造函数
         /// </summary>
         /// <param name="comm">通讯方式</param>
-        /// <param name="protocol">协议实现（可选），若为 null 则使用默认的 InovanceModbusTcpClientProtocol</param>
+        /// <param name="protocol">协议实现（可选），若为 null 则使用默认的 OmronFinsTcpClientProtocol</param>
         public OmronPlcClient(IClientCommunication comm, IPLCClientProtocol protocol = null)
         {
             _comm = comm ?? throw new ArgumentNullException(nameof(comm));
             // 使用构造注入替代硬编码，便于单元测试与替换协议实现
-            communicationProtocol = protocol;
+            communicationProtocol = protocol ?? new OmronFinsTcpClientProtocol();
         }
         #region 公有方法
         /// <summary>

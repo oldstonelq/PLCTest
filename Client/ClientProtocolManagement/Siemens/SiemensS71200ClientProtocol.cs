@@ -7,7 +7,7 @@ using System.Text;
 using System.Threading.Tasks;
 using static PLCTest.Models.Enums;
 
-namespace PLCTest.ClientProtocolManagement.Siemens
+namespace PLCTest.Client.ClientProtocolManagement.Siemens
 {
     /// <summary>
     /// 西门子 S7-1200 通讯协议（S7comm over TPKT+COTP）

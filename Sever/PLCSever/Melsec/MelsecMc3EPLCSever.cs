@@ -83,7 +83,7 @@ namespace PLCTest.PLCSever.Melsec
         /// <summary>
         /// 客户端数据到达时的处理（委托协议解析，Service 层只负责业务逻辑）
         /// </summary>
-        private void OnDataReceived(byte[] byt)
+        private void OnDataReceived(byte[] byt, object client)
         {
             try
             {
@@ -106,7 +106,7 @@ namespace PLCTest.PLCSever.Melsec
                 byte[] resp = new byte[respHeader.Length + responseData.Length];
                 Array.Copy(respHeader, 0, resp, 0, respHeader.Length);
                 Array.Copy(responseData, 0, resp, respHeader.Length, responseData.Length);
-                _comm.SendToClient(resp);
+                _comm.SendToClient(resp, client);
             }
             catch
             {

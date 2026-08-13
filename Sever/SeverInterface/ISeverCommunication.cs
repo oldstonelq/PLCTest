@@ -24,13 +24,14 @@ namespace PLCTest.SeverInterface
         /// </summary>
         void Stop();
         /// <summary>
-        /// 发送数据到客户端
+        /// 发送数据到指定客户端
         /// </summary>
         /// <param name="data">要发送的字节数据</param>
-        void SendToClient(byte[] data);
+        /// <param name="client">目标客户端标识（TCP 为 Socket，串口为 null）</param>
+        void SendToClient(byte[] data, object client);
         /// <summary>
-        /// 客户端数据到达事件
+        /// 客户端数据到达事件（附带客户端标识）
         /// </summary>
-        event Action<byte[]> OnDataReceived;
+        event Action<byte[], object> OnDataReceived;
     }
 }

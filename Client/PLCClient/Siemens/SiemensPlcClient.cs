@@ -1,15 +1,11 @@
-﻿using PLCTest.ClientProtocolManagement.Siemens;
+﻿using PLCTest.Client.ClientProtocolManagement.Siemens;
 using PLCTest.Models;
 using PLCTest.PLCInterface;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using static PLCTest.Models.Enums;
 
-namespace PLCTest.PLCClient.Siemens
+namespace PLCTest.Client.PLCClient.Siemens
 {
     /// <summary>
     /// 西门子PLC客户端类，使用西门子协议进行通讯
@@ -48,12 +44,12 @@ namespace PLCTest.PLCClient.Siemens
         /// 构造函数
         /// </summary>
         /// <param name="comm">通讯方式</param>
-        /// <param name="protocol">协议实现（可选），若为 null 则使用默认的 InovanceModbusTcpClientProtocol</param>
+        /// <param name="protocol">协议实现（可选），若为 null 则使用默认的 SiemensS71200ClientProtocol</param>
         public SiemensPlcClient(IClientCommunication comm, IPLCClientProtocol protocol = null)
         {
             _comm = comm ?? throw new ArgumentNullException(nameof(comm));
             // 使用构造注入替代硬编码，便于单元测试与替换协议实现
-            communicationProtocol = protocol;
+            communicationProtocol = protocol ?? new SiemensS71200ClientProtocol();
         }
         #region 公有方法
         /// <summary>
