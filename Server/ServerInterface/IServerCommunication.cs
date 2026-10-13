@@ -1,11 +1,11 @@
-﻿using System;
+using System;
 
-namespace PLCTest.SeverInterface
+namespace PlcTest.Server.ServerInterface
 {
     /// <summary>
     /// 服务端通信接口（与 IClientCommunication 对称）
     /// </summary>
-    public interface ISeverCommunication
+    public interface IServerCommunication
     {
         /// <summary>
         /// 服务是否正在运行

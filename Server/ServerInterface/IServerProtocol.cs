@@ -1,11 +1,11 @@
-using PLCTest.Models;
+using PlcTest.Models;
 
-namespace PLCTest.SeverInterface
+namespace PlcTest.Server.ServerInterface
 {
     /// <summary>
     /// 服务端协议接口——负责解析请求报文和构建响应报文
     /// </summary>
-    public interface ISeverProtocol
+    public interface IServerProtocol
     {
         /// <summary>
         /// 验证请求报文头（检查 0x50 0x00 标识和最小长度）

@@ -1,14 +1,14 @@
-﻿using PLCTest.PLCInterface;
+using PlcTest.Client.PlcInterface;
 using System;
 using System.IO.Ports;
 using System.Linq;
 
-namespace PLCTest.ClientCommunication
+namespace PlcTest.Client.ClientCommunication
 {
     /// <summary>
     /// 串口RS232/RS485通讯类，实现基础通讯接口
     /// </summary>
-    public class SerialCommunication : IClientCommunication
+    public class SerialPortClientCommunication : IClientCommunication
     {
         #region 私有对象
         /// <summary>
@@ -45,7 +45,7 @@ namespace PLCTest.ClientCommunication
         /// <summary>
         /// 接收缓冲区最大长度
         /// </summary>
-        private const int BufferMaxLength = 4096;
+        private const int _bufferMaxLength = 4096;
         #endregion
         /// <summary>
         /// 沟站函数
@@ -55,7 +55,7 @@ namespace PLCTest.ClientCommunication
         /// <param name="parity"></param>
         /// <param name="dataBits"></param>
         /// <param name="stopBits"></param>
-        public SerialCommunication(string portName, int baudRate, Parity parity, int dataBits, StopBits stopBits)
+        public SerialPortClientCommunication(string portName, int baudRate, Parity parity, int dataBits, StopBits stopBits)
         {
             PortName = portName;
             BaudRate = baudRate;
@@ -76,7 +76,7 @@ namespace PLCTest.ClientCommunication
                 }
                 catch
                 {
-                    DisConnectServer();
+                    DisconnectServer();
                     return false;
                 }
             }
@@ -87,11 +87,11 @@ namespace PLCTest.ClientCommunication
         /// <summary>
         /// 打开串口
         /// </summary>
-        public  void ConnectServer()
+        public void ConnectServer()
         {
             // 已打开先关闭旧端口
             if (IsConnected)
-                DisConnectServer();
+                DisconnectServer();
 
             _serialPort = new SerialPort
             {
@@ -103,8 +103,8 @@ namespace PLCTest.ClientCommunication
                 ReadTimeout = ReadWriteTimeout,
                 WriteTimeout = ReadWriteTimeout,
                 // 缓冲区大小
-                ReadBufferSize = BufferMaxLength,
-                WriteBufferSize = BufferMaxLength
+                ReadBufferSize = _bufferMaxLength,
+                WriteBufferSize = _bufferMaxLength
             };
 
             _serialPort.Open();
@@ -113,7 +113,7 @@ namespace PLCTest.ClientCommunication
         /// <summary>
         /// 关闭串口释放资源
         /// </summary>
-        public  void DisConnectServer()
+        public void DisconnectServer()
         {
             try
             {
@@ -141,7 +141,7 @@ namespace PLCTest.ClientCommunication
         /// </summary>
         /// <param name="sendData">发送字节数组</param>
         /// <returns>设备返回数据</returns>
-        public  byte[] SendAndRecevieData(byte[] sendData)
+        public byte[] SendAndReceiveData(byte[] sendData)
         {
             if (!IsConnected || _serialPort == null)
                 throw new Exception("串口未打开，无法发送数据");
@@ -149,8 +149,8 @@ namespace PLCTest.ClientCommunication
             // 发送数据
             _serialPort.Write(sendData, 0, sendData.Length);
 
-            byte[] recvBuffer = new byte[BufferMaxLength];
-            int recvLen = _serialPort.Read(recvBuffer, 0, BufferMaxLength);
+            byte[] recvBuffer = new byte[_bufferMaxLength];
+            int recvLen = _serialPort.Read(recvBuffer, 0, _bufferMaxLength);
 
             if (recvLen <= 0)
                 throw new Exception("串口无返回数据，读取超时或设备离线");

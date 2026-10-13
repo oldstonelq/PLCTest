@@ -1,10 +1,10 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace PLCTest.Models
+namespace PlcTest.Models
 {
     /// <summary>
     /// 枚举类
@@ -48,7 +48,7 @@ namespace PLCTest.Models
         /// <summary>
         /// PLC类型枚举
         /// </summary>
-        public enum PLCType
+        public enum PlcType
         {
             /// <summary>
             /// 三菱
@@ -75,7 +75,7 @@ namespace PLCTest.Models
             /// <summary>
             /// 标准TCP通讯方式
             /// </summary>
-            TCP,
+            Tcp,
             /// <summary>
             /// 串口通讯方式
             /// </summary>

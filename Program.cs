@@ -1,11 +1,11 @@
-﻿using PLCTest.View;
+using PlcTest.View;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
-namespace PLCClient
+namespace PlcTest
 {
     internal static class Program
     {
@@ -17,7 +17,7 @@ namespace PLCClient
         {
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
-            Application.Run(new aMainForm());
+            Application.Run(new MainForm());
         }
     }
 }

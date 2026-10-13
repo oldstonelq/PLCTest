@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace PLCTest.Models
+namespace PlcTest.Models
 {
     /// <summary>
     /// MC 3E 协议解析后的结构化请求数据

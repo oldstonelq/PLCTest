@@ -1,20 +1,20 @@
-﻿using PLCTest.Client.ClientProtocolManagement.Omron;
-using PLCTest.Models;
-using PLCTest.PLCInterface;
+using PlcTest.Client.ClientProtocolManagement.Omron;
+using PlcTest.Models;
+using PlcTest.Client.PlcInterface;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using static PLCTest.Models.Enums;
+using static PlcTest.Models.Enums;
 
-namespace PLCTest.Client.PLCClient.Omron
+namespace PlcTest.Client.PlcClient.Omron
 {
     /// <summary>
     /// 欧姆龙PLC客户端类，使用欧姆龙协议进行通讯
     /// </summary>
-    public class OmronPlcClient : IPLCClient
+    public class OmronPlcClient : IPlcClient
     {
         /// <summary>
         /// 通讯方式接口
@@ -23,7 +23,7 @@ namespace PLCTest.Client.PLCClient.Omron
         /// <summary>
         /// 通讯协议接口
         /// </summary>
-        protected IPLCClientProtocol communicationProtocol;
+        protected IPlcClientProtocol _communicationProtocol;
         /// <summary>
         /// 连接状态:
         /// </summary>
@@ -49,11 +49,11 @@ namespace PLCTest.Client.PLCClient.Omron
         /// </summary>
         /// <param name="comm">通讯方式</param>
         /// <param name="protocol">协议实现（可选），若为 null 则使用默认的 OmronFinsTcpClientProtocol</param>
-        public OmronPlcClient(IClientCommunication comm, IPLCClientProtocol protocol = null)
+        public OmronPlcClient(IClientCommunication comm, IPlcClientProtocol protocol = null)
         {
             _comm = comm ?? throw new ArgumentNullException(nameof(comm));
             // 使用构造注入替代硬编码，便于单元测试与替换协议实现
-            communicationProtocol = protocol ?? new OmronFinsTcpClientProtocol();
+            _communicationProtocol = protocol ?? new OmronFinsTcpClientProtocol();
         }
         #region 公有方法
         /// <summary>
@@ -107,7 +107,7 @@ namespace PLCTest.Client.PLCClient.Omron
                 {
                     if (_comm != null)
                     {
-                        _comm.DisConnectServer();
+                        _comm.DisconnectServer();
                     }
                 }
                 catch { }
@@ -126,7 +126,7 @@ namespace PLCTest.Client.PLCClient.Omron
         /// </summary>
         /// <param name="address">统一地址模型</param>
         /// <returns>读取结果。</returns>
-        public Result<bool> ReadBit(PLCAddress address)
+        public Result<bool> ReadBit(PlcAddress address)
         {
             throw new NotImplementedException();
         }
@@ -135,7 +135,7 @@ namespace PLCTest.Client.PLCClient.Omron
         /// </summary>
         /// <param name="address">统一地址模型</param>
         /// <returns>读取结果。</returns>
-        public Result<bool[]> ReadBitArray(PLCAddress address)
+        public Result<bool[]> ReadBitArray(PlcAddress address)
         {
             throw new NotImplementedException();
         }
@@ -145,7 +145,7 @@ namespace PLCTest.Client.PLCClient.Omron
         /// <param name="address">统一地址模型</param>
         /// <param name="value">写入值</param>
         /// <returns>写入结果。</returns>
-        public Result<bool> WriteBit(PLCAddress address, bool value)
+        public Result<bool> WriteBit(PlcAddress address, bool value)
         {
             throw new NotImplementedException();
         }
@@ -155,7 +155,7 @@ namespace PLCTest.Client.PLCClient.Omron
         /// <param name="address">统一地址模型</param>
         /// <param name="values">位数据数组</param>
         /// <returns>写入结果。</returns>
-        public Result<bool> WriteBitArray(PLCAddress address, bool[] values)
+        public Result<bool> WriteBitArray(PlcAddress address, bool[] values)
         {
             throw new NotImplementedException();
         }
@@ -164,7 +164,7 @@ namespace PLCTest.Client.PLCClient.Omron
         /// </summary>
         /// <param name="address">统一地址模型</param>
         /// <returns>读取结果。</returns>
-        public Result<short> ReadWord(PLCAddress address)
+        public Result<short> ReadWord(PlcAddress address)
         {
             throw new NotImplementedException();
         }
@@ -173,7 +173,7 @@ namespace PLCTest.Client.PLCClient.Omron
         /// </summary>
         /// <param name="address">统一地址模型</param>
         /// <returns>读取结果。</returns>
-        public Result<short[]> ReadWordArray(PLCAddress address)
+        public Result<short[]> ReadWordArray(PlcAddress address)
         {
             throw new NotImplementedException();
         }
@@ -183,7 +183,7 @@ namespace PLCTest.Client.PLCClient.Omron
         /// <param name="address">统一地址模型</param>
         /// <param name="value">写入值</param>
         /// <returns>写入结果。</returns>
-        public Result<bool> WriteWord(PLCAddress address, short value)
+        public Result<bool> WriteWord(PlcAddress address, short value)
         {
             throw new NotImplementedException();
         }
@@ -193,7 +193,7 @@ namespace PLCTest.Client.PLCClient.Omron
         /// <param name="address">统一地址模型</param>
         /// <param name="values">字数据数组</param>
         /// <returns>写入结果。</returns>
-        public Result<bool> WriteWordArray(PLCAddress address, short[] values)
+        public Result<bool> WriteWordArray(PlcAddress address, short[] values)
         {
             throw new NotImplementedException();
         }

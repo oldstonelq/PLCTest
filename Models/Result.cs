@@ -1,10 +1,10 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace PLCTest.Models
+namespace PlcTest.Models
 {
     /// <summary>
     /// 返回结果类

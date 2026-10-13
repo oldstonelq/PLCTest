@@ -1,18 +1,18 @@
-﻿using PLCTest.Models;
-using PLCTest.PLCInterface;
+using PlcTest.Models;
+using PlcTest.Client.PlcInterface;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using static PLCTest.Models.Enums;
+using static PlcTest.Models.Enums;
 
-namespace PLCTest.Client.ClientProtocolManagement.Melsec
+namespace PlcTest.Client.ClientProtocolManagement.Melsec
 {
     /// <summary>
     /// 三菱3EASCII通讯协议
     /// </summary>
-    public class MelsecMc3EAsciiClientProtocol : IPLCClientProtocol
+    public class MelsecMc3EAsciiClientProtocol : IPlcClientProtocol
     {
         /// <summary>
         ///获取寄存器地址的真实编码
@@ -57,10 +57,10 @@ namespace PLCTest.Client.ClientProtocolManagement.Melsec
         /// </summary>
         /// <param name="address">PLC地址模型</param>
         /// <returns>读取命令报文</returns>
-        public byte[] BuildReadData(PLCAddress address)
+        public byte[] BuildReadData(PlcAddress address)
         {
             int memory = GetMemoryCode(address.Area);
-            int adress = address.Address;
+            int startAddress = address.Address;
             bool isBit = address.IsBit;
             int length = address.Length;
             byte[] Data = new byte[20];
@@ -78,8 +78,8 @@ namespace PLCTest.Client.ClientProtocolManagement.Melsec
             Data[8] = (byte)memory;
             Data[9] = Encoding.ASCII.GetBytes("*")[0];
             //起始地址
-            string Adress = adress.ToString().PadLeft(6, '0');
-            byte[] mbyte = Encoding.ASCII.GetBytes(Adress);
+            string Address = startAddress.ToString().PadLeft(6, '0');
+            byte[] mbyte = Encoding.ASCII.GetBytes(Address);
             Array.Copy(mbyte, 0, Data, 10, 6);
             //软元件点数
             string Length = Convert.ToString(length, 16).PadLeft(4, '0').ToUpper();
@@ -93,10 +93,10 @@ namespace PLCTest.Client.ClientProtocolManagement.Melsec
         /// <param name="address">PLC地址模型</param>
         /// <param name="data">写入数据</param>
         /// <returns>写命令报文</returns>
-        public byte[] BuildWriteData(PLCAddress address, byte[] data)
+        public byte[] BuildWriteData(PlcAddress address, byte[] data)
         {
             int memory = GetMemoryCode(address.Area);
-            int adress = address.Address;
+            int startAddress = address.Address;
             bool isBit = address.IsBit;
             int length = address.Length;
             byte[] Data = new byte[20 + data.Length];
@@ -114,8 +114,8 @@ namespace PLCTest.Client.ClientProtocolManagement.Melsec
             Data[8] = (byte)memory;
             Data[9] = Encoding.ASCII.GetBytes("*")[0];
             //起始地址
-            string Adress = adress.ToString().PadLeft(6, '0');
-            byte[] mbyte = Encoding.ASCII.GetBytes(Adress);
+            string Address = startAddress.ToString().PadLeft(6, '0');
+            byte[] mbyte = Encoding.ASCII.GetBytes(Address);
             Array.Copy(mbyte, 0, Data, 10, 6);
             //软元件点数
             string Length = Convert.ToString(length, 16).PadLeft(4, '0').ToUpper();
@@ -128,11 +128,11 @@ namespace PLCTest.Client.ClientProtocolManagement.Melsec
         /// <summary>
         /// 拼接完整数据包
         /// </summary>
-        /// <param name="_data">命令报文</param>
+        /// <param name="data">命令报文</param>
         /// <returns>完整命令报文</returns>
-        public byte[] BuildCompletePack(byte[] _data)
+        public byte[] BuildCompletePack(byte[] data)
         {
-            byte[] Command = new byte[22 + _data.Length];
+            byte[] Command = new byte[22 + data.Length];
             // 副标题
             Command[0] = 0x35;
             Command[1] = 0x30;
@@ -163,24 +163,24 @@ namespace PLCTest.Client.ClientProtocolManagement.Melsec
             Command[19] = 0x30;
             Command[20] = 0x31;
             Command[21] = 0x30;
-            _data.CopyTo(Command, 22);
+            data.CopyTo(Command, 22);
             return Command;
         }
         /// <summary>
         /// 解析写返回
         /// </summary>
-        /// <param name="_data">返回数据</param>
+        /// <param name="data">返回数据</param>
         /// <returns>返回写入结果</returns>
-        public Result<bool> ParseWriteResponse(byte[] _data)
+        public Result<bool> ParseWriteResponse(byte[] data)
         {
             Result<bool> result = new Result<bool>();
-            string mReStr = Encoding.ASCII.GetString(_data);
-            if (_data == null || mReStr.Length < 22)
+            string mReStr = Encoding.ASCII.GetString(data);
+            if (data == null || mReStr.Length < 22)
             {
                 result.ErrorMsg = "返回数据长度错误";
                 return result;
             }
-            //if (!CheckResponseHeader(_data))
+            //if (!CheckResponseHeader(data))
             //{
             //    result.ErrorMsg = "响应副标题错误";
             //    return result;
@@ -198,19 +198,19 @@ namespace PLCTest.Client.ClientProtocolManagement.Melsec
         /// <summary>
         /// 解析读位数据返回
         /// </summary>
-        /// <param name="_data">返回数据</param>
+        /// <param name="data">返回数据</param>
         /// <param name="size">读取数据长度</param>
         /// <returns>位数据数组</returns>
-        public Result<bool[]> ParseReadBitResponse(byte[] _data, int size)
+        public Result<bool[]> ParseReadBitResponse(byte[] data, int size)
         {
             Result<bool[]> result = new Result<bool[]>();
-            string mReStr = Encoding.ASCII.GetString(_data);
-            if (_data == null || mReStr.Length <22)
+            string mReStr = Encoding.ASCII.GetString(data);
+            if (data == null || mReStr.Length <22)
             {
                 result.ErrorMsg = "返回数据长度错误";
                 return result;
             }
-            //if (!CheckResponseHeader(_data))
+            //if (!CheckResponseHeader(data))
             //{
             //    result.ErrorMsg = "响应副标题错误";
             //    return result;
@@ -232,19 +232,19 @@ namespace PLCTest.Client.ClientProtocolManagement.Melsec
         /// <summary>
         /// 解析读字数据返回
         /// </summary>
-        /// <param name="_data">返回数据</param>
+        /// <param name="data">返回数据</param>
         /// <param name="size">读取数据长度</param>
         /// <returns>字数据数组</returns>
-        public Result<short[]> ParseReadWordResponse(byte[] _data, int size)
+        public Result<short[]> ParseReadWordResponse(byte[] data, int size)
         {
             Result<short[]> result = new Result<short[]>();
-            string mReStr = Encoding.ASCII.GetString(_data);
-            if (_data == null || mReStr.Length <22)
+            string mReStr = Encoding.ASCII.GetString(data);
+            if (data == null || mReStr.Length <22)
             {
                 result.ErrorMsg = "返回数据长度错误";
                 return result;
             }
-            //if (!CheckResponseHeader(_data))
+            //if (!CheckResponseHeader(data))
             //{
             //    result.ErrorMsg = "响应副标题错误";
             //    return result;

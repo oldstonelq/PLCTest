@@ -1,20 +1,20 @@
-﻿using PLCTest.Client.ClientProtocolManagement.Inovance;
-using PLCTest.Models;
-using PLCTest.PLCInterface;
+using PlcTest.Client.ClientProtocolManagement.Inovance;
+using PlcTest.Models;
+using PlcTest.Client.PlcInterface;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using static PLCTest.Models.Enums;
+using static PlcTest.Models.Enums;
 
-namespace PLCTest.Client.PLCClient.Inovance
+namespace PlcTest.Client.PlcClient.Inovance
 {
     /// <summary>
     /// 汇川PLC客户端类，使用汇川协议进行通讯
     /// </summary>
-    public class InovancePlcClient:IPLCClient
+    public class InovancePlcClient:IPlcClient
     {
         /// <summary>
         /// 通讯方式接口
@@ -23,7 +23,7 @@ namespace PLCTest.Client.PLCClient.Inovance
         /// <summary>
         /// 通讯协议接口
         /// </summary>
-        protected IPLCClientProtocol communicationProtocol;
+        protected IPlcClientProtocol _communicationProtocol;
         /// <summary>
         /// 连接状态:
         /// </summary>
@@ -49,11 +49,11 @@ namespace PLCTest.Client.PLCClient.Inovance
         /// </summary>
         /// <param name="comm">通讯方式</param>
         /// <param name="protocol">协议实现（可选），若为 null 则使用默认的 InovanceModbusTcpClientProtocol</param>
-        public InovancePlcClient(IClientCommunication comm, IPLCClientProtocol protocol = null)
+        public InovancePlcClient(IClientCommunication comm, IPlcClientProtocol protocol = null)
         {
             _comm = comm ?? throw new ArgumentNullException(nameof(comm));
             // 使用构造注入替代硬编码，便于单元测试与替换协议实现
-            communicationProtocol = protocol ?? new InovanceModbusTcpClientProtocol();
+            _communicationProtocol = protocol ?? new InovanceModbusTcpClientProtocol();
         }
 
         #region 公有方法
@@ -108,7 +108,7 @@ namespace PLCTest.Client.PLCClient.Inovance
                 {
                     if (_comm != null)
                     {
-                        _comm.DisConnectServer();
+                        _comm.DisconnectServer();
                     }
                 }
                 catch { }
@@ -127,7 +127,7 @@ namespace PLCTest.Client.PLCClient.Inovance
         /// </summary>
         /// <param name="address">统一地址模型</param>
         /// <returns>读取结果。</returns>
-        public Result<bool> ReadBit(PLCAddress address)
+        public Result<bool> ReadBit(PlcAddress address)
         {
             Result<bool> result = new Result<bool>();
             //1.校验软元件类型
@@ -137,13 +137,13 @@ namespace PLCTest.Client.PLCClient.Inovance
                 return result;
             }
             //2.拼接数据报文并构建完整报文
-            byte[] BuildReadData = communicationProtocol.BuildReadData(address);
-            byte[] BuildCompletePack = communicationProtocol.BuildCompletePack(BuildReadData);
+            byte[] BuildReadData = _communicationProtocol.BuildReadData(address);
+            byte[] BuildCompletePack = _communicationProtocol.BuildCompletePack(BuildReadData);
             ShowCommMessageEvent?.Invoke($"发送报文: {BitConverter.ToString(BuildCompletePack)}");
-            byte[] mReByte = _comm.SendAndRecevieData(BuildCompletePack);
-            ShowCommMessageEvent?.Invoke($"接收报文: {BitConverter.ToString(mReByte)}");
+            byte[] receiveBytes = _comm.SendAndReceiveData(BuildCompletePack);
+            ShowCommMessageEvent?.Invoke($"接收报文: {BitConverter.ToString(receiveBytes)}");
             //3.数据校验与解析
-            var res = communicationProtocol.ParseReadBitResponse(mReByte, 1);
+            var res = _communicationProtocol.ParseReadBitResponse(receiveBytes, 1);
             result.IsSuccess = res.IsSuccess;
             result.ErrorMsg = res.ErrorMsg;
             result.Data = res.Data != null && res.Data.Length > 0 ? res.Data[0] : false;
@@ -155,7 +155,7 @@ namespace PLCTest.Client.PLCClient.Inovance
         /// </summary>
         /// <param name="address">统一地址模型</param>
         /// <returns>读取结果。</returns>
-        public Result<bool[]> ReadBitArray(PLCAddress address)
+        public Result<bool[]> ReadBitArray(PlcAddress address)
         {
             Result<bool[]> result = new Result<bool[]>();
             //1.校验软元件类型
@@ -165,13 +165,13 @@ namespace PLCTest.Client.PLCClient.Inovance
                 return result;
             }
             //2.拼接数据报文并构建完整报文
-            byte[] BuildReadData = communicationProtocol.BuildReadData(address);
-            byte[] BuildCompletePack = communicationProtocol.BuildCompletePack(BuildReadData);
+            byte[] BuildReadData = _communicationProtocol.BuildReadData(address);
+            byte[] BuildCompletePack = _communicationProtocol.BuildCompletePack(BuildReadData);
             ShowCommMessageEvent?.Invoke($"发送报文: {BitConverter.ToString(BuildCompletePack)}");
-            byte[] mReByte = _comm.SendAndRecevieData(BuildCompletePack);
-            ShowCommMessageEvent?.Invoke($"接收报文: {BitConverter.ToString(mReByte)}");
+            byte[] receiveBytes = _comm.SendAndReceiveData(BuildCompletePack);
+            ShowCommMessageEvent?.Invoke($"接收报文: {BitConverter.ToString(receiveBytes)}");
             //3.数据校验与解析
-            result = communicationProtocol.ParseReadBitResponse(mReByte, address.Length);
+            result = _communicationProtocol.ParseReadBitResponse(receiveBytes, address.Length);
 
             return result;
         }
@@ -181,7 +181,7 @@ namespace PLCTest.Client.PLCClient.Inovance
         /// <param name="address">统一地址模型</param>
         /// <param name="value">写入值</param>
         /// <returns>写入结果。</returns>
-        public Result<bool> WriteBit(PLCAddress address, bool value)
+        public Result<bool> WriteBit(PlcAddress address, bool value)
         {
             Result<bool> result = new Result<bool>();
             //1.校验软元件类型
@@ -191,15 +191,15 @@ namespace PLCTest.Client.PLCClient.Inovance
                 return result;
             }
             //2.计算数据
-            byte[] mData = communicationProtocol.GetWriteBitData(new bool[1] { value });
+            byte[] mData = _communicationProtocol.GetWriteBitData(new bool[1] { value });
             //3.拼接数据报文并构建完整报文
-            byte[] BuildWriteData = communicationProtocol.BuildWriteData(address, mData);
-            byte[] BuildCompletePack = communicationProtocol.BuildCompletePack(BuildWriteData);
+            byte[] BuildWriteData = _communicationProtocol.BuildWriteData(address, mData);
+            byte[] BuildCompletePack = _communicationProtocol.BuildCompletePack(BuildWriteData);
             ShowCommMessageEvent?.Invoke($"发送报文: {BitConverter.ToString(BuildCompletePack)}");
-            byte[] mReByte = _comm.SendAndRecevieData(BuildCompletePack);
-            ShowCommMessageEvent?.Invoke($"接收报文: {BitConverter.ToString(mReByte)}");
+            byte[] receiveBytes = _comm.SendAndReceiveData(BuildCompletePack);
+            ShowCommMessageEvent?.Invoke($"接收报文: {BitConverter.ToString(receiveBytes)}");
             //4.数据校验与解析
-            result = communicationProtocol.ParseWriteResponse(mReByte);
+            result = _communicationProtocol.ParseWriteResponse(receiveBytes);
 
             return result;
         }
@@ -209,7 +209,7 @@ namespace PLCTest.Client.PLCClient.Inovance
         /// <param name="address">统一地址模型</param>
         /// <param name="values">位数据数组</param>
         /// <returns>写入结果。</returns>
-        public Result<bool> WriteBitArray(PLCAddress address, bool[] values)
+        public Result<bool> WriteBitArray(PlcAddress address, bool[] values)
         {
             Result<bool> result = new Result<bool>();
             //1.检查写入数据是否为空
@@ -225,15 +225,15 @@ namespace PLCTest.Client.PLCClient.Inovance
                 return result;
             }
             //3.计算打包后字节
-            byte[] mData = communicationProtocol.GetWriteBitData(values);
+            byte[] mData = _communicationProtocol.GetWriteBitData(values);
             //4.拼接数据报文并构建完整报文
-            byte[] BuildWriteData = communicationProtocol.BuildWriteData(address, mData);
-            byte[] BuildCompletePack = communicationProtocol.BuildCompletePack(BuildWriteData);
+            byte[] BuildWriteData = _communicationProtocol.BuildWriteData(address, mData);
+            byte[] BuildCompletePack = _communicationProtocol.BuildCompletePack(BuildWriteData);
             ShowCommMessageEvent?.Invoke($"发送报文: {BitConverter.ToString(BuildCompletePack)}");
-            byte[] mReByte = _comm.SendAndRecevieData(BuildCompletePack);
-            ShowCommMessageEvent?.Invoke($"接收报文: {BitConverter.ToString(mReByte)}");
+            byte[] receiveBytes = _comm.SendAndReceiveData(BuildCompletePack);
+            ShowCommMessageEvent?.Invoke($"接收报文: {BitConverter.ToString(receiveBytes)}");
             //5.数据校验与解析
-            result = communicationProtocol.ParseWriteResponse(mReByte);
+            result = _communicationProtocol.ParseWriteResponse(receiveBytes);
             return result;
         }
         /// <summary>
@@ -241,7 +241,7 @@ namespace PLCTest.Client.PLCClient.Inovance
         /// </summary>
         /// <param name="address">统一地址模型</param>
         /// <returns>读取结果。</returns>
-        public Result<short> ReadWord(PLCAddress address)
+        public Result<short> ReadWord(PlcAddress address)
         {
             Result<short> result = new Result<short>();
             //1.校验软元件类型
@@ -251,13 +251,13 @@ namespace PLCTest.Client.PLCClient.Inovance
                 return result;
             }
             //2.拼接数据报文并构建完整报文
-            byte[] BuildReadData = communicationProtocol.BuildReadData(address);
-            byte[] BuildCompletePack = communicationProtocol.BuildCompletePack(BuildReadData);
+            byte[] BuildReadData = _communicationProtocol.BuildReadData(address);
+            byte[] BuildCompletePack = _communicationProtocol.BuildCompletePack(BuildReadData);
             ShowCommMessageEvent?.Invoke($"发送报文: {BitConverter.ToString(BuildCompletePack)}");
-            byte[] mReByte = _comm.SendAndRecevieData(BuildCompletePack);
-            ShowCommMessageEvent?.Invoke($"接收报文: {BitConverter.ToString(mReByte)}");
+            byte[] receiveBytes = _comm.SendAndReceiveData(BuildCompletePack);
+            ShowCommMessageEvent?.Invoke($"接收报文: {BitConverter.ToString(receiveBytes)}");
             //3.数据校验与解析
-            var res = communicationProtocol.ParseReadWordResponse(mReByte, 1);
+            var res = _communicationProtocol.ParseReadWordResponse(receiveBytes, 1);
             result.IsSuccess = res.IsSuccess;
             result.ErrorMsg = res.ErrorMsg;
             result.Data = res.Data != null && res.Data.Length > 0 ? res.Data[0] : (short)0;
@@ -268,7 +268,7 @@ namespace PLCTest.Client.PLCClient.Inovance
         /// </summary>
         /// <param name="address">统一地址模型</param>
         /// <returns>读取结果。</returns>
-        public Result<short[]> ReadWordArray(PLCAddress address)
+        public Result<short[]> ReadWordArray(PlcAddress address)
         {
             Result<short[]> result = new Result<short[]>();
             //1.校验软元件类型
@@ -278,13 +278,13 @@ namespace PLCTest.Client.PLCClient.Inovance
                 return result;
             }
             //2.拼接数据报文并构建完整报文
-            byte[] BuildReadData = communicationProtocol.BuildReadData(address);
-            byte[] BuildCompletePack = communicationProtocol.BuildCompletePack(BuildReadData);
+            byte[] BuildReadData = _communicationProtocol.BuildReadData(address);
+            byte[] BuildCompletePack = _communicationProtocol.BuildCompletePack(BuildReadData);
             ShowCommMessageEvent?.Invoke($"发送报文: {BitConverter.ToString(BuildCompletePack)}");
-            byte[] mReByte = _comm.SendAndRecevieData(BuildCompletePack);
-            ShowCommMessageEvent?.Invoke($"接收报文: {BitConverter.ToString(mReByte)}");
+            byte[] receiveBytes = _comm.SendAndReceiveData(BuildCompletePack);
+            ShowCommMessageEvent?.Invoke($"接收报文: {BitConverter.ToString(receiveBytes)}");
             //3.数据校验与解析
-            result = communicationProtocol.ParseReadWordResponse(mReByte, address.Length);
+            result = _communicationProtocol.ParseReadWordResponse(receiveBytes, address.Length);
             return result;
         }
         /// <summary>
@@ -293,7 +293,7 @@ namespace PLCTest.Client.PLCClient.Inovance
         /// <param name="address">统一地址模型</param>
         /// <param name="value">写入值</param>
         /// <returns>写入结果。</returns>
-        public Result<bool> WriteWord(PLCAddress address, short value)
+        public Result<bool> WriteWord(PlcAddress address, short value)
         {
             Result<bool> result = new Result<bool>();
             //1.校验软元件类型
@@ -303,15 +303,15 @@ namespace PLCTest.Client.PLCClient.Inovance
                 return result;
             }
             //2.计算打包后字节
-            byte[] mData = communicationProtocol.GetWriteWordData(new short[1] { value });
+            byte[] mData = _communicationProtocol.GetWriteWordData(new short[1] { value });
             //3.拼接数据报文并构建完整报文
-            byte[] BuildWriteData = communicationProtocol.BuildWriteData(address, mData);
-            byte[] BuildCompletePack = communicationProtocol.BuildCompletePack(BuildWriteData);
+            byte[] BuildWriteData = _communicationProtocol.BuildWriteData(address, mData);
+            byte[] BuildCompletePack = _communicationProtocol.BuildCompletePack(BuildWriteData);
             ShowCommMessageEvent?.Invoke($"发送报文: {BitConverter.ToString(BuildCompletePack)}");
-            byte[] mReByte = _comm.SendAndRecevieData(BuildCompletePack);
-            ShowCommMessageEvent?.Invoke($"接收报文: {BitConverter.ToString(mReByte)}");
+            byte[] receiveBytes = _comm.SendAndReceiveData(BuildCompletePack);
+            ShowCommMessageEvent?.Invoke($"接收报文: {BitConverter.ToString(receiveBytes)}");
             //4.数据校验与解析
-            result = communicationProtocol.ParseWriteResponse(mReByte);
+            result = _communicationProtocol.ParseWriteResponse(receiveBytes);
             return result;
         }
         /// <summary>
@@ -320,7 +320,7 @@ namespace PLCTest.Client.PLCClient.Inovance
         /// <param name="address">统一地址模型</param>
         /// <param name="values">字数据数组</param>
         /// <returns>写入结果。</returns>
-        public Result<bool> WriteWordArray(PLCAddress address, short[] values)
+        public Result<bool> WriteWordArray(PlcAddress address, short[] values)
         {
             Result<bool> result = new Result<bool>();
             //1.检查写入数据是否为空
@@ -336,15 +336,15 @@ namespace PLCTest.Client.PLCClient.Inovance
                 return result;
             }
             //3.计算打包后字节
-            byte[] mData = communicationProtocol.GetWriteWordData(values);
+            byte[] mData = _communicationProtocol.GetWriteWordData(values);
             //4.拼接数据报文并构建完整报文
-            byte[] BuildWriteData = communicationProtocol.BuildWriteData(address, mData);
-            byte[] BuildCompletePack = communicationProtocol.BuildCompletePack(BuildWriteData);
+            byte[] BuildWriteData = _communicationProtocol.BuildWriteData(address, mData);
+            byte[] BuildCompletePack = _communicationProtocol.BuildCompletePack(BuildWriteData);
             ShowCommMessageEvent?.Invoke($"发送报文: {BitConverter.ToString(BuildCompletePack)}");
-            byte[] mReByte = _comm.SendAndRecevieData(BuildCompletePack);
-            ShowCommMessageEvent?.Invoke($"接收报文: {BitConverter.ToString(mReByte)}");
+            byte[] receiveBytes = _comm.SendAndReceiveData(BuildCompletePack);
+            ShowCommMessageEvent?.Invoke($"接收报文: {BitConverter.ToString(receiveBytes)}");
             //5.数据校验与解析
-            result = communicationProtocol.ParseWriteResponse(mReByte);
+            result = _communicationProtocol.ParseWriteResponse(receiveBytes);
             return result;
         }
         #endregion

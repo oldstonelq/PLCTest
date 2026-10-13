@@ -1,20 +1,20 @@
-﻿using PLCTest.Models;
-using PLCTest.PLCInterface;
+using PlcTest.Models;
+using PlcTest.Client.PlcInterface;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using static PLCTest.Models.Enums;
+using static PlcTest.Models.Enums;
 
-namespace PLCTest.Client.ClientProtocolManagement.Inovance
+namespace PlcTest.Client.ClientProtocolManagement.Inovance
 {
     /// <summary>
     /// 使用 Modbus TCP 实现的汇川（Inovance）简单协议适配器。
     /// 将请求 PDU 构建为 Modbus PDU，并通过 BuildCompletePack 封装为 MBAP + PDU。
     /// 该实现支持读取/写入线圈（位）和保持寄存器（字）。
     /// </summary>
-    public class InovanceModbusTcpClientProtocol : IPLCClientProtocol
+    public class InovanceModbusTcpClientProtocol : IPlcClientProtocol
     {
         /// <summary>
         /// 事务标识符（Transaction Identifier），用于区分请求和响应。每次发送请求时递增。
@@ -84,7 +84,7 @@ namespace PLCTest.Client.ClientProtocolManagement.Inovance
         /// </summary>
         /// <param name="address">PLC地址模型</param>
         /// <returns>读取命令报文</returns>
-        public byte[] BuildReadData(PLCAddress address)
+        public byte[] BuildReadData(PlcAddress address)
         {
             // Modbus function: 0x01 Read Coils (bit), 0x03 Read Holding Registers (word)
             // 寄存器真实起始地址 = 区段基地址 + 地址偏移
@@ -115,7 +115,7 @@ namespace PLCTest.Client.ClientProtocolManagement.Inovance
         /// <param name="address">PLC地址模型</param>
         /// <param name="data">写入数据</param>
         /// <returns>写命令报文</returns>
-        public byte[] BuildWriteData(PLCAddress address, byte[] data)
+        public byte[] BuildWriteData(PlcAddress address, byte[] data)
         {
             // Build PDU for write operations
             // 寄存器真实起始地址 = 区段基地址 + 地址偏移
@@ -177,15 +177,15 @@ namespace PLCTest.Client.ClientProtocolManagement.Inovance
         /// <summary>
         /// 拼接完整数据包
         /// </summary>
-        /// <param name="_data">命令报文</param>
+        /// <param name="data">命令报文</param>
         /// <returns>完整命令报文</returns>
-        public byte[] BuildCompletePack(byte[] _data)
+        public byte[] BuildCompletePack(byte[] data)
         {
             // MBAP header: Transaction ID (2) + Protocol ID (2=0) + Length (2) + Unit ID (1)
             _transactionId++;
             ushort trans = _transactionId;
             ushort protocolId = 0;
-            ushort length = (ushort)(_data.Length + 1); // unit id + pdu
+            ushort length = (ushort)(data.Length + 1); // unit id + pdu
             byte[] mbap = new byte[7];
             mbap[0] = (byte)(trans >> 8);
             mbap[1] = (byte)(trans & 0xFF);
@@ -194,29 +194,29 @@ namespace PLCTest.Client.ClientProtocolManagement.Inovance
             mbap[4] = (byte)(length >> 8);
             mbap[5] = (byte)(length & 0xFF);
             mbap[6] = _unitId;
-            byte[] packet = new byte[mbap.Length + _data.Length];
+            byte[] packet = new byte[mbap.Length + data.Length];
             Array.Copy(mbap, 0, packet, 0, mbap.Length);
-            Array.Copy(_data, 0, packet, mbap.Length, _data.Length);
+            Array.Copy(data, 0, packet, mbap.Length, data.Length);
             return packet;
         }
         /// <summary>
         /// 解析写返回
         /// </summary>
-        /// <param name="_data">返回数据</param>
+        /// <param name="data">返回数据</param>
         /// <returns>返回写入结果</returns>
-        public Result<bool> ParseWriteResponse(byte[] _data)
+        public Result<bool> ParseWriteResponse(byte[] data)
         {
             Result<bool> result = new Result<bool>();
-            if (_data == null || _data.Length < 8)
+            if (data == null || data.Length < 8)
             {
                 result.ErrorMsg = "返回数据长度错误";
                 return result;
             }
             int pduOffset = 7;
-            byte func = _data[pduOffset];
+            byte func = data[pduOffset];
             if ((func & 0x80) != 0)
             {
-                byte ex = _data[pduOffset + 1];
+                byte ex = data[pduOffset + 1];
                 result.ErrorMsg = $"Modbus 异常响应: 0x{ex:X2}";
                 return result;
             }
@@ -228,22 +228,22 @@ namespace PLCTest.Client.ClientProtocolManagement.Inovance
         /// <summary>
         /// 解析读位数据返回
         /// </summary>
-        /// <param name="_data">返回数据</param>
+        /// <param name="data">返回数据</param>
         /// <param name="size">读取数据长度</param>
         /// <returns>位数据数组</returns>
-        public Result<bool[]> ParseReadBitResponse(byte[] _data, int size)
+        public Result<bool[]> ParseReadBitResponse(byte[] data, int size)
         {
             Result<bool[]> result = new Result<bool[]>();
-            if (_data == null || _data.Length < 9)
+            if (data == null || data.Length < 9)
             {
                 result.ErrorMsg = "返回数据长度错误";
                 return result;
             }
             int pduOffset = 7;
-            byte func = _data[pduOffset];
+            byte func = data[pduOffset];
             if ((func & 0x80) != 0)
             {
-                byte ex = _data[pduOffset + 1];
+                byte ex = data[pduOffset + 1];
                 result.ErrorMsg = $"Modbus 异常响应: 0x{ex:X2}";
                 return result;
             }
@@ -252,8 +252,8 @@ namespace PLCTest.Client.ClientProtocolManagement.Inovance
                 result.ErrorMsg = "功能码不匹配";
                 return result;
             }
-            byte byteCount = _data[pduOffset + 1];
-            if (_data.Length < pduOffset + 2 + byteCount)
+            byte byteCount = data[pduOffset + 1];
+            if (data.Length < pduOffset + 2 + byteCount)
             {
                 result.ErrorMsg = "返回数据长度不足";
                 return result;
@@ -263,7 +263,7 @@ namespace PLCTest.Client.ClientProtocolManagement.Inovance
             {
                 int b = i / 8;
                 int bit = i % 8;
-                bits[i] = (_data[pduOffset + 2 + b] & (1 << bit)) != 0;
+                bits[i] = (data[pduOffset + 2 + b] & (1 << bit)) != 0;
             }
             result.IsSuccess = true;
             result.Data = bits;
@@ -272,22 +272,22 @@ namespace PLCTest.Client.ClientProtocolManagement.Inovance
         /// <summary>
         /// 解析读字数据返回
         /// </summary>
-        /// <param name="_data">返回数据</param>
+        /// <param name="data">返回数据</param>
         /// <param name="size">读取数据长度</param>
         /// <returns>字数据数组</returns>
-        public Result<short[]> ParseReadWordResponse(byte[] _data, int size)
+        public Result<short[]> ParseReadWordResponse(byte[] data, int size)
         {
             Result<short[]> result = new Result<short[]>();
-            if (_data == null || _data.Length < 9)
+            if (data == null || data.Length < 9)
             {
                 result.ErrorMsg = "返回数据长度错误";
                 return result;
             }
             int pduOffset = 7;
-            byte func = _data[pduOffset];
+            byte func = data[pduOffset];
             if ((func & 0x80) != 0)
             {
-                byte ex = _data[pduOffset + 1];
+                byte ex = data[pduOffset + 1];
                 result.ErrorMsg = $"Modbus 异常响应: 0x{ex:X2}";
                 return result;
             }
@@ -296,8 +296,8 @@ namespace PLCTest.Client.ClientProtocolManagement.Inovance
                 result.ErrorMsg = "功能码不匹配";
                 return result;
             }
-            byte byteCount = _data[pduOffset + 1];
-            if (_data.Length < pduOffset + 2 + byteCount)
+            byte byteCount = data[pduOffset + 1];
+            if (data.Length < pduOffset + 2 + byteCount)
             {
                 result.ErrorMsg = "返回数据长度不足";
                 return result;
@@ -311,7 +311,7 @@ namespace PLCTest.Client.ClientProtocolManagement.Inovance
             for (int i = 0; i < size; i++)
             {
                 int idx = pduOffset + 2 + i * 2;
-                regs[i] = (short)((_data[idx] << 8) | _data[idx + 1]);
+                regs[i] = (short)((data[idx] << 8) | data[idx + 1]);
             }
             result.IsSuccess = true;
             result.Data = regs;

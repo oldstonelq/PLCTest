@@ -1,34 +1,34 @@
-﻿
-using PLCTest.Models;
-using PLCTest.SeverInterface;
-using PLCTest.SeverProtocolManagement.Melsec;
+
+using PlcTest.Models;
+using PlcTest.Server.ServerInterface;
+using PlcTest.Server.ServerProtocolManagement.Melsec;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Net;
-using static PLCTest.Models.Enums;
+using static PlcTest.Models.Enums;
 
-namespace PLCTest.PLCSever.Melsec
+namespace PlcTest.Server.PlcServer.Melsec
 {
     /// <summary>
     /// 三菱PLC-MC协议模拟服务端（3E帧数据结构）
     /// </summary>
-    public class MelsecMc3EPLCSever : IPLCServer
+    public class MelsecMc3EPlcServer : IPlcServer
     {
         /// <summary>
         /// 服务端通讯接口
         /// </summary>
-        private readonly ISeverCommunication _comm;
+        private readonly IServerCommunication _comm;
 
         /// <summary>
         /// 模拟PLC内存访问锁
         /// </summary>
-        private readonly object memoryLock = new object();
+        private readonly object _memoryLock = new object();
 
         /// <summary>
         /// 服务端协议接口（负责 MC 3E 报文解析与构建）
         /// </summary>
-        private readonly ISeverProtocol _protocol;
+        private readonly IServerProtocol _protocol;
 
         /// <summary>
         /// D 寄存器（字设备）
@@ -43,7 +43,7 @@ namespace PLCTest.PLCSever.Melsec
         /// <summary>
         /// 服务是否开启
         /// </summary>
-        public bool SeverIsOpen => _comm != null && _comm.IsRunning;
+        public bool ServerIsOpen => _comm != null && _comm.IsRunning;
 
         /// <summary>
         /// 连接客户端数量
@@ -55,10 +55,10 @@ namespace PLCTest.PLCSever.Melsec
         /// </summary>
         /// <param name="comm">服务端通讯方式</param>
         /// <param name="protocol">协议实现（可选，默认使用 MC 3E 协议）</param>
-        public MelsecMc3EPLCSever(ISeverCommunication comm, ISeverProtocol protocol = null)
+        public MelsecMc3EPlcServer(IServerCommunication comm, IServerProtocol protocol = null)
         {
             _comm = comm ?? throw new ArgumentNullException(nameof(comm));
-            _protocol = protocol ?? new MelsecMc3ESeverProtocol();
+            _protocol = protocol ?? new MelsecMc3EServerProtocol();
         }
 
         /// <summary>
@@ -119,7 +119,7 @@ namespace PLCTest.PLCSever.Melsec
         /// </summary>
         private byte[] ProcessRequest(RequestInfo request)
         {
-            lock (memoryLock)
+            lock (_memoryLock)
             {
                 switch (request.Command)
                 {
@@ -199,7 +199,7 @@ namespace PLCTest.PLCSever.Melsec
         /// </summary>
         /// <param name="address">统一地址模型。</param>
         /// <returns>读取结果。</returns>
-        public Result<bool> ReadBit(PLCAddress address)
+        public Result<bool> ReadBit(PlcAddress address)
         {
             try
             {
@@ -220,9 +220,9 @@ namespace PLCTest.PLCSever.Melsec
         /// <summary>
         /// 读取位寄存器数组。
         /// </summary>
-        /// <param name="address">统一地址模型，长度从 <see cref="PLCAddress.Length"/> 读取。</param>
+        /// <param name="address">统一地址模型，长度从 <see cref="PlcAddress.Length"/> 读取。</param>
         /// <returns>读取结果。</returns>
-        public Result<bool[]> ReadBitArray(PLCAddress address)
+        public Result<bool[]> ReadBitArray(PlcAddress address)
         {
             try
             {
@@ -252,13 +252,13 @@ namespace PLCTest.PLCSever.Melsec
         /// <param name="address">统一地址模型。</param>
         /// <param name="value">写入值。</param>
         /// <returns>写入结果。</returns>
-        public Result<bool> WriteBit(PLCAddress address, bool value)
+        public Result<bool> WriteBit(PlcAddress address, bool value)
         {
             try
             {
                 if (address.Area == MemoryArea.M || address.Area == MemoryArea.X || address.Area == MemoryArea.Y)
                 {
-                    lock (memoryLock)
+                    lock (_memoryLock)
                     {
                         mBits[address.Address] = value;
                     }
@@ -277,7 +277,7 @@ namespace PLCTest.PLCSever.Melsec
         /// <param name="address">统一地址模型。</param>
         /// <param name="values">位数据数组。</param>
         /// <returns>写入结果。</returns>
-        public Result<bool> WriteBitArray(PLCAddress address, bool[] values)
+        public Result<bool> WriteBitArray(PlcAddress address, bool[] values)
         {
             try
             {
@@ -286,7 +286,7 @@ namespace PLCTest.PLCSever.Melsec
 
                 if (address.Area == MemoryArea.M || address.Area == MemoryArea.X || address.Area == MemoryArea.Y)
                 {
-                    lock (memoryLock)
+                    lock (_memoryLock)
                     {
                         for (int i = 0; i < values.Length; i++)
                         {
@@ -307,7 +307,7 @@ namespace PLCTest.PLCSever.Melsec
         /// </summary>
         /// <param name="address">统一地址模型。</param>
         /// <returns>读取结果。</returns>
-        public Result<short> ReadWord(PLCAddress address)
+        public Result<short> ReadWord(PlcAddress address)
         {
             try
             {
@@ -326,9 +326,9 @@ namespace PLCTest.PLCSever.Melsec
         /// <summary>
         /// 读取字寄存器数组。
         /// </summary>
-        /// <param name="address">统一地址模型，长度从 <see cref="PLCAddress.Length"/> 读取。</param>
+        /// <param name="address">统一地址模型，长度从 <see cref="PlcAddress.Length"/> 读取。</param>
         /// <returns>读取结果。</returns>
-        public Result<short[]> ReadWordArray(PLCAddress address)
+        public Result<short[]> ReadWordArray(PlcAddress address)
         {
             try
             {
@@ -358,13 +358,13 @@ namespace PLCTest.PLCSever.Melsec
         /// <param name="address">统一地址模型。</param>
         /// <param name="value">写入值。</param>
         /// <returns>写入结果。</returns>
-        public Result<bool> WriteWord(PLCAddress address, short value)
+        public Result<bool> WriteWord(PlcAddress address, short value)
         {
             try
             {
                 if (address.Area == MemoryArea.D)
                 {
-                    lock (memoryLock)
+                    lock (_memoryLock)
                     {
                         dRegisters[address.Address] = value;
                     }
@@ -383,7 +383,7 @@ namespace PLCTest.PLCSever.Melsec
         /// <param name="address">统一地址模型。</param>
         /// <param name="values">字数据数组。</param>
         /// <returns>写入结果。</returns>
-        public Result<bool> WriteWordArray(PLCAddress address, short[] values)
+        public Result<bool> WriteWordArray(PlcAddress address, short[] values)
         {
             try
             {
@@ -392,7 +392,7 @@ namespace PLCTest.PLCSever.Melsec
 
                 if (address.Area == MemoryArea.D)
                 {
-                    lock (memoryLock)
+                    lock (_memoryLock)
                     {
                         for (int i = 0; i < values.Length; i++)
                         {
@@ -452,7 +452,7 @@ namespace PLCTest.PLCSever.Melsec
         /// </summary>
         public void ResetRegisterValues(MemoryArea area, int start, int length)
         {
-            lock (memoryLock)
+            lock (_memoryLock)
             {
                 if (area == MemoryArea.D)
                 {
@@ -477,7 +477,7 @@ namespace PLCTest.PLCSever.Melsec
         /// </summary>
         public void ResetAllRegisterValues(MemoryArea area)
         {
-            lock (memoryLock)
+            lock (_memoryLock)
             {
                 if (area == MemoryArea.D)
                 {

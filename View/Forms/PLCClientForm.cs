@@ -1,6 +1,6 @@
-﻿using PLCTest.Models;
-using PLCTest.PLCInterface;
-using PLCTest.Tool;
+using PlcTest.Models;
+using PlcTest.Client.PlcInterface;
+using PlcTest.Tool;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -14,16 +14,16 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using static PLCTest.Models.Enums;
+using static PlcTest.Models.Enums;
 
-namespace PLCTest.View
+namespace PlcTest.View
 {
-    public partial class PLCClientForm : Form
+    public partial class PlcClientForm : Form
     {
         /// <summary>
         /// PLC实例
         /// </summary>
-        IPLCClient PLCControl = null;
+        IPlcClient PLCControl = null;
         /// <summary>
         /// 当前读取寄存器区域
         /// </summary>
@@ -71,11 +71,11 @@ namespace PLCTest.View
         /// <summary>
         /// 构造函数
         /// </summary>
-        /// <param name="plccontrol"></param>
-        public PLCClientForm(IPLCClient plccontrol)
+        /// <param name="plcControl"></param>
+        public PlcClientForm(IPlcClient plcControl)
         {
             InitializeComponent();
-            this.PLCControl = plccontrol;
+            this.PLCControl = plcControl;
             PLCControl.ShowCommMessageEvent += AddInfo;
         }
         /// <summary>
@@ -132,7 +132,7 @@ namespace PLCTest.View
 
                 IsWorking = true;
                 _readCts = new CancellationTokenSource();
-                _readTask = Task.Run(() => Thread_ReadData(_readCts.Token), _readCts.Token);
+                _readTask = Task.Run(() => ReadDataThread(_readCts.Token), _readCts.Token);
             }
             else
             {
@@ -174,7 +174,7 @@ namespace PLCTest.View
 
             if (PLCControl != null && PLCControl.IsConnected)
             {
-                var writeresult=PLCControl.WriteBit(PLCAddress.Bit(WriteArea, WriteAddress), WriteValue == 1);
+                var writeresult=PLCControl.WriteBit(PlcAddress.Bit(WriteArea, WriteAddress), WriteValue == 1);
                 if (!writeresult.IsSuccess)
                 {
                     MessageBox.Show("Write Error Reson :" + writeresult.ErrorMsg);
@@ -211,7 +211,7 @@ namespace PLCTest.View
 
             if (PLCControl != null && PLCControl.IsConnected)
             {
-                var writeresult= PLCControl.WriteWord(PLCAddress.Word(WriteArea, WriteAddress), WriteValue);
+                var writeresult= PLCControl.WriteWord(PlcAddress.Word(WriteArea, WriteAddress), WriteValue);
                 if (!writeresult.IsSuccess)
                 {
                     MessageBox.Show("Write Error Reson :"+writeresult .ErrorMsg);
@@ -241,12 +241,12 @@ namespace PLCTest.View
                     if (CurrentReadArea == MemoryArea.D)
                     {
                         short[] clearData = new short[ClearLength];
-                        var res = PLCControl.WriteWordArray(PLCAddress.Word(CurrentReadArea, CurrentReadAddress, null, ClearLength), clearData);
+                        var res = PLCControl.WriteWordArray(PlcAddress.Word(CurrentReadArea, CurrentReadAddress, null, ClearLength), clearData);
                     }
                     else
                     {
                         bool[] clearData = new bool[ClearLength];
-                        var res = PLCControl.WriteBitArray(PLCAddress.Bit(CurrentReadArea, CurrentReadAddress, null, ClearLength), clearData);
+                        var res = PLCControl.WriteBitArray(PlcAddress.Bit(CurrentReadArea, CurrentReadAddress, null, ClearLength), clearData);
                     }
                 }
             }
@@ -267,12 +267,12 @@ namespace PLCTest.View
                 if (CurrentReadArea == MemoryArea.D)
                 {
                     short[] clearData = new short[CurrentReadLength];
-                    PLCControl.WriteWordArray(PLCAddress.Word(CurrentReadArea, CurrentReadAddress, null, CurrentReadLength), clearData);
+                    PLCControl.WriteWordArray(PlcAddress.Word(CurrentReadArea, CurrentReadAddress, null, CurrentReadLength), clearData);
                 }
                 else
                 {
                     bool[] clearData = new bool[CurrentReadLength];
-                    PLCControl.WriteBitArray(PLCAddress.Bit(CurrentReadArea, CurrentReadAddress, null, CurrentReadLength), clearData);
+                    PLCControl.WriteBitArray(PlcAddress.Bit(CurrentReadArea, CurrentReadAddress, null, CurrentReadLength), clearData);
                 }
             }
             else
@@ -445,7 +445,7 @@ namespace PLCTest.View
         /// 后台读取循环，按固定周期读取 PLC 数据并更新缓存。
         /// </summary>
         /// <param name="token">取消令牌。</param>
-        private async Task Thread_ReadData(CancellationToken token)
+        private async Task ReadDataThread(CancellationToken token)
         {
             while (IsWorking && !token.IsCancellationRequested)
             {
@@ -455,7 +455,7 @@ namespace PLCTest.View
                     {
                         if (CurrentReadArea== MemoryArea.D)
                         {
-                            var readresult = PLCControl.ReadWordArray(PLCAddress.Word(CurrentReadArea, CurrentReadAddress, null, CurrentReadLength));
+                            var readresult = PLCControl.ReadWordArray(PlcAddress.Word(CurrentReadArea, CurrentReadAddress, null, CurrentReadLength));
                             if (readresult.IsSuccess)
                             {
                                 CurrentReadshort = readresult.Data;
@@ -463,7 +463,7 @@ namespace PLCTest.View
                         }
                         else
                         {
-                            var readresult = PLCControl.ReadBitArray(PLCAddress.Bit(CurrentReadArea, CurrentReadAddress, null, CurrentReadLength));
+                            var readresult = PLCControl.ReadBitArray(PlcAddress.Bit(CurrentReadArea, CurrentReadAddress, null, CurrentReadLength));
                             if (readresult.IsSuccess)
                             {
                                 CurrentReadBit = readresult.Data;
@@ -548,8 +548,8 @@ namespace PLCTest.View
 
                     //2.根据当前的值和列数，计算出要写入PLC的值
                     int bitPosition = 16 - columnindex; // 列1对应bit15，列16对应bit0  
-                    short writeValue = (short)ConverterTool.SetBitToOne(CurrentValue, bitPosition);
-                    var res = PLCControl.WriteWord(PLCAddress.Word(CurrentReadArea, CurrentReadAddress + rowindex), writeValue);
+                    short writeValue = (short)ConverterTool.ToggleBit(CurrentValue, bitPosition);
+                    var res = PLCControl.WriteWord(PlcAddress.Word(CurrentReadArea, CurrentReadAddress + rowindex), writeValue);
                     if (!res.IsSuccess)
                     {
                         MessageBox.Show("Write Error ");
@@ -565,14 +565,14 @@ namespace PLCTest.View
                     {
                         return;
                     }
-                    var res = PLCControl.WriteBit(PLCAddress.Bit(CurrentReadArea, CurrentReadAddress + rowindex), CurrentValue==0);
+                    var res = PLCControl.WriteBit(PlcAddress.Bit(CurrentReadArea, CurrentReadAddress + rowindex), CurrentValue==0);
                     if (!res.IsSuccess)
                     {
                         MessageBox.Show("Write Error ");
                     }
                 }
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 if (this.IsHandleCreated)
                 {
@@ -609,7 +609,7 @@ namespace PLCTest.View
                 _readTask?.Wait(2000);
             }
             catch { }
-            // 清理本地 CTS/Task 引用（不 Dispose pLCControl，因为它由外部管理）
+            // 清理本地 CTS/Task 引用（不 Dispose plcControl，因为它由外部管理）
             try
             {
                 _readCts?.Dispose();

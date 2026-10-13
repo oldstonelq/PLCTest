@@ -1,14 +1,14 @@
 
-using PLCTest.Models;
-using PLCTest.SeverInterface;
+using PlcTest.Models;
+using PlcTest.Server.ServerInterface;
 using System;
 
-namespace PLCTest.SeverProtocolManagement.Melsec
+namespace PlcTest.Server.ServerProtocolManagement.Melsec
 {
     /// <summary>
     /// 三菱 MC 3E 服务端协议实现——负责请求解析和响应构建
     /// </summary>
-    public class MelsecMc3ESeverProtocol : ISeverProtocol
+    public class MelsecMc3EServerProtocol : IServerProtocol
     {
         /// <summary>
         /// 验证请求报文头

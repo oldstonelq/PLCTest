@@ -1,21 +1,21 @@
-﻿using PLCTest.Client.ClientProtocolManagement.Inovance;
-using PLCTest.Client.ClientProtocolManagement.Melsec;
-using PLCTest.Client.ClientProtocolManagement.Omron;
-using PLCTest.Client.ClientProtocolManagement.Siemens;
-using PLCTest.Client.PLCClient.Inovance;
-using PLCTest.Client.PLCClient.Omron;
-using PLCTest.ClientCommunication;
-using PLCTest.Client.PLCClient.Melsec;
-using PLCTest.Client.PLCClient.Siemens;
-using PLCTest.PLCInterface;
+using PlcTest.Client.ClientProtocolManagement.Inovance;
+using PlcTest.Client.ClientProtocolManagement.Melsec;
+using PlcTest.Client.ClientProtocolManagement.Omron;
+using PlcTest.Client.ClientProtocolManagement.Siemens;
+using PlcTest.Client.PlcClient.Inovance;
+using PlcTest.Client.PlcClient.Omron;
+using PlcTest.Client.ClientCommunication;
+using PlcTest.Client.PlcClient.Melsec;
+using PlcTest.Client.PlcClient.Siemens;
+using PlcTest.Client.PlcInterface;
 using System.IO.Ports;
 
-namespace PLCTest.Models
+namespace PlcTest.Models
 {
     /// <summary>
     /// PLC客户端构建器，用于创建和配置 PLC 客户端实例
     /// </summary>
-    public class PLCClientBuilder
+    public class PlcClientBuilder
     {
         /// <summary>
         /// 通讯方式实例，用于与 PLC 进行数据交换
@@ -24,7 +24,7 @@ namespace PLCTest.Models
         /// <summary>
         /// 通讯协议实例，用于处理 PLC 通讯协议的具体实现
         /// </summary>
-        private IPLCClientProtocol _protocol;
+        private IPlcClientProtocol _protocol;
 
         #region 通讯方式
         /// <summary>
@@ -33,7 +33,7 @@ namespace PLCTest.Models
         /// <param name="ip">IP地址</param>
         /// <param name="port">端口号</param>
         /// <returns></returns>
-        public PLCClientBuilder UseTcp(string ip, int port)
+        public PlcClientBuilder UseTcp(string ip, int port)
         {
             _communication = new TcpClientCommunication(ip, port);
             return this;
@@ -47,9 +47,9 @@ namespace PLCTest.Models
         /// <param name="dataBits">数据位</param>
         /// <param name="stopBits">停止位</param>
         /// <returns></returns>
-        public PLCClientBuilder UseSerial(string portName, int baudRate, Parity parity, int dataBits, StopBits stopBits)
+        public PlcClientBuilder UseSerial(string portName, int baudRate, Parity parity, int dataBits, StopBits stopBits)
         {
-            _communication = new SerialCommunication(portName, baudRate, parity, dataBits, stopBits);
+            _communication = new SerialPortClientCommunication(portName, baudRate, parity, dataBits, stopBits);
             return this;
         }
         #endregion
@@ -59,96 +59,96 @@ namespace PLCTest.Models
         /// 汇川PLC通讯协议，使用Modbus TCP协议进行数据交换
         /// </summary>
         /// <returns></returns>
-        public PLCClientBuilder UseInovanceModbusTcp()
+        public PlcClientBuilder UseInovanceModbusTcp()
         {
-            var protocol = new InovanceModbusTcpClientProtocol();
-            _protocol = protocol;
+            _protocol = new InovanceModbusTcpClientProtocol();
+
             return this;
         }
         /// <summary>
         /// 汇川PLC通讯协议，使用Modbus RTU协议进行数据交换
         /// </summary>
         /// <returns></returns>
-        public PLCClientBuilder UseInovanceModbusRtu()
+        public PlcClientBuilder UseInovanceModbusRtu()
         {
-            var protocol = new InovanceModbusRtuClientProtocol();
-            _protocol = protocol;
+            _protocol = new InovanceModbusRtuClientProtocol();
+
             return this;
         }
         /// <summary>
         /// 三菱PLC通讯协议，使用MC协议的31 ASCII模式进行数据交换
         /// </summary>
         /// <returns></returns>
-        public PLCClientBuilder UseMelsecMc1EBinary()
+        public PlcClientBuilder UseMelsecMc1EBinary()
         {
-            var protocol = new MelsecMc1EBinaryClientProtocol();
-            _protocol = protocol;
+            _protocol = new MelsecMc1EBinaryClientProtocol();
+
             return this;
         }
         /// <summary>
         /// 三菱PLC通讯协议，使用MC协议的31 ASCII模式进行数据交换
         /// </summary>
         /// <returns></returns>
-        public PLCClientBuilder UseMelsecMc1EAscii()
+        public PlcClientBuilder UseMelsecMc1EAscii()
         {
-            var protocol = new MelsecMc1EAsciiClientProtocol();
-            _protocol = protocol;
+            _protocol = new MelsecMc1EAsciiClientProtocol();
+
             return this;
         }
         /// <summary>
         /// 三菱PLC通讯协议，使用MC协议的3E ASCII模式进行数据交换
         /// </summary>
         /// <returns></returns>
-        public PLCClientBuilder UseMelsecMc3EAscii()
+        public PlcClientBuilder UseMelsecMc3EAscii()
         {
-            var protocol = new MelsecMc3EAsciiClientProtocol();
-            _protocol = protocol;
+            _protocol = new MelsecMc3EAsciiClientProtocol();
+
             return this;
         }
         /// <summary>
         /// 三菱PLC通讯协议，使用MC协议的3E Binary模式进行数据交换
         /// </summary>
         /// <returns></returns>
-        public PLCClientBuilder UseMelsecMc3EBinary()
+        public PlcClientBuilder UseMelsecMc3EBinary()
         {
-            var protocol = new MelsecMc3EBinaryClientProtocol();
-            _protocol = protocol;
+            _protocol = new MelsecMc3EBinaryClientProtocol();
+
             return this;
         }
-        public PLCClientBuilder UseMelsecMc4EAscii()
+        public PlcClientBuilder UseMelsecMc4EAscii()
         {
-            var protocol = new MelsecMc4EAsciiClientProtocol();
-            _protocol = protocol;
+            _protocol = new MelsecMc4EAsciiClientProtocol();
+
             return this;
         }
         /// <summary>
         /// 三菱PLC通讯协议，使用MC协议的3E Binary模式进行数据交换
         /// </summary>
         /// <returns></returns>
-        public PLCClientBuilder UseMelsecMc4EBinary()
+        public PlcClientBuilder UseMelsecMc4EBinary()
         {
-            var protocol = new MelsecMc4EBinaryClientProtocol();
-            _protocol = protocol;
+            _protocol = new MelsecMc4EBinaryClientProtocol();
+
             return this;
         }
         /// <summary>
         /// 欧姆龙PLC通讯协议，使用FINS TCP协议进行数据交换
         /// </summary>
         /// <returns></returns>
-        public PLCClientBuilder UseOmronFinsTcp()
+        public PlcClientBuilder UseOmronFinsTcp()
         {
-            var protocol = new OmronFinsTcpClientProtocol();
-            _protocol = protocol;
+            _protocol = new OmronFinsTcpClientProtocol();
+
             return this;
         }
         /// <summary>
         /// 西门子PLC通讯协议，使用S7协议进行数据交换
         /// </summary>
         /// <returns></returns>
-        public PLCClientBuilder UseSiemensS71200()
+        public PlcClientBuilder UseSiemensS71200()
         {
-            var protocol = new SiemensS71200ClientProtocol();
-            _protocol = protocol;
+            _protocol = new SiemensS71200ClientProtocol();
+
             return this;
         }
         #endregion
@@ -158,7 +158,7 @@ namespace PLCTest.Models
         /// 构建汇川PLC客户端实例，使用指定的通讯方式和协议进行数据交换
         /// </summary>
         /// <returns></returns>
-        public IPLCClient BuildInovancePlcClient()
+        public IPlcClient BuildInovancePlcClient()
         {
             return new InovancePlcClient(_communication, _protocol);
         }
@@ -166,16 +166,16 @@ namespace PLCTest.Models
         /// 构建三菱PLC客户端实例，使用指定的通讯方式和协议进行数据交换
         /// </summary>
         /// <returns></returns>
-        public IPLCClient BuildMelsecMcPlcClient()
+        public IPlcClient BuildMelsecMcPlcClient()
         {
             return new MelsecPlcClient(_communication, _protocol);
         }
 
-        public IPLCClient BuildOmronPlcClient()
+        public IPlcClient BuildOmronPlcClient()
         {
             return new OmronPlcClient(_communication, _protocol);
         }
-        public IPLCClient BuildSiemensPlcClient()
+        public IPlcClient BuildSiemensPlcClient()
         {
             return new SiemensPlcClient(_communication, _protocol);
         }

@@ -1,25 +1,25 @@
 
-using PLCTest.SeverInterface;
+using PlcTest.Server.ServerInterface;
 using System;
 using System.IO.Ports;
 using System.Threading;
 
-namespace PLCTest.SeverCommunication
+namespace PlcTest.Server.ServerCommunication
 {
     /// <summary>
-    /// 串口“服务端”通信实现（对 ISeverCommunication 的适配）
+    /// 串口“服务端”通信实现（对 IServerCommunication 的适配）
     /// 注意：串口无客户端概念，client 标识恒为 null，SendToClient 会忽略 client 参数并直接向串口写数据。
     /// </summary>
-    public class SerialSeverCommunication : ISeverCommunication
+    public class SerialServerCommunication : IServerCommunication
     {
         /// <summary>
         /// 串口实例
         /// </summary>
-        private readonly SerialPort serialPort;
+        private readonly SerialPort _serialPort;
         /// <summary>
         /// 异步操作锁
         /// </summary>
-        private readonly object sync = new object();
+        private readonly object _sync = new object();
         /// <summary>
         /// 是否运行
         /// </summary>
@@ -40,24 +40,24 @@ namespace PLCTest.SeverCommunication
         /// <param name="parity"></param>
         /// <param name="dataBits"></param>
         /// <param name="stopBits"></param>
-        public SerialSeverCommunication(string portName, int baudRate = 9600, Parity parity = Parity.None, int dataBits = 8, StopBits stopBits = StopBits.One)
+        public SerialServerCommunication(string portName, int baudRate = 9600, Parity parity = Parity.None, int dataBits = 8, StopBits stopBits = StopBits.One)
         {
-            serialPort = new SerialPort(portName, baudRate, parity, dataBits, stopBits)
+            _serialPort = new SerialPort(portName, baudRate, parity, dataBits, stopBits)
             {
                 ReadTimeout = 500,
                 WriteTimeout = 500
             };
-            serialPort.DataReceived += SerialPort_DataReceived;
+            _serialPort.DataReceived += SerialPort_DataReceived;
         }
         /// <summary>
         /// 开始服务
         /// </summary>
         public void Start()
         {
-            lock (sync)
+            lock (_sync)
             {
                 if (IsRunning) return;
-                serialPort.Open();
+                _serialPort.Open();
                 IsRunning = true;
             }
         }
@@ -66,11 +66,11 @@ namespace PLCTest.SeverCommunication
         /// </summary>
         public void Stop()
         {
-            lock (sync)
+            lock (_sync)
             {
                 if (!IsRunning) return;
-                serialPort.DataReceived -= SerialPort_DataReceived;
-                try { serialPort.Close(); } catch { }
+                _serialPort.DataReceived -= SerialPort_DataReceived;
+                try { _serialPort.Close(); } catch { }
                 IsRunning = false;
             }
         }
@@ -84,9 +84,9 @@ namespace PLCTest.SeverCommunication
             if (!IsRunning) return;
             try
             {
-                lock (sync)
+                lock (_sync)
                 {
-                    serialPort.Write(data, 0, data.Length);
+                    _serialPort.Write(data, 0, data.Length);
                 }
             }
             catch { }
@@ -100,10 +100,10 @@ namespace PLCTest.SeverCommunication
         {
             try
             {
-                int bytesToRead = serialPort.BytesToRead;
+                int bytesToRead = _serialPort.BytesToRead;
                 if (bytesToRead <= 0) return;
                 byte[] buffer = new byte[bytesToRead];
-                int read = serialPort.Read(buffer, 0, bytesToRead);
+                int read = _serialPort.Read(buffer, 0, bytesToRead);
                 if (read > 0)
                 {
                     ThreadPool.QueueUserWorkItem(_ => OnDataReceived?.Invoke(buffer, null));

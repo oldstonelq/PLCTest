@@ -1,8 +1,8 @@
-﻿using CustomControl;
+using PlcTest.View.CustomControl;
 
-namespace PLCTest.View
+namespace PlcTest.View
 {
-    partial class aMainForm
+    partial class MainForm
     {
         /// <summary>
         /// Required designer variable.
@@ -33,7 +33,7 @@ namespace PLCTest.View
             this.components = new System.ComponentModel.Container();
             this.tableLayoutPanel1 = new System.Windows.Forms.TableLayoutPanel();
             this.timer1 = new System.Windows.Forms.Timer(this.components);
-            this.gb_ServiceInformation = new CustomControl.mGroupBox(this.components);
+            this.gb_ServiceInformation = new PlcTest.View.CustomControl.MGroupBox(this.components);
             this.btn_CloseServer = new System.Windows.Forms.Button();
             this.btn_OpenServer = new System.Windows.Forms.Button();
             this.cmb_ServiceInformationCount = new System.Windows.Forms.ComboBox();
@@ -42,17 +42,17 @@ namespace PLCTest.View
             this.lab_ServiceInformationCount = new System.Windows.Forms.Label();
             this.lab_ServiceInformationPort = new System.Windows.Forms.Label();
             this.lab_ServiceInformationIP = new System.Windows.Forms.Label();
-            this.gb_ServiceInformationFunction = new CustomControl.mGroupBox(this.components);
+            this.gb_ServiceInformationFunction = new PlcTest.View.CustomControl.MGroupBox(this.components);
             this.btn_Trigger = new System.Windows.Forms.Button();
             this.btn_ServiceInformationMemoryView = new System.Windows.Forms.Button();
-            this.gb_PLCInformation = new CustomControl.mGroupBox(this.components);
+            this.gb_PLCInformation = new PlcTest.View.CustomControl.MGroupBox(this.components);
             this.btn_Disconnect = new System.Windows.Forms.Button();
             this.btn_Connect = new System.Windows.Forms.Button();
             this.tb_PLCInformationPort = new System.Windows.Forms.TextBox();
             this.tb_PLCInformationIP = new System.Windows.Forms.TextBox();
             this.lab_PLCInformationPort = new System.Windows.Forms.Label();
             this.lab_PLCInformationIP = new System.Windows.Forms.Label();
-            this.gb_ConnectionStatus = new CustomControl.mGroupBox(this.components);
+            this.gb_ConnectionStatus = new PlcTest.View.CustomControl.MGroupBox(this.components);
             this.label12 = new System.Windows.Forms.Label();
             this.label11 = new System.Windows.Forms.Label();
             this.label10 = new System.Windows.Forms.Label();
@@ -65,10 +65,10 @@ namespace PLCTest.View
             this.label3 = new System.Windows.Forms.Label();
             this.label2 = new System.Windows.Forms.Label();
             this.label1 = new System.Windows.Forms.Label();
-            this.gb_ConnectStatus = new CustomControl.mGroupBox(this.components);
+            this.gb_ConnectStatus = new PlcTest.View.CustomControl.MGroupBox(this.components);
             this.lab_ConnectPort = new System.Windows.Forms.Label();
             this.lab_ConnectStatus = new System.Windows.Forms.Label();
-            this.gb_PLCInformationFunction = new CustomControl.mGroupBox(this.components);
+            this.gb_PLCInformationFunction = new PlcTest.View.CustomControl.MGroupBox(this.components);
             this.btn_PLCInformationMemoryView = new System.Windows.Forms.Button();
             this.tableLayoutPanel1.SuspendLayout();
             this.gb_ServiceInformation.SuspendLayout();
@@ -500,7 +500,7 @@ namespace PLCTest.View
             this.btn_PLCInformationMemoryView.UseVisualStyleBackColor = true;
             this.btn_PLCInformationMemoryView.Click += new System.EventHandler(this.btn_PLCInformationMemoryView_Click);
             // 
-            // aMainForm
+            // MainForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 12F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
@@ -509,9 +509,9 @@ namespace PLCTest.View
             this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.Fixed3D;
             this.MaximizeBox = false;
             this.MinimizeBox = false;
-            this.Name = "aMainForm";
+            this.Name = "MainForm";
             this.Text = "Form1";
-            this.Load += new System.EventHandler(this.aMainForm_Load);
+            this.Load += new System.EventHandler(this.MainForm_Load);
             this.tableLayoutPanel1.ResumeLayout(false);
             this.gb_ServiceInformation.ResumeLayout(false);
             this.gb_ServiceInformation.PerformLayout();
@@ -561,11 +561,11 @@ namespace PLCTest.View
         private System.Windows.Forms.Label label8;
         private System.Windows.Forms.Label label7;
         private System.Windows.Forms.Timer timer1;
-        private mGroupBox gb_ServiceInformation;
-        private mGroupBox gb_ServiceInformationFunction;
-        private mGroupBox gb_PLCInformation;
-        private mGroupBox gb_ConnectionStatus;
-        private mGroupBox gb_ConnectStatus;
-        private mGroupBox gb_PLCInformationFunction;
+        private MGroupBox gb_ServiceInformation;
+        private MGroupBox gb_ServiceInformationFunction;
+        private MGroupBox gb_PLCInformation;
+        private MGroupBox gb_ConnectionStatus;
+        private MGroupBox gb_ConnectStatus;
+        private MGroupBox gb_PLCInformationFunction;
     }
 }

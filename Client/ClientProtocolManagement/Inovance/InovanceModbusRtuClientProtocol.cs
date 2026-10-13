@@ -1,19 +1,19 @@
-﻿using PLCTest.Models;
-using PLCTest.PLCInterface;
+using PlcTest.Models;
+using PlcTest.Client.PlcInterface;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using static PLCTest.Models.Enums;
+using static PlcTest.Models.Enums;
 
-namespace PLCTest.Client.ClientProtocolManagement.Inovance
+namespace PlcTest.Client.ClientProtocolManagement.Inovance
 {
     /// <summary>
     /// Modbus RTU 实现的 Inovance 协议适配器。
     /// 构造 RTU 帧： [UnitId][PDU][CRClo][CRChi]
     /// </summary>
-    public class InovanceModbusRtuClientProtocol : IPLCClientProtocol
+    public class InovanceModbusRtuClientProtocol : IPlcClientProtocol
     {
         /// <summary>
         /// 单元标识符，设备地址，一般默认1
@@ -75,7 +75,7 @@ namespace PLCTest.Client.ClientProtocolManagement.Inovance
         /// </summary>
         /// <param name="address">PLC地址模型</param>
         /// <returns>读取命令报文</returns>
-        public byte[] BuildReadData(PLCAddress address)
+        public byte[] BuildReadData(PlcAddress address)
         {
             ushort start = (ushort)(GetMemoryCode(address.Area) + address.Address);
             ushort quantity = (ushort)address.Length;
@@ -100,7 +100,7 @@ namespace PLCTest.Client.ClientProtocolManagement.Inovance
         /// <param name="address">PLC地址模型</param>
         /// <param name="data">写入数据</param>
         /// <returns>写命令报文</returns>
-        public byte[] BuildWriteData(PLCAddress address, byte[] data)
+        public byte[] BuildWriteData(PlcAddress address, byte[] data)
         {
             ushort start = (ushort)(GetMemoryCode(address.Area) + address.Address);
             ushort quantity = (ushort)address.Length;
@@ -145,15 +145,15 @@ namespace PLCTest.Client.ClientProtocolManagement.Inovance
         /// <summary>
         /// 拼接完整数据包
         /// </summary>
-        /// <param name="_data">命令报文</param>
+        /// <param name="data">命令报文</param>
         /// <returns>完整命令报文</returns>
-        public byte[] BuildCompletePack(byte[] _data)
+        public byte[] BuildCompletePack(byte[] data)
         {
-            int len = 1 + _data.Length + 2;
+            int len = 1 + data.Length + 2;
             byte[] frame = new byte[len];
             frame[0] = _unitId;
-            Array.Copy(_data, 0, frame, 1, _data.Length);
-            ushort crc = ComputeCrc(frame, 1 + _data.Length);
+            Array.Copy(data, 0, frame, 1, data.Length);
+            ushort crc = ComputeCrc(frame, 1 + data.Length);
             frame[len - 2] = (byte)(crc & 0xFF);
             frame[len - 1] = (byte)((crc >> 8) & 0xFF);
             return frame;
@@ -161,27 +161,27 @@ namespace PLCTest.Client.ClientProtocolManagement.Inovance
         /// <summary>
         /// 解析写返回
         /// </summary>
-        /// <param name="_data">返回数据</param>
+        /// <param name="data">返回数据</param>
         /// <returns>返回写入结果</returns>
-        public Result<bool> ParseWriteResponse(byte[] _data)
+        public Result<bool> ParseWriteResponse(byte[] data)
         {
             var result = new Result<bool>();
-            if (_data == null || _data.Length < 5)
+            if (data == null || data.Length < 5)
             {
                 result.ErrorMsg = "返回数据长度错误"; return result;
             }
-            ushort crc = ComputeCrc(_data, _data.Length - 2);
-            ushort respCrc = (ushort)(_data[_data.Length - 2] | (_data[_data.Length - 1] << 8));
+            ushort crc = ComputeCrc(data, data.Length - 2);
+            ushort respCrc = (ushort)(data[data.Length - 2] | (data[data.Length - 1] << 8));
             if (crc != respCrc) 
             { 
                 result.ErrorMsg = "CRC 校验失败"; 
                 return result;
             }
             int pduOffset = 1;
-            byte func = _data[pduOffset];
+            byte func = data[pduOffset];
             if ((func & 0x80) != 0) 
             {
-                result.ErrorMsg = $"Modbus 异常: 0x{_data[pduOffset + 1]:X2}";
+                result.ErrorMsg = $"Modbus 异常: 0x{data[pduOffset + 1]:X2}";
                 return result; 
             }
             result.IsSuccess = true; 
@@ -191,29 +191,29 @@ namespace PLCTest.Client.ClientProtocolManagement.Inovance
         /// <summary>
         /// 解析读位数据返回
         /// </summary>
-        /// <param name="_data">返回数据</param>
+        /// <param name="data">返回数据</param>
         /// <param name="size">读取数据长度</param>
         /// <returns>位数据数组</returns>
-        public Result<bool[]> ParseReadBitResponse(byte[] _data, int size)
+        public Result<bool[]> ParseReadBitResponse(byte[] data, int size)
         {
             var result = new Result<bool[]>();
-            if (_data == null || _data.Length < 5) 
+            if (data == null || data.Length < 5) 
             { 
                 result.ErrorMsg = "返回数据长度错误";
                 return result;
             }
-            ushort crc = ComputeCrc(_data, _data.Length - 2);
-            ushort respCrc = (ushort)(_data[_data.Length - 2] | (_data[_data.Length - 1] << 8));
+            ushort crc = ComputeCrc(data, data.Length - 2);
+            ushort respCrc = (ushort)(data[data.Length - 2] | (data[data.Length - 1] << 8));
             if (crc != respCrc) 
             { 
                 result.ErrorMsg = "CRC 校验失败";
                 return result; 
             }
             int pduOffset = 1;
-            byte func = _data[pduOffset];
+            byte func = data[pduOffset];
             if ((func & 0x80) != 0) 
             {
-                result.ErrorMsg = $"Modbus 异常: 0x{_data[pduOffset + 1]:X2}"; 
+                result.ErrorMsg = $"Modbus 异常: 0x{data[pduOffset + 1]:X2}"; 
                 return result; 
             }
             if (func != 0x01) 
@@ -221,8 +221,8 @@ namespace PLCTest.Client.ClientProtocolManagement.Inovance
                 result.ErrorMsg = "功能码不匹配"; 
                 return result; 
             }
-            byte byteCount = _data[pduOffset + 1];
-            if (_data.Length < pduOffset + 2 + byteCount + 2)
+            byte byteCount = data[pduOffset + 1];
+            if (data.Length < pduOffset + 2 + byteCount + 2)
             { 
                 result.ErrorMsg = "返回数据长度不足";
                 return result; }
@@ -231,7 +231,7 @@ namespace PLCTest.Client.ClientProtocolManagement.Inovance
             for (int i = 0; i < size; i++) 
             { 
                 int b = i / 8; int bit = i % 8;
-                bits[i] = (_data[pduOffset + 2 + b] & (1 << bit)) != 0; 
+                bits[i] = (data[pduOffset + 2 + b] & (1 << bit)) != 0; 
             }
             result.IsSuccess = true;
             result.Data = bits;
@@ -240,29 +240,29 @@ namespace PLCTest.Client.ClientProtocolManagement.Inovance
         /// <summary>
         /// 解析读字数据返回
         /// </summary>
-        /// <param name="_data">返回数据</param>
+        /// <param name="data">返回数据</param>
         /// <param name="size">读取数据长度</param>
         /// <returns>字数据数组</returns>
-        public Result<short[]> ParseReadWordResponse(byte[] _data, int size)
+        public Result<short[]> ParseReadWordResponse(byte[] data, int size)
         {
             var result = new Result<short[]>();
-            if (_data == null || _data.Length < 5)
+            if (data == null || data.Length < 5)
             { 
                 result.ErrorMsg = "返回数据长度错误";
                 return result;
             }
-            ushort crc = ComputeCrc(_data, _data.Length - 2);
-            ushort respCrc = (ushort)(_data[_data.Length - 2] | (_data[_data.Length - 1] << 8));
+            ushort crc = ComputeCrc(data, data.Length - 2);
+            ushort respCrc = (ushort)(data[data.Length - 2] | (data[data.Length - 1] << 8));
             if (crc != respCrc) 
             { 
                 result.ErrorMsg = "CRC 校验失败";
                 return result; 
             }
             int pduOffset = 1;
-            byte func = _data[pduOffset];
+            byte func = data[pduOffset];
             if ((func & 0x80) != 0) 
             { 
-                result.ErrorMsg = $"Modbus 异常: 0x{_data[pduOffset + 1]:X2}";
+                result.ErrorMsg = $"Modbus 异常: 0x{data[pduOffset + 1]:X2}";
                 return result;
             }
             if (func != 0x03) 
@@ -270,8 +270,8 @@ namespace PLCTest.Client.ClientProtocolManagement.Inovance
                 result.ErrorMsg = "功能码不匹配";
                 return result;
             }
-            byte byteCount = _data[pduOffset + 1];
-            if (_data.Length < pduOffset + 2 + byteCount + 2)
+            byte byteCount = data[pduOffset + 1];
+            if (data.Length < pduOffset + 2 + byteCount + 2)
             { 
                 result.ErrorMsg = "返回数据长度不足"; 
                 return result;
@@ -285,7 +285,7 @@ namespace PLCTest.Client.ClientProtocolManagement.Inovance
             for (int i = 0; i < size; i++) 
             { 
                 int idx = pduOffset + 2 + i * 2; 
-                regs[i] = (short)((_data[idx] << 8) | _data[idx + 1]);
+                regs[i] = (short)((data[idx] << 8) | data[idx + 1]);
             }
             result.IsSuccess = true;
             result.Data = regs;

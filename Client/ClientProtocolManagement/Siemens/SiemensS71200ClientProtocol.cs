@@ -1,18 +1,18 @@
-﻿using PLCTest.Models;
-using PLCTest.PLCInterface;
+using PlcTest.Models;
+using PlcTest.Client.PlcInterface;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using static PLCTest.Models.Enums;
+using static PlcTest.Models.Enums;
 
-namespace PLCTest.Client.ClientProtocolManagement.Siemens
+namespace PlcTest.Client.ClientProtocolManagement.Siemens
 {
     /// <summary>
     /// 西门子 S7-1200 通讯协议（S7comm over TPKT+COTP）
     /// </summary>
-    public class SiemensS71200ClientProtocol : IPLCClientProtocol
+    public class SiemensS71200ClientProtocol : IPlcClientProtocol
     {
         /// <summary>
         /// 协议单元，每次累加
@@ -87,11 +87,11 @@ namespace PLCTest.Client.ClientProtocolManagement.Siemens
         /// </summary>
         /// <param name="address">统一地址模型，包含 DB 编号、地址和长度。</param>
         /// <returns>读取参数区。</returns>
-        public byte[] BuildReadData(PLCAddress address)
+        public byte[] BuildReadData(PlcAddress address)
         {
             int memory = GetMemoryCode(address.Area);
             int db = address.DbNumber ?? 0;
-            int adress = address.Address;
+            int startAddress = address.Address;
             bool isBit = address.IsBit;
             int length = address.Length;
             byte[] param = new byte[14];
@@ -124,7 +124,7 @@ namespace PLCTest.Client.ClientProtocolManagement.Siemens
             //存储区类型
             param[10] = (byte)memory;
             //起始地址
-            int addrVal = adress * 8;
+            int addrVal = startAddress * 8;
             param[11] = (byte)((addrVal >> 16) & 0xFF);
             param[12] = (byte)((addrVal >> 8) & 0xFF);
             param[13] = (byte)(addrVal & 0xFF);
@@ -140,11 +140,11 @@ namespace PLCTest.Client.ClientProtocolManagement.Siemens
         /// <param name="address">统一地址模型，包含 DB 编号、地址和长度。</param>
         /// <param name="data">写入数据。</param>
         /// <returns>写入参数区与数据区。</returns>
-        public byte[] BuildWriteData(PLCAddress address, byte[] data)
+        public byte[] BuildWriteData(PlcAddress address, byte[] data)
         {
             int memory = GetMemoryCode(address.Area);
             int db = address.DbNumber ?? 0;
-            int adress = address.Address;
+            int startAddress = address.Address;
             bool isBit = address.IsBit;
             int length = address.Length;
             byte[] param = new byte[18 + data.Length];
@@ -177,7 +177,7 @@ namespace PLCTest.Client.ClientProtocolManagement.Siemens
             //存储区类型
             param[10] = (byte)memory;
             //起始地址
-            int addrVal = adress * 8;
+            int addrVal = startAddress * 8;
             param[11] = (byte)((addrVal >> 16) & 0xFF);
             param[12] = (byte)((addrVal >> 8) & 0xFF);
             param[13] = (byte)(addrVal & 0xFF);
@@ -202,15 +202,15 @@ namespace PLCTest.Client.ClientProtocolManagement.Siemens
         /// <summary>
         /// 封装 TPKT + COTP + S7 头，构建完整报文。
         /// </summary>
-        /// <param name="_data">S7 参数区与数据区。</param>
+        /// <param name="data">S7 参数区与数据区。</param>
         /// <returns>完整通讯报文。</returns>
-        public byte[] BuildCompletePack(byte[] _data)
+        public byte[] BuildCompletePack(byte[] data)
         {
-            int paramLen = _data[0] == 0x04 ? 14 : (_data[0] == 0x05 ? 18 : 14);
-            int dataLen = _data.Length - paramLen;
+            int paramLen = data[0] == 0x04 ? 14 : (data[0] == 0x05 ? 18 : 14);
+            int dataLen = data.Length - paramLen;
             if (dataLen < 0) dataLen = 0;
 
-            int totalLen = 7 + 10 + _data.Length;
+            int totalLen = 7 + 10 + data.Length;
             byte[] command = new byte[totalLen];
 
             //TPKT（版本号1个字节+预留1个字节+报文总长度2个字节）
@@ -237,7 +237,7 @@ namespace PLCTest.Client.ClientProtocolManagement.Siemens
             command[15] = (byte)(dataLen >> 8);
             command[16] = (byte)(dataLen & 0xFF);
 
-            _data.CopyTo(command, 17);
+            data.CopyTo(command, 17);
             return command;
         }
 
@@ -247,21 +247,21 @@ namespace PLCTest.Client.ClientProtocolManagement.Siemens
         /// <summary>
         /// 解析写入响应，检查返回码是否成功。
         /// </summary>
-        /// <param name="_data">完整响应报文。</param>
+        /// <param name="data">完整响应报文。</param>
         /// <returns>解析结果。</returns>
-        public Result<bool> ParseWriteResponse(byte[] _data)
+        public Result<bool> ParseWriteResponse(byte[] data)
         {
             Result<bool> result = new Result<bool>();
 
-            if (_data == null || _data.Length < 22)
+            if (data == null || data.Length < 22)
             {
                 result.ErrorMsg = "返回数据长度错误";
                 return result;
             }
 
-            byte funcCode = _data[17];
-            byte itemCount = _data[18];
-            byte returnCode = _data[19];
+            byte funcCode = data[17];
+            byte itemCount = data[18];
+            byte returnCode = data[19];
 
             if (funcCode != 0x05)
             {
@@ -285,22 +285,22 @@ namespace PLCTest.Client.ClientProtocolManagement.Siemens
         /// <summary>
         /// 解析位读取响应。
         /// </summary>
-        /// <param name="_data">完整响应报文。</param>
+        /// <param name="data">完整响应报文。</param>
         /// <param name="size">期望点数。</param>
         /// <returns>解析结果。</returns>
-        public Result<bool[]> ParseReadBitResponse(byte[] _data, int size)
+        public Result<bool[]> ParseReadBitResponse(byte[] data, int size)
         {
             Result<bool[]> result = new Result<bool[]>();
 
-            if (_data == null || _data.Length < 22)
+            if (data == null || data.Length < 22)
             {
                 result.ErrorMsg = "返回数据长度错误";
                 return result;
             }
 
-            byte funcCode = _data[17];
-            byte itemCount = _data[18];
-            byte returnCode = _data[19];
+            byte funcCode = data[17];
+            byte itemCount = data[18];
+            byte returnCode = data[19];
 
             if (returnCode != 0xFF)
             {
@@ -309,7 +309,7 @@ namespace PLCTest.Client.ClientProtocolManagement.Siemens
             }
 
             int dataOffset = 23;
-            if (_data.Length - dataOffset < size)
+            if (data.Length - dataOffset < size)
             {
                 result.ErrorMsg = "返回数据长度不足";
                 return result;
@@ -318,7 +318,7 @@ namespace PLCTest.Client.ClientProtocolManagement.Siemens
             bool[] realData = new bool[size];
             for (int i = 0; i < size; i++)
             {
-                realData[i] = _data[dataOffset + i] != 0x00;
+                realData[i] = data[dataOffset + i] != 0x00;
             }
 
             result.IsSuccess = true;
@@ -332,22 +332,22 @@ namespace PLCTest.Client.ClientProtocolManagement.Siemens
         /// <summary>
         /// 解析字读取响应。
         /// </summary>
-        /// <param name="_data">完整响应报文。</param>
+        /// <param name="data">完整响应报文。</param>
         /// <param name="size">期望字数。</param>
         /// <returns>解析结果。</returns>
-        public Result<short[]> ParseReadWordResponse(byte[] _data, int size)
+        public Result<short[]> ParseReadWordResponse(byte[] data, int size)
         {
             Result<short[]> result = new Result<short[]>();
 
-            if (_data == null || _data.Length < 22)
+            if (data == null || data.Length < 22)
             {
                 result.ErrorMsg = "返回数据长度错误";
                 return result;
             }
 
-            byte funcCode = _data[17];
-            byte itemCount = _data[18];
-            byte returnCode = _data[19];
+            byte funcCode = data[17];
+            byte itemCount = data[18];
+            byte returnCode = data[19];
 
             if (returnCode != 0xFF)
             {
@@ -357,7 +357,7 @@ namespace PLCTest.Client.ClientProtocolManagement.Siemens
 
             int expectedLen = size * 2;
             int dataOffset = 23;
-            if (_data.Length - dataOffset < expectedLen)
+            if (data.Length - dataOffset < expectedLen)
             {
                 result.ErrorMsg = "返回数据长度不足";
                 return result;
@@ -366,7 +366,7 @@ namespace PLCTest.Client.ClientProtocolManagement.Siemens
             short[] realData = new short[size];
             for (int i = 0; i < size; i++)
             {
-                realData[i] = (short)((_data[dataOffset + i * 2] << 8) | _data[dataOffset + i * 2 + 1]);
+                realData[i] = (short)((data[dataOffset + i * 2] << 8) | data[dataOffset + i * 2 + 1]);
             }
 
             result.IsSuccess = true;

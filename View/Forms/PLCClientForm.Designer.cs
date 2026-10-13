@@ -1,8 +1,8 @@
-﻿using CustomControl;
+using PlcTest.View.CustomControl;
 
-namespace PLCTest.View
+namespace PlcTest.View
 {
-    partial class PLCClientForm
+    partial class PlcClientForm
     {
         /// <summary>
         /// 必需的设计器变量。
@@ -32,12 +32,12 @@ namespace PLCTest.View
         {
             this.components = new System.ComponentModel.Container();
             this.tableLayoutPanel1 = new System.Windows.Forms.TableLayoutPanel();
-            this.gb_cleardata = new CustomControl.mGroupBox(this.components);
+            this.gb_cleardata = new PlcTest.View.CustomControl.MGroupBox(this.components);
             this.btn_ClearAll = new System.Windows.Forms.Button();
             this.btn_ClearLength = new System.Windows.Forms.Button();
             this.tb_ClearLength = new System.Windows.Forms.TextBox();
             this.lab_ClearLength = new System.Windows.Forms.Label();
-            this.gb_info = new CustomControl.mGroupBox(this.components);
+            this.gb_info = new PlcTest.View.CustomControl.MGroupBox(this.components);
             this.btn_EndRead = new System.Windows.Forms.Button();
             this.btn_StartRead = new System.Windows.Forms.Button();
             this.tb_ReadLength = new System.Windows.Forms.TextBox();
@@ -67,14 +67,14 @@ namespace PLCTest.View
             this.Column_bit2 = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.Column_bit1 = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.Column_0 = new System.Windows.Forms.DataGridViewTextBoxColumn();
-            this.Column_Hight = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.columnHeight = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.Column_Low = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.Column_All = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.Column_ascII = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.tp_LogView = new System.Windows.Forms.TabPage();
             this.panel2 = new System.Windows.Forms.Panel();
             this.tb_Info = new System.Windows.Forms.TextBox();
-            this.gb_WriteBit = new CustomControl.mGroupBox(this.components);
+            this.gb_WriteBit = new PlcTest.View.CustomControl.MGroupBox(this.components);
             this.cmb_WriteBitArea = new System.Windows.Forms.ComboBox();
             this.tb_WriteBitValue = new System.Windows.Forms.TextBox();
             this.tb_WriteBitAddress = new System.Windows.Forms.TextBox();
@@ -82,7 +82,7 @@ namespace PLCTest.View
             this.lab_WriteBitValue = new System.Windows.Forms.Label();
             this.lab_WriteBitAddress = new System.Windows.Forms.Label();
             this.lab_WriteBitArea = new System.Windows.Forms.Label();
-            this.gb_WriteWord = new CustomControl.mGroupBox(this.components);
+            this.gb_WriteWord = new PlcTest.View.CustomControl.MGroupBox(this.components);
             this.cmb_WriteWordArea = new System.Windows.Forms.ComboBox();
             this.tb_WriteWordValue = new System.Windows.Forms.TextBox();
             this.tb_WriteWordAddress = new System.Windows.Forms.TextBox();
@@ -90,7 +90,7 @@ namespace PLCTest.View
             this.lab_WriteWordValue = new System.Windows.Forms.Label();
             this.lab_WriteWordAddress = new System.Windows.Forms.Label();
             this.lab_WriteWordArea = new System.Windows.Forms.Label();
-            this.groupBox3 = new CustomControl.mGroupBox(this.components);
+            this.groupBox3 = new PlcTest.View.CustomControl.MGroupBox(this.components);
             this.btn_StartAddressAdd50 = new System.Windows.Forms.Button();
             this.btn_StartAddressDecrease50 = new System.Windows.Forms.Button();
             this.btn_StartAddressAdd20 = new System.Windows.Forms.Button();
@@ -351,7 +351,7 @@ namespace PLCTest.View
             this.Column_bit2,
             this.Column_bit1,
             this.Column_0,
-            this.Column_Hight,
+            this.columnHeight,
             this.Column_Low,
             this.Column_All,
             this.Column_ascII});
@@ -518,14 +518,14 @@ namespace PLCTest.View
             this.Column_0.ReadOnly = true;
             this.Column_0.SortMode = System.Windows.Forms.DataGridViewColumnSortMode.NotSortable;
             // 
-            // Column_Hight
+            // columnHeight
             // 
-            this.Column_Hight.AutoSizeMode = System.Windows.Forms.DataGridViewAutoSizeColumnMode.Fill;
-            this.Column_Hight.FillWeight = 97.00508F;
-            this.Column_Hight.HeaderText = "Hight";
-            this.Column_Hight.Name = "Column_Hight";
-            this.Column_Hight.ReadOnly = true;
-            this.Column_Hight.SortMode = System.Windows.Forms.DataGridViewColumnSortMode.NotSortable;
+            this.columnHeight.AutoSizeMode = System.Windows.Forms.DataGridViewAutoSizeColumnMode.Fill;
+            this.columnHeight.FillWeight = 97.00508F;
+            this.columnHeight.HeaderText = "Height";
+            this.columnHeight.Name = "columnHeight";
+            this.columnHeight.ReadOnly = true;
+            this.columnHeight.SortMode = System.Windows.Forms.DataGridViewColumnSortMode.NotSortable;
             // 
             // Column_Low
             // 
@@ -867,7 +867,7 @@ namespace PLCTest.View
             this.timer1.Interval = 500;
             this.timer1.Tick += new System.EventHandler(this.timer1_Tick);
             // 
-            // PLCClientForm
+            // PlcClientForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 12F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
@@ -876,7 +876,7 @@ namespace PLCTest.View
             this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedSingle;
             this.MaximizeBox = false;
             this.MinimizeBox = false;
-            this.Name = "PLCClientForm";
+            this.Name = "PlcClientForm";
             this.Text = "PLCClient";
             this.Load += new System.EventHandler(this.Form1_Load);
             this.tableLayoutPanel1.ResumeLayout(false);
@@ -939,11 +939,11 @@ namespace PLCTest.View
         private System.Windows.Forms.Button btn_StartAddressAdd1;
         private System.Windows.Forms.Button btn_StartAddressDecrease1;
         private System.Windows.Forms.Button btn_EndRead;
-        private mGroupBox gb_info;
-        private mGroupBox gb_cleardata;
-        private mGroupBox gb_WriteBit;
-        private mGroupBox gb_WriteWord;
-        private mGroupBox groupBox3;
+        private MGroupBox gb_info;
+        private MGroupBox gb_cleardata;
+        private MGroupBox gb_WriteBit;
+        private MGroupBox gb_WriteWord;
+        private MGroupBox groupBox3;
         private System.Windows.Forms.TabControl tab_DataInfo;
         private System.Windows.Forms.TabPage tp_DataView;
         private System.Windows.Forms.DataGridView DGV;
@@ -964,7 +964,7 @@ namespace PLCTest.View
         private System.Windows.Forms.DataGridViewTextBoxColumn Column_bit2;
         private System.Windows.Forms.DataGridViewTextBoxColumn Column_bit1;
         private System.Windows.Forms.DataGridViewTextBoxColumn Column_0;
-        private System.Windows.Forms.DataGridViewTextBoxColumn Column_Hight;
+        private System.Windows.Forms.DataGridViewTextBoxColumn columnHeight;
         private System.Windows.Forms.DataGridViewTextBoxColumn Column_Low;
         private System.Windows.Forms.DataGridViewTextBoxColumn Column_All;
         private System.Windows.Forms.DataGridViewTextBoxColumn Column_ascII;

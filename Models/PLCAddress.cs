@@ -1,12 +1,12 @@
 using System;
-using static PLCTest.Models.Enums;
+using static PlcTest.Models.Enums;
 
-namespace PLCTest.Models
+namespace PlcTest.Models
 {
     /// <summary>
     /// 统一 PLC 地址模型，同时适配三菱、西门子 S7、OPC UA。
     /// </summary>
-    public class PLCAddress
+    public class PlcAddress
     {
         /// <summary>
         /// 存储区域。
@@ -36,7 +36,7 @@ namespace PLCTest.Models
         /// <param name="isBit">是否位操作。</param>
         /// <param name="dbNumber">DB块编号。</param>
         /// <param name="length">操作长度。</param>
-        public PLCAddress(MemoryArea area, int address, bool isBit, int? dbNumber = null, int length = 1)
+        public PlcAddress(MemoryArea area, int address, bool isBit, int? dbNumber = null, int length = 1)
         {
             Area = area;
             Address = address;
@@ -53,8 +53,8 @@ namespace PLCTest.Models
         /// <param name="dbNumber">DB块编号。</param>
         /// <param name="length">位点数。</param>
         /// <returns>位地址对象。</returns>
-        public static PLCAddress Bit(MemoryArea area, int address, int? dbNumber = null, int length = 1)
-            => new PLCAddress(area, address, true, dbNumber, length);
+        public static PlcAddress Bit(MemoryArea area, int address, int? dbNumber = null, int length = 1)
+            => new PlcAddress(area, address, true, dbNumber, length);
 
         /// <summary>
         /// 创建字地址。
@@ -64,8 +64,8 @@ namespace PLCTest.Models
         /// <param name="dbNumber">DB块编号。</param>
         /// <param name="length">字点数。</param>
         /// <returns>字地址对象。</returns>
-        public static PLCAddress Word(MemoryArea area, int address, int? dbNumber = null, int length = 1)
-            => new PLCAddress(area, address, false, dbNumber, length);
+        public static PlcAddress Word(MemoryArea area, int address, int? dbNumber = null, int length = 1)
+            => new PlcAddress(area, address, false, dbNumber, length);
 
         /// <summary>
         /// 返回地址的调试字符串。

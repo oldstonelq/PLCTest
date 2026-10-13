@@ -1,17 +1,17 @@
-﻿using PLCTest.Models;
+using PlcTest.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using static PLCTest.Models.Enums;
+using static PlcTest.Models.Enums;
 
-namespace PLCTest.PLCInterface
+namespace PlcTest.Client.PlcInterface
 {
     /// <summary>
     /// 协议接口
     /// </summary>
-    public interface IPLCClientProtocol
+    public interface IPlcClientProtocol
     {
         /// <summary>
         ///获取寄存器地址的真实编码
@@ -36,39 +36,39 @@ namespace PLCTest.PLCInterface
         /// </summary>
         /// <param name="address">PLC地址模型</param>
         /// <returns>读取命令报文</returns>
-        byte[] BuildReadData(PLCAddress address);
+        byte[] BuildReadData(PlcAddress address);
         /// <summary>
         /// 创建写入数据包
         /// </summary>
         /// <param name="address">PLC地址模型</param>
         /// <param name="data">写入数据</param>
         /// <returns>写命令报文</returns>
-        byte[] BuildWriteData(PLCAddress address, byte[] data);
+        byte[] BuildWriteData(PlcAddress address, byte[] data);
         /// <summary>
         /// 拼接完整数据包
         /// </summary>
-        /// <param name="_data">命令报文</param>
+        /// <param name="data">命令报文</param>
         /// <returns>完整命令报文</returns>
-        byte[] BuildCompletePack(byte[] _data);
+        byte[] BuildCompletePack(byte[] data);
         /// <summary>
         /// 解析写返回
         /// </summary>
-        /// <param name="_data">返回数据</param>
+        /// <param name="data">返回数据</param>
         /// <returns>返回写入结果</returns>
-        Result<bool> ParseWriteResponse(byte[] _data);
+        Result<bool> ParseWriteResponse(byte[] data);
         /// <summary>
         /// 解析读位数据返回
         /// </summary>
-        /// <param name="_data">返回数据</param>
+        /// <param name="data">返回数据</param>
         /// <param name="size">读取数据长度</param>
         /// <returns>位数据数组</returns>
-        Result<bool[]> ParseReadBitResponse(byte[] _data,int size);
+        Result<bool[]> ParseReadBitResponse(byte[] data,int size);
         /// <summary>
         /// 解析读字数据返回
         /// </summary>
-        /// <param name="_data">返回数据</param>
+        /// <param name="data">返回数据</param>
         /// <param name="size">读取数据长度</param>
         /// <returns>字数据数组</returns>
-        Result<short[]> ParseReadWordResponse(byte[] _data,int size);
+        Result<short[]> ParseReadWordResponse(byte[] data,int size);
     }
 }

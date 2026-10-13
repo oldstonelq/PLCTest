@@ -1,4 +1,4 @@
-﻿using PLCTest.PLCInterface;
+using PlcTest.Client.PlcInterface;
 using System;
 using System.Collections.Generic;
 using System.IO.Ports;
@@ -7,7 +7,7 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace PLCTest.ClientCommunication
+namespace PlcTest.Client.ClientCommunication
 {
     /// <summary>
     /// TCP通讯类 实现基础PLC通讯接口
@@ -45,7 +45,7 @@ namespace PLCTest.ClientCommunication
         /// <summary>
         /// 接收缓冲区最大长度(PLC报文通用4096足够)
         /// </summary>
-        private const int BufferMaxLength = 4096;
+        private const int _bufferMaxLength = 4096;
         #endregion
 
         #region 构造函数
@@ -76,7 +76,7 @@ namespace PLCTest.ClientCommunication
                 }
                 catch
                 {
-                    DisConnectServer();
+                    DisconnectServer();
                     return false;
                 }
             }
@@ -92,7 +92,7 @@ namespace PLCTest.ClientCommunication
         {
             // 已连接先释放旧连接
             if (IsConnected)
-                DisConnectServer();
+                DisconnectServer();
 
             _tcpClient = new TcpClient();
             // 设置连接超时
@@ -117,7 +117,7 @@ namespace PLCTest.ClientCommunication
         /// <summary>
         /// 断开连接并释放资源
         /// </summary>
-        public  void DisConnectServer()
+        public void DisconnectServer()
         {
             try
             {
@@ -145,7 +145,7 @@ namespace PLCTest.ClientCommunication
         /// <param name="sendData">下发指令字节数组</param>
         /// <returns>PLC返回响应报文</returns>
         /// <exception cref="Exception">未连接、读写超时、通讯中断抛出异常</exception>
-        public byte[] SendAndRecevieData(byte[] sendData)
+        public byte[] SendAndReceiveData(byte[] sendData)
         {
             if (!IsConnected || _stream == null)
                 throw new Exception("TCP未建立连接，无法发送数据");
@@ -154,8 +154,8 @@ namespace PLCTest.ClientCommunication
             _stream.Write(sendData, 0, sendData.Length);
 
             // 接收缓冲区
-            byte[] recvBuffer = new byte[BufferMaxLength];
-            int recvLen = _stream.Read(recvBuffer, 0, BufferMaxLength);
+            byte[] recvBuffer = new byte[_bufferMaxLength];
+            int recvLen = _stream.Read(recvBuffer, 0, _bufferMaxLength);
 
             if (recvLen <= 0)
                 throw new Exception("无返回数据，连接已断开");
@@ -171,14 +171,14 @@ namespace PLCTest.ClientCommunication
         /// <summary>
         /// 异步收发
         /// </summary>
-        public async Task<byte[]> SendAndRecevieDataAsync(byte[] sendData)
+        public async Task<byte[]> SendAndReceiveDataAsync(byte[] sendData)
         {
             if (!IsConnected || _stream == null)
                 throw new Exception("TCP未建立连接");
 
             await _stream.WriteAsync(sendData, 0, sendData.Length);
-            byte[] buffer = new byte[BufferMaxLength];
-            int len = await _stream.ReadAsync(buffer, 0, BufferMaxLength);
+            byte[] buffer = new byte[_bufferMaxLength];
+            int len = await _stream.ReadAsync(buffer, 0, _bufferMaxLength);
 
             if (len <= 0)
                 throw new Exception("异步读取数据为空");
@@ -193,7 +193,7 @@ namespace PLCTest.ClientCommunication
         /// </summary>
         public async Task ConnectServerAsync()
         {
-            if (IsConnected) DisConnectServer();
+            if (IsConnected) DisconnectServer();
             _tcpClient = new TcpClient();
             var connectTask = _tcpClient.ConnectAsync(IpAddress, Port);
             if (await Task.WhenAny(connectTask, Task.Delay(ConnectTimeout)) != connectTask)

@@ -1,10 +1,10 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace PLCTest.PLCInterface
+namespace PlcTest.Client.PlcInterface
 {
     /// <summary>
     /// 客户端通讯方式接口
@@ -22,12 +22,12 @@ namespace PLCTest.PLCInterface
         /// <summary>
         /// 断开服务端连接
         /// </summary>
-        void DisConnectServer();
+        void DisconnectServer();
         /// <summary>
         /// 发送并返回数据
         /// </summary>
         /// <param name="data">发送报文</param>
         /// <returns>返回接收报文</returns>
-        byte[] SendAndRecevieData(byte[] data);
+        byte[] SendAndReceiveData(byte[] data);
     }
 }

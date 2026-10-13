@@ -1,14 +1,14 @@
-﻿using PLCTest.Client.ClientProtocolManagement.Inovance;
-using PLCTest.Client.PLCClient.Inovance;
-using PLCTest.ClientCommunication;
-using PLCTest.Models;
-using PLCTest.Client.PLCClient.Melsec;
-using PLCTest.PLCInterface;
-using PLCTest.PLCSever;
-using PLCTest.PLCSever.Melsec;
-using PLCTest.SeverCommunication;
-using PLCTest.SeverInterface;
-using PLCTest.Tool;
+using PlcTest.Client.ClientProtocolManagement.Inovance;
+using PlcTest.Client.PlcClient.Inovance;
+using PlcTest.Client.ClientCommunication;
+using PlcTest.Models;
+using PlcTest.Client.PlcClient.Melsec;
+using PlcTest.Client.PlcInterface;
+using PlcTest.Server.PlcServer;
+using PlcTest.Server.PlcServer.Melsec;
+using PlcTest.Server.ServerCommunication;
+using PlcTest.Server.ServerInterface;
+using PlcTest.Tool;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -21,26 +21,26 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using static System.Windows.Forms.VisualStyles.VisualStyleElement.Button;
 
-namespace PLCTest.View
+namespace PlcTest.View
 {
-    public partial class aMainForm : Form
+    public partial class MainForm : Form
     {
         /// <summary>
         /// PLC实例
         /// </summary>
-        IPLCClient pLCControl = null;
+        IPlcClient plcControl = null;
         /// <summary>
         /// PLC窗体实例
         /// </summary>
-        PLCClientForm pLCClientForm=null;
+        PlcClientForm plcClientForm=null;
         /// <summary>
         /// PLC服务实例
         /// </summary>
-        IPLCServer PLCSever = null;
+        IPlcServer PlcServer = null;
         /// <summary>
         /// PLC服务窗体
         /// </summary>
-        PLCSeverForm pLCSeverForm = null;
+        PlcServerForm pLCServerForm = null;
         /// <summary>
         ///  这个属性可以增加界面动态加载的流畅性
         /// </summary>
@@ -56,7 +56,7 @@ namespace PLCTest.View
         /// <summary>
         /// 构造函数
         /// </summary>
-        public aMainForm()
+        public MainForm()
         {
             InitializeComponent();
         }
@@ -65,7 +65,7 @@ namespace PLCTest.View
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
-        private void aMainForm_Load(object sender, EventArgs e)
+        private void MainForm_Load(object sender, EventArgs e)
         {
             this.Text = OtherTool.GetSoftwareVersion();
         }
@@ -93,15 +93,15 @@ namespace PLCTest.View
             }
             // 使用依赖注入：将通信实现和协议实现注入到客户端，避免硬编码
 
-             var builder = new PLCClientBuilder()
+             var builder = new PlcClientBuilder()
             .UseTcp(tb_PLCInformationIP.Text, port)
             .UseMelsecMc1EAscii();
-            pLCControl = builder.BuildMelsecMcPlcClient();
-            pLCControl.Connect();
+            plcControl = builder.BuildMelsecMcPlcClient();
+            plcControl.Connect();
             //var comm = new TcpClientCommunication(tb_PLCInformationIP.Text, port);
             //var protocol = new InovanceModbusRtuClientProtocol();
-            //pLCControl = new InovanceTcpPLCClient(comm, protocol);
-            //pLCControl.Connect();
+            //plcControl = new InovanceTcpPlcClient(comm, protocol);
+            //plcControl.Connect();
         }
         /// <summary>
         /// 断开PLC客户端连接
@@ -110,14 +110,14 @@ namespace PLCTest.View
         /// <param name="e"></param>
         private void btn_Disconnect_Click(object sender, EventArgs e)
         {
-            if (pLCControl != null)
+            if (plcControl != null)
             {
-                pLCControl.Disconnect();
-                pLCControl = null;
+                plcControl.Disconnect();
+                plcControl = null;
             }
             else
             {
-                pLCControl = null;
+                plcControl = null;
             }
         }
         /// <summary>
@@ -127,16 +127,16 @@ namespace PLCTest.View
         /// <param name="e"></param>
         private void btn_PLCInformationMemoryView_Click(object sender, EventArgs e)
         {
-            if ((pLCControl != null && pLCControl.IsConnected))
+            if ((plcControl != null && plcControl.IsConnected))
             {
-                if (pLCClientForm==null|| pLCClientForm.IsDisposed)
+                if (plcClientForm==null|| plcClientForm.IsDisposed)
                 {
-                    pLCClientForm = new PLCClientForm(pLCControl);
-                    pLCClientForm.Show();
+                    plcClientForm = new PlcClientForm(plcControl);
+                    plcClientForm.Show();
                 }
                 else
                 {
-                    pLCClientForm.Show();
+                    plcClientForm.Show();
                 }
             }
             else
@@ -165,8 +165,8 @@ namespace PLCTest.View
                 MessageBox.Show("Please Check ServiceInformation Port");
                 return;
             } 
-            PLCSever = new MelsecMc3EPLCSever(new TcpSeverCommunication(tb_ServiceInformationIP.Text, port));
-            PLCSever.OpenServer();
+            PlcServer = new MelsecMc3EPlcServer(new TcpServerCommunication(tb_ServiceInformationIP.Text, port));
+            PlcServer.OpenServer();
         }
         /// <summary>
         /// 关闭PLC服务
@@ -175,10 +175,10 @@ namespace PLCTest.View
         /// <param name="e"></param>
         private void btn_CloseServer_Click(object sender, EventArgs e)
         {
-            if (PLCSever != null)
+            if (PlcServer != null)
             {
-                PLCSever.CloseServer();
-                PLCSever = null;
+                PlcServer.CloseServer();
+                PlcServer = null;
             }
         }
         /// <summary>
@@ -188,21 +188,21 @@ namespace PLCTest.View
         /// <param name="e"></param>
         private void btn_ServiceInformationMemoryView_Click(object sender, EventArgs e)
         {
-            if ((PLCSever != null && PLCSever.SeverIsOpen))
+            if ((PlcServer != null && PlcServer.ServerIsOpen))
             {
-                if (pLCSeverForm == null || pLCSeverForm.IsDisposed)
+                if (pLCServerForm == null || pLCServerForm.IsDisposed)
                 {
-                    pLCSeverForm = new PLCSeverForm(PLCSever);
-                    pLCSeverForm.Show();
+                    pLCServerForm = new PlcServerForm(PlcServer);
+                    pLCServerForm.Show();
                 }
                 else
                 {
-                    pLCSeverForm.Show();
+                    pLCServerForm.Show();
                 }
             }
             else
             {
-                MessageBox.Show("Please Check PLCSever Open");
+                MessageBox.Show("Please Check PlcServer Open");
             }
         }
         #endregion
@@ -215,15 +215,15 @@ namespace PLCTest.View
         {
             RefreshPLCUI();
 
-            RefreshSeverUI();
+            RefreshServerUI();
 
         }
         /// <summary>
         /// 刷新服务端相关UI
         /// </summary>
-        private void RefreshSeverUI()
+        private void RefreshServerUI()
         {
-            if (PLCSever != null && PLCSever.SeverIsOpen)
+            if (PlcServer != null && PlcServer.ServerIsOpen)
             {
                 tb_ServiceInformationIP.ReadOnly = true;
                 tb_ServiceInformationPort.ReadOnly = true;
@@ -240,9 +240,9 @@ namespace PLCTest.View
                 btn_CloseServer.Enabled = false;
                 btn_ServiceInformationMemoryView.Enabled = false;
                 btn_Trigger.Enabled = false;
-                if ((pLCSeverForm != null && pLCSeverForm.IsDisposed == false))
+                if ((pLCServerForm != null && pLCServerForm.IsDisposed == false))
                 {
-                    pLCSeverForm.Dispose();
+                    pLCServerForm.Dispose();
                 }
             }
         }
@@ -251,9 +251,9 @@ namespace PLCTest.View
         /// </summary>
         private void RefreshPLCUI()
         {
-            if (pLCControl != null)
+            if (plcControl != null)
             {
-                if (pLCControl.IsConnected)
+                if (plcControl.IsConnected)
                 {
                     lab_ConnectStatus.Text = "Connected";
                     lab_ConnectStatus.BackColor = Color.Green;
@@ -286,9 +286,9 @@ namespace PLCTest.View
                 btn_Disconnect.Enabled = false;
                 btn_PLCInformationMemoryView.Enabled = false;
 
-                if ((pLCClientForm != null && pLCClientForm.IsDisposed == false))
+                if ((plcClientForm != null && plcClientForm.IsDisposed == false))
                 {
-                    pLCClientForm.Dispose();
+                    plcClientForm.Dispose();
                 }
             }
         }

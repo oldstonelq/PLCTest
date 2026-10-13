@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -9,24 +9,24 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
-namespace CustomControl
+namespace PlcTest.View.CustomControl
 {
-    public partial class mGroupBox : GroupBox
+    public partial class MGroupBox : GroupBox
     {
-        private Color _BorderColor = Color.Black;
+        private Color _borderColor = Color.Black;
 
         [Browsable(true), Description("边框颜色"), Category("自定义分组")]
         public Color BorderColor
         {
-            get { return _BorderColor; }
+            get { return _borderColor; }
             set
             {
-                _BorderColor = value;
+                _borderColor = value;
                 this.Invalidate();
             }
         }
 
-        public mGroupBox()
+        public MGroupBox()
         {
             //SetStyle中的AllPaintingInWmPaint可以减少控件重绘次数,不会导致控件闪烁
             //但是必须是UserPaint为true时才有用,UserPaint为true时需要用户重绘控件
@@ -37,7 +37,7 @@ namespace CustomControl
             InitializeComponent();
         }
 
-        public mGroupBox(IContainer container)
+        public MGroupBox(IContainer container)
         {
             //SetStyle中的AllPaintingInWmPaint可以减少控件重绘次数,不会导致控件闪烁
             //但是必须是UserPaint为true时才有用,UserPaint为true时需要用户重绘控件
@@ -72,7 +72,7 @@ namespace CustomControl
             }
 
             // 3. 画边框（用 using 确保 Pen 释放）
-            using (Pen mPen = new Pen(this._BorderColor))
+            using (Pen mPen = new Pen(this._borderColor))
             {
                 float lineY = FontSize.Height / 2 + textY; // 让边框线对齐文字中间
 

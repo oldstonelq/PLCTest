@@ -1,5 +1,5 @@
-﻿
-using PLCTest.SeverInterface;
+
+using PlcTest.Server.ServerInterface;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -9,36 +9,36 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace PLCTest.SeverCommunication
+namespace PlcTest.Server.ServerCommunication
 {
-    public class TcpSeverCommunication : ISeverCommunication
+    public class TcpServerCommunication : IServerCommunication
     {
         /// <summary>
         /// IP地址和Port口
         /// </summary>
-        private IPEndPoint ipAndPoint;
+        private IPEndPoint _ipAndPoint;
         public IPEndPoint IpAndPoint
         {
-            get { return ipAndPoint; }
-            set { ipAndPoint = value; }
+            get { return _ipAndPoint; }
+            set { _ipAndPoint = value; }
         }
         /// <summary>
         /// 负责监听的Socket对象
         /// </summary>
-        private Socket listenSocket;
+        private Socket _listenSocket;
         public Socket ListenSocket
         {
-            get { return listenSocket; }
-            set { listenSocket = value; }
+            get { return _listenSocket; }
+            set { _listenSocket = value; }
         }
         /// <summary>
         /// 客户端连接的Socket对象集合
         /// </summary>
-        private readonly List<Socket> sockets = new List<Socket>();
+        private readonly List<Socket> _sockets = new List<Socket>();
         /// <summary>
         /// Socket对象集合管理锁
         /// </summary>
-        private readonly object socketsLock = new object();
+        private readonly object _socketsLock = new object();
         /// <summary>
         /// 取消令牌
         /// </summary>
@@ -56,9 +56,9 @@ namespace PLCTest.SeverCommunication
         {
             get
             {
-                lock (socketsLock)
+                lock (_socketsLock)
                 {
-                    return sockets.Count;
+                    return _sockets.Count;
                 }
             }
         }
@@ -73,10 +73,10 @@ namespace PLCTest.SeverCommunication
         /// </summary>
         /// <param name="Ip"></param>
         /// <param name="Port"></param>
-        public TcpSeverCommunication(string Ip, int Port)
+        public TcpServerCommunication(string Ip, int Port)
         {
-            this.ipAndPoint = new IPEndPoint(IPAddress.Parse(Ip), Port);
-            this.listenSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+            this._ipAndPoint = new IPEndPoint(IPAddress.Parse(Ip), Port);
+            this._listenSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
         }
 
         /// <summary>
@@ -101,11 +101,11 @@ namespace PLCTest.SeverCommunication
         {
             IsRunning = false;
             StopSocketCleanup();
-            if (this.listenSocket != null)
+            if (this._listenSocket != null)
             {
-                this.listenSocket.Close();
+                this._listenSocket.Close();
             }
-            foreach (var socket in sockets)
+            foreach (var socket in _sockets)
             {
                 if (socket != null && socket.Connected)
                 {
@@ -121,9 +121,9 @@ namespace PLCTest.SeverCommunication
         private void AddSocket(Socket client)
         {
             if (client == null) return;
-            lock (socketsLock)
+            lock (_socketsLock)
             {
-                sockets.Add(client);
+                _sockets.Add(client);
             }
         }
         /// <summary>
@@ -133,10 +133,10 @@ namespace PLCTest.SeverCommunication
         private void RemoveSocket(Socket client)
         {
             if (client == null) return;
-            lock (socketsLock)
+            lock (_socketsLock)
             {
-                if (sockets.Contains(client))
-                    sockets.Remove(client);
+                if (_sockets.Contains(client))
+                    _sockets.Remove(client);
             }
             try { client.Shutdown(System.Net.Sockets.SocketShutdown.Both); } catch { }
             try { client.Close(); } catch { }
@@ -175,9 +175,9 @@ namespace PLCTest.SeverCommunication
                 while (!ct.IsCancellationRequested)
                 {
                     Socket[] listCopy;
-                    lock (socketsLock)
+                    lock (_socketsLock)
                     {
-                        listCopy = sockets.ToArray();
+                        listCopy = _sockets.ToArray();
                     }
 
                     foreach (var s in listCopy)
@@ -217,13 +217,13 @@ namespace PLCTest.SeverCommunication
         {
             try
             {
-                listenSocket.BeginAccept(new AsyncCallback((iResult) =>
+                _listenSocket.BeginAccept(new AsyncCallback((iResult) =>
                 {
                     Socket client = null;
                     try
                     {
                         // EndAccept 可能抛出 ObjectDisposedException，当 socket 已关闭时忽略
-                        client = listenSocket.EndAccept(iResult);
+                        client = _listenSocket.EndAccept(iResult);
                     }
                     catch (ObjectDisposedException)
                     {

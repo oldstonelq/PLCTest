@@ -1,6 +1,6 @@
-﻿namespace CustomControl
+namespace PlcTest.View.CustomControl
 {
-    partial class mGroupBox
+    partial class MGroupBox
     {
         /// <summary>
         /// 必需的设计器变量。
