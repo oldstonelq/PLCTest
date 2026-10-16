@@ -2,19 +2,12 @@ using PlcTest.Models;
 using PlcTest.Client.PlcInterface;
 using PlcTest.Tool;
 using System;
-using System.Collections.Generic;
 using System.ComponentModel;
-using System.Data;
 using System.Drawing;
 using System.Drawing.Imaging;
-using System.Globalization;
-using System.Linq;
-using System.Runtime.CompilerServices;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using static PlcTest.Models.Enums;
 
 namespace PlcTest.View
 {

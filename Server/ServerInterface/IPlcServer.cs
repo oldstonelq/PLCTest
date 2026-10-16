@@ -1,6 +1,5 @@
 using PlcTest.Models;
 using System;
-using static PlcTest.Models.Enums;
 
 namespace PlcTest.Server.ServerInterface
 {

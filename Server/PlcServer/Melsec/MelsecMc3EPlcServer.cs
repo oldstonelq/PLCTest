@@ -6,7 +6,6 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Net;
-using static PlcTest.Models.Enums;
 
 namespace PlcTest.Server.PlcServer.Melsec
 {

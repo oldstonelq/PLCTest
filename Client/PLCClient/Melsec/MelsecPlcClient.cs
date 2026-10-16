@@ -4,7 +4,6 @@ using PlcTest.Client.PlcInterface;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using static PlcTest.Models.Enums;
 
 namespace PlcTest.Client.PlcClient.Melsec
 {

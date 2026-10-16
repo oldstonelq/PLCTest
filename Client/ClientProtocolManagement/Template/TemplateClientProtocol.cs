@@ -16,9 +16,9 @@ namespace PlcTest.Client.ClientProtocolManagement.Template
         /// <summary>
         ///获取寄存器地址的真实编码
         /// </summary>
-        /// <param name="MemoryArea">寄存器区域</param>
+        /// <param name="memoryArea">寄存器区域</param>
         /// <returns>寄存器地址的真实编码（int，协议可使用高位/低位表示不同语义）</returns>
-        public int GetMemoryCode(Enums.MemoryArea MemoryArea)
+        public int GetMemoryCode(MemoryArea memoryArea)
         {
             throw new NotImplementedException();
         }

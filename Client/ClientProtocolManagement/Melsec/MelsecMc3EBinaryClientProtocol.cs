@@ -1,14 +1,9 @@
 using PlcTest.Models;
 using PlcTest.Client.PlcInterface;
 using System;
-using System.Collections.Generic;
 using System.Drawing;
-using System.Linq;
 using System.Runtime.Remoting.Messaging;
 using System.Security.Policy;
-using System.Text;
-using System.Threading.Tasks;
-using static PlcTest.Models.Enums;
 
 namespace PlcTest.Client.ClientProtocolManagement.Melsec
 {
@@ -20,11 +15,11 @@ namespace PlcTest.Client.ClientProtocolManagement.Melsec
         /// <summary>
         ///获取寄存器地址的真实编码
         /// </summary>
-        /// <param name="MemoryArea">寄存器区域</param>
+        /// <param name="memoryArea">寄存器区域</param>
         /// <returns>寄存器地址的真实编码</returns>
-        public int GetMemoryCode(MemoryArea MemoryArea)
+        public int GetMemoryCode(MemoryArea memoryArea)
         {
-            switch (MemoryArea)    //软元件                    类型     编号范围   进制 
+            switch (memoryArea)    //软元件                    类型     编号范围   进制 
             {
                 case MemoryArea.SM://特殊继电器               位数据   000000~001023  10进制
                     return 0x91;
@@ -83,7 +78,7 @@ namespace PlcTest.Client.ClientProtocolManagement.Melsec
                 case MemoryArea.ZR://文件寄存器*6             字数据   000000~00FFFF  16进制
                     return 0xB0;
                 default:
-                    throw new ArgumentOutOfRangeException(nameof(MemoryArea), "无效寄存器类型");
+                    throw new ArgumentOutOfRangeException(nameof(memoryArea), "无效寄存器类型");
             }
         }
         /// <summary>

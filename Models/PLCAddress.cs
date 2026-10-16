@@ -1,5 +1,4 @@
 using System;
-using static PlcTest.Models.Enums;
 
 namespace PlcTest.Models
 {

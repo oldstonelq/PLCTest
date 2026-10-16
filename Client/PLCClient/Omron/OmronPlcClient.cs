@@ -2,12 +2,8 @@ using PlcTest.Client.ClientProtocolManagement.Omron;
 using PlcTest.Models;
 using PlcTest.Client.PlcInterface;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using static PlcTest.Models.Enums;
 
 namespace PlcTest.Client.PlcClient.Omron
 {

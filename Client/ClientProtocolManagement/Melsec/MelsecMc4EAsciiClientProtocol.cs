@@ -1,11 +1,6 @@
 using PlcTest.Models;
 using PlcTest.Client.PlcInterface;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using static PlcTest.Models.Enums;
 
 namespace PlcTest.Client.ClientProtocolManagement.Melsec
 {
@@ -17,9 +12,9 @@ namespace PlcTest.Client.ClientProtocolManagement.Melsec
         /// <summary>
         /// 获取寄存器地址的真实编码（返回 int，可包含扩展编码）
         /// </summary>
-        /// <param name="MemoryArea">寄存器区域</param>
+        /// <param name="memoryArea">寄存器区域</param>
         /// <returns>寄存器地址的真实编码</returns>
-        public int GetMemoryCode(MemoryArea MemoryArea)
+        public int GetMemoryCode(MemoryArea memoryArea)
         {
             throw new NotImplementedException();
         }
