@@ -145,7 +145,7 @@ namespace PlcTest.Client.ClientProtocolManagement.Melsec
             Data[10] = Encoding.ASCII.GetBytes(memory.ToString("X4"))[2];
             Data[11] = Encoding.ASCII.GetBytes(memory.ToString("X4"))[3];
             //起始地址
-            string Address = startAddress.ToString().PadLeft(8, '0');
+            string Address = startAddress.ToString("X8");
             byte[] mbyte = Encoding.ASCII.GetBytes(Address);
             Array.Copy(mbyte, 0, Data, 12, 8);
             //软元件点数
