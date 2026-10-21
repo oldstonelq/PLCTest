@@ -31,7 +31,7 @@ namespace PlcTest.Server.ServerCommunication
         /// <summary>
         /// 接收数据委托（串口无客户端概念，client 恒为 null）
         /// </summary>
-        public event Action<byte[], object> OnDataReceived;
+        public event Action<byte[], IClientSession> OnDataReceived;
         /// <summary>
         /// 构造函数
         /// </summary>
@@ -57,7 +57,14 @@ namespace PlcTest.Server.ServerCommunication
             lock (_sync)
             {
                 if (IsRunning) return;
-                _serialPort.Open();
+                try
+                {
+                    _serialPort.Open();
+                }
+                catch (Exception ex)
+                {
+                    throw new InvalidOperationException($"串口打开失败: {ex.Message}", ex);
+                }
                 IsRunning = true;
             }
         }
@@ -78,7 +85,7 @@ namespace PlcTest.Server.ServerCommunication
         /// <summary>
         /// 向串口发送数据（串口无客户端概念，忽略 client 参数）
         /// </summary>
-        public void SendToClient(byte[] data, object client)
+        public void SendToClient(byte[] data, IClientSession client)
         {
             if (data == null || data.Length == 0) return;
             if (!IsRunning) return;
@@ -100,16 +107,53 @@ namespace PlcTest.Server.ServerCommunication
         {
             try
             {
-                int bytesToRead = _serialPort.BytesToRead;
-                if (bytesToRead <= 0) return;
-                byte[] buffer = new byte[bytesToRead];
-                int read = _serialPort.Read(buffer, 0, bytesToRead);
-                if (read > 0)
+                // 按 MC 3E 帧长度读满完整帧，避免半包/粘包
+                while (IsRunning)
                 {
-                    ThreadPool.QueueUserWorkItem(_ => OnDataReceived?.Invoke(buffer, null));
+                    byte[] frame = ReadFrame();
+                    if (frame == null) return;
+                    byte[] copy = frame;
+                    ThreadPool.QueueUserWorkItem(_ => OnDataReceived?.Invoke(copy, null));
                 }
             }
             catch { }
+        }
+        /// <summary>
+        /// 按 MC 3E 帧格式读取一整帧（9 字节头中的“请求数据长度”决定后续字节数）
+        /// </summary>
+        private byte[] ReadFrame()
+        {
+            byte[] header = new byte[9];
+            if (!ReadExact(header, 0, header.Length)) return null;
+
+            // 请求数据长度是小端（低字节在前）：header[7] 低字节、header[8] 高字节
+            int bodyLen = header[7] | (header[8] << 8);
+            if (bodyLen <= 0 || bodyLen > 0xFFFF - 9) return null;
+
+            byte[] frame = new byte[9 + bodyLen];
+            Array.Copy(header, frame, 9);
+            if (!ReadExact(frame, 9, bodyLen)) return null;
+            return frame;
+        }
+        /// <summary>
+        /// 从串口读满指定字节数（受 ReadTimeout 约束）
+        /// </summary>
+        private bool ReadExact(byte[] buffer, int offset, int count)
+        {
+            int filled = 0;
+            while (filled < count)
+            {
+                int n;
+                try
+                {
+                    n = _serialPort.Read(buffer, offset + filled, count - filled);
+                }
+                catch (TimeoutException) { return false; }
+                catch (Exception) { return false; }
+                if (n <= 0) return false;
+                filled += n;
+            }
+            return true;
         }
     }
 }

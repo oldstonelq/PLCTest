@@ -60,15 +60,13 @@
     <Compile Include="Client\ClientProtocolManagement\Omron\OmronFinsTcpClientProtocol.cs" />
     <Compile Include="Client\ClientProtocolManagement\Siemens\SiemensS71200ClientProtocol.cs" />
     <Compile Include="Client\ClientProtocolManagement\Template\TemplateClientProtocol.cs" />
-    <Compile Include="Client\PlcClient\Inovance\InovancePlcClient.cs" />
-    <Compile Include="Client\PlcClient\Melsec\MelsecPlcClient.cs" />
+    <Compile Include="Client\PlcClient\CommunicationPlcClient.cs" />
     <Compile Include="Client\PlcClient\Omron\OmronPlcClient.cs" />
-    <Compile Include="Client\PlcClient\Siemens\SiemensPlcClient.cs" />
     <Compile Include="Client\PlcClient\Template\TemplatePlcClient.cs" />
     <Compile Include="Client\PlcClientBuilder.cs" />
-    <Compile Include="Client\PlcInterface\IClientCommunication.cs" />
-    <Compile Include="Client\PlcInterface\IPlcClient.cs" />
-    <Compile Include="Client\PlcInterface\IPlcClientProtocol.cs" />
+    <Compile Include="Client\ClientInterface\IClientCommunication.cs" />
+    <Compile Include="Client\ClientInterface\IPlcClient.cs" />
+    <Compile Include="Client\ClientInterface\IPlcClientProtocol.cs" />
     <Compile Include="Models\Enums.cs" />
     <Compile Include="Models\PlcAddress.cs" />
     <Compile Include="Models\RequestInfo.cs" />
@@ -77,13 +75,22 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Properties\Resources.Designer.cs" />
     <Compile Include="Properties\Settings.Designer.cs" />
+    <Compile Include="Server\PlcServer\Melsec\MelsecPlcServer.cs" />
     <Compile Include="Server\PlcServer\Melsec\MelsecMc3EPlcServer.cs" />
+    <Compile Include="Server\PlcServerBuilder.cs" />
     <Compile Include="Server\ServerCommunication\SerialServerCommunication.cs" />
     <Compile Include="Server\ServerCommunication\TcpServerCommunication.cs" />
+    <Compile Include="Server\ServerInterface\IClientSession.cs" />
+    <Compile Include="Server\ServerInterface\IRegisterTable.cs" />
     <Compile Include="Server\ServerInterface\IPlcServer.cs" />
     <Compile Include="Server\ServerInterface\IServerCommunication.cs" />
     <Compile Include="Server\ServerInterface\IServerProtocol.cs" />
     <Compile Include="Server\ServerProtocolManagement\Melsec\MelsecMc3EServerProtocol.cs" />
+    <Compile Include="Server\ServerProtocolManagement\Melsec\MelsecMc1EBinaryServerProtocol.cs" />
+    <Compile Include="Server\ServerProtocolManagement\Melsec\MelsecMc1EAsciiServerProtocol.cs" />
+    <Compile Include="Server\ServerProtocolManagement\Melsec\MelsecMc3EAsciiServerProtocol.cs" />
+    <Compile Include="Server\ServerProtocolManagement\Melsec\MelsecMc4EAsciiServerProtocol.cs" />
+    <Compile Include="Server\ServerProtocolManagement\Melsec\MelsecMc4EBinaryServerProtocol.cs" />
     <Compile Include="Tool\ConverterTool.cs" />
     <Compile Include="Tool\OtherTool.cs" />
     <Compile Include="Tool\StructureHelp.cs" />
@@ -92,6 +99,9 @@
     </Compile>
     <Compile Include="View\CustomControl\MGroupBox.Designer.cs">
       <DependentUpon>MGroupBox.cs</DependentUpon>
+    </Compile>
+    <Compile Include="View\Forms\ConnectSettingsForm.cs">
+      <SubType>Form</SubType>
     </Compile>
     <Compile Include="View\Forms\MainForm.cs">
       <SubType>Form</SubType>
@@ -142,6 +152,14 @@
     <None Include="Document\Siemens\区域类型.png" />
     <None Include="Document\Siemens\写入报文.png" />
     <None Include="README.md" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="Server\PlcServer\Inovance\" />
+    <Folder Include="Server\PlcServer\Omron\" />
+    <Folder Include="Server\PlcServer\Siemens\" />
+    <Folder Include="Server\ServerProtocolManagement\Inovance\" />
+    <Folder Include="Server\ServerProtocolManagement\Omron\" />
+    <Folder Include="Server\ServerProtocolManagement\Siemens\" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

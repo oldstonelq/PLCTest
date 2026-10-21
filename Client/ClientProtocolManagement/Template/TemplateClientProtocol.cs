@@ -1,5 +1,5 @@
 using PlcTest.Models;
-using PlcTest.Client.PlcInterface;
+using PlcTest.Client.ClientInterface;
 using System;
 using System.Collections.Generic;
 using System.Linq;

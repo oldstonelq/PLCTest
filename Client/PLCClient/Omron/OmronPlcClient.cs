@@ -1,6 +1,6 @@
 using PlcTest.Client.ClientProtocolManagement.Omron;
 using PlcTest.Models;
-using PlcTest.Client.PlcInterface;
+using PlcTest.Client.ClientInterface;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
@@ -216,10 +216,19 @@ namespace PlcTest.Client.PlcClient.Omron
                         }
                         else
                         {
-                            //未连接，尝试重新连接
+                            //未连接，尝试重新连接：成功即跳出，否则下一次循环会把刚建立好的连接踹断
                             for (int i = 0; i < 3 && !IsConnected && !token.IsCancellationRequested; i++)
                             {
-                                _comm.ConnectServer();
+                                try
+                                {
+                                    _comm.ConnectServer();
+                                    if (IsConnected)
+                                        break;
+                                }
+                                catch
+                                {
+                                    // 单次重连失败，继续下一次
+                                }
                             }
                         }
                         await Task.Delay(1000).ConfigureAwait(false);

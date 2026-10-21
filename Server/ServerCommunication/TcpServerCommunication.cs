@@ -32,11 +32,11 @@ namespace PlcTest.Server.ServerCommunication
             set { _listenSocket = value; }
         }
         /// <summary>
-        /// 客户端连接的Socket对象集合
+        /// 客户端连接句柄集合
         /// </summary>
-        private readonly List<Socket> _sockets = new List<Socket>();
+        private readonly List<TcpClientSession> _sessions = new List<TcpClientSession>();
         /// <summary>
-        /// Socket对象集合管理锁
+        /// 客户端集合管理锁
         /// </summary>
         private readonly object _socketsLock = new object();
         /// <summary>
@@ -58,15 +58,15 @@ namespace PlcTest.Server.ServerCommunication
             {
                 lock (_socketsLock)
                 {
-                    return _sockets.Count;
+                    return _sessions.Count;
                 }
             }
         }
 
         /// <summary>
-        /// 客户端数据到达事件（附带客户端 Socket）
+        /// 客户端数据到达事件（附带客户端连接句柄）
         /// </summary>
-        public event Action<byte[], object> OnDataReceived;
+        public event Action<byte[], IClientSession> OnDataReceived;
 
         /// <summary>
         /// 构造函数
@@ -84,11 +84,20 @@ namespace PlcTest.Server.ServerCommunication
         /// </summary>
         public void Start()
         {
-            IsRunning = true;
-            // 绑定IP地址和端口号
+            if (IsRunning)
+            {
+                return;
+            }
+            // Stop 时监听 Socket 已被关闭，重启时需要重新创建
+            if (_listenSocket == null)
+            {
+                _listenSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+            }
+            // 先绑定监听成功再置运行状态，避免 Bind 失败后状态与实际不一致
             ListenSocket.Bind(IpAndPoint);
             //监听数量
             ListenSocket.Listen(10);
+            IsRunning = true;
             //开始异步接受客户端连接
             BeginAcceptNext();
             //启动Socket清理任务
@@ -101,47 +110,48 @@ namespace PlcTest.Server.ServerCommunication
         {
             IsRunning = false;
             StopSocketCleanup();
-            if (this._listenSocket != null)
+            var listen = _listenSocket;
+            _listenSocket = null;
+            if (listen != null)
             {
-                this._listenSocket.Close();
+                try { listen.Close(); } catch { }
             }
-            foreach (var socket in _sockets)
+            // 客户端集合可能被接收线程并发修改，先加锁取快照再关闭
+            List<TcpClientSession> snapshot;
+            lock (_socketsLock)
             {
-                if (socket != null && socket.Connected)
-                {
-                    socket.Shutdown(SocketShutdown.Both);
-                    socket.Close();
-                }
+                snapshot = new List<TcpClientSession>(_sessions);
+                _sessions.Clear();
+            }
+            foreach (var session in snapshot)
+            {
+                session.Dispose();
             }
         }
         /// <summary>
-        /// 添加Socket对象
+        /// 添加客户端连接句柄
         /// </summary>
-        /// <param name="client"></param>
-        private void AddSocket(Socket client)
+        /// <param name="session"></param>
+        private void AddSession(TcpClientSession session)
         {
-            if (client == null) return;
+            if (session == null) return;
             lock (_socketsLock)
             {
-                _sockets.Add(client);
+                _sessions.Add(session);
             }
         }
         /// <summary>
-        /// 移除Socket对象
+        /// 移除客户端连接句柄
         /// </summary>
-        /// <param name="client"></param>
-        private void RemoveSocket(Socket client)
+        /// <param name="session"></param>
+        private void RemoveSession(TcpClientSession session)
         {
-            if (client == null) return;
+            if (session == null) return;
             lock (_socketsLock)
             {
-                if (_sockets.Contains(client))
-                    _sockets.Remove(client);
+                _sessions.Remove(session);
             }
-            try { client.Shutdown(System.Net.Sockets.SocketShutdown.Both); } catch { }
-            try { client.Close(); } catch { }
-            try { client.Dispose(); } catch { }
-
+            try { session.Dispose(); } catch { }
         }
         /// <summary>
         /// 开始Socket清理任务
@@ -174,19 +184,20 @@ namespace PlcTest.Server.ServerCommunication
             {
                 while (!ct.IsCancellationRequested)
                 {
-                    Socket[] listCopy;
+                    TcpClientSession[] listCopy;
                     lock (_socketsLock)
                     {
-                        listCopy = _sockets.ToArray();
+                        listCopy = _sessions.ToArray();
                     }
 
-                    foreach (var s in listCopy)
+                    foreach (var session in listCopy)
                     {
                         bool remove = false;
                         try
                         {
                             // 常用断连检测：如果未连接或可读但可用字节为0，说明远端已关闭连接
-                            if (!s.Connected)
+                            var s = session.Socket;
+                            if (s == null || !s.Connected)
                             {
                                 remove = true;
                             }
@@ -201,7 +212,7 @@ namespace PlcTest.Server.ServerCommunication
                         }
 
                         if (remove)
-                            RemoveSocket(s);
+                            RemoveSession(session);
                     }
 
                     await Task.Delay(2000, ct).ConfigureAwait(false);
@@ -222,12 +233,21 @@ namespace PlcTest.Server.ServerCommunication
                     Socket client = null;
                     try
                     {
+                        var listen = _listenSocket;
+                        if (listen == null)
+                        {
+                            return;
+                        }
                         // EndAccept 可能抛出 ObjectDisposedException，当 socket 已关闭时忽略
-                        client = _listenSocket.EndAccept(iResult);
+                        client = listen.EndAccept(iResult);
                     }
                     catch (ObjectDisposedException)
                     {
                         // 如果正在关闭，静默返回；否则记录日志
+                        return;
+                    }
+                    catch (NullReferenceException)
+                    {
                         return;
                     }
                     catch (SocketException)
@@ -238,8 +258,9 @@ namespace PlcTest.Server.ServerCommunication
 
                     if (client != null && client.Connected)
                     {
-                        Task task = ReceiveDataFromClient(client);
-                        AddSocket(client);
+                        var session = new TcpClientSession(client);
+                        Task task = ReceiveDataFromClient(session);
+                        AddSession(session);
                     }
 
                     // 如果仍在工作，继续接受下一个连接
@@ -253,43 +274,151 @@ namespace PlcTest.Server.ServerCommunication
             {
                 // 监听 socket 已被关闭
             }
+            catch (NullReferenceException)
+            {
+                // Stop 与 BeginAcceptNext 并发时监听 socket 已被置空
+            }
         }
-        private Task ReceiveDataFromClient(Socket rcvSocket)
+        private Task ReceiveDataFromClient(TcpClientSession session)
         {
             return Task.Run(() =>
             {
-                using (rcvSocket)
+                using (var rcvSocket = session.Socket)
                 {
                     while (IsRunning)
                     {
-                        byte[] byt = new byte[1024];
-                        int len = rcvSocket.Receive(byt, 0, byt.Length, SocketFlags.None);
-                        if (len <= 0)
+                        // 按 MC 3E 帧长度读满一整帧，避免半包被截断、粘包被合并
+                        byte[] frame = ReadFrame(rcvSocket);
+                        if (frame == null)
                         {
-                            continue;
+                            break;
                         }
-                        byte[] receivedData = new byte[len];
-                        Array.Copy(byt, 0, receivedData, 0, len);
-                        OnDataReceived?.Invoke(receivedData, rcvSocket);
+                        OnDataReceived?.Invoke(frame, session);
                     }
+                    RemoveSession(session);
                 }
             });
+        }
+        /// <summary>
+        /// 读取完整的一帧：9 字节请求头中的“请求数据长度”字段决定后续字节数
+        /// </summary>
+        /// <param name="socket">客户端 Socket</param>
+        /// <returns>完整帧；对端关闭或帧非法时返回 null</returns>
+        private static byte[] ReadFrame(Socket socket)
+        {
+            byte[] header = new byte[9];
+            int filled = 0;
+            while (filled < header.Length)
+            {
+                int n;
+                try
+                {
+                    n = socket.Receive(header, filled, header.Length - filled, SocketFlags.None);
+                }
+                catch (SocketException) { return null; }
+                catch (ObjectDisposedException) { return null; }
+                catch (Exception) { return null; }
+                if (n <= 0)
+                {
+                    return null;
+                }
+                filled += n;
+            }
+
+            // MC 3E 的“请求数据长度”是从 CPU 监视定时器起算的字节数（小端：低字节在前），整帧 = 9 + 长度
+            int bodyLen = header[7] | (header[8] << 8);
+            if (bodyLen <= 0 || bodyLen > 0xFFFF - 9)
+            {
+                return null;
+            }
+
+            byte[] frame = new byte[9 + bodyLen];
+            Array.Copy(header, frame, 9);
+            filled = 9;
+            while (filled < frame.Length)
+            {
+                int n;
+                try
+                {
+                    n = socket.Receive(frame, filled, frame.Length - filled, SocketFlags.None);
+                }
+                catch (SocketException) { return null; }
+                catch (ObjectDisposedException) { return null; }
+                catch (Exception) { return null; }
+                if (n <= 0)
+                {
+                    return null;
+                }
+                filled += n;
+            }
+            return frame;
         }
         /// <summary>
         /// 向指定客户端发送数据
         /// </summary>
         /// <param name="data">要发送的字节数据</param>
-        /// <param name="client">目标客户端 Socket</param>
-        public void SendToClient(byte[] data, object client)
+        /// <param name="client">目标客户端连接句柄</param>
+        public void SendToClient(byte[] data, IClientSession client)
         {
-            var socket = client as Socket;
-            if (socket == null || data == null || data.Length == 0) return;
-            if (!socket.Connected) return;
+            if (client == null || data == null || data.Length == 0) return;
+            client.Send(data);
+        }
+    }
+
+    /// <summary>
+    /// TCP 客户端连接句柄（IClientSession 的 TCP 实现）
+    /// </summary>
+    internal sealed class TcpClientSession : IClientSession
+    {
+        private readonly Socket _socket;
+
+        public TcpClientSession(Socket socket)
+        {
+            _socket = socket;
+        }
+
+        /// <summary>
+        /// 底层 Socket（仅供 TcpServerCommunication 内部使用）
+        /// </summary>
+        public Socket Socket => _socket;
+
+        public EndPoint RemoteEndPoint
+        {
+            get
+            {
+                try { return _socket?.RemoteEndPoint; }
+                catch { return null; }
+            }
+        }
+
+        public bool IsConnected
+        {
+            get
+            {
+                try { return _socket != null && _socket.Connected; }
+                catch { return false; }
+            }
+        }
+
+        public void Send(byte[] data)
+        {
+            if (data == null || data.Length == 0 || _socket == null) return;
             try
             {
-                socket.Send(data);
+                if (_socket.Connected)
+                    _socket.Send(data);
             }
             catch { }
+        }
+
+        /// <summary>
+        /// 关闭并释放连接
+        /// </summary>
+        public void Dispose()
+        {
+            try { _socket?.Shutdown(SocketShutdown.Both); } catch { }
+            try { _socket?.Close(); } catch { }
+            try { _socket?.Dispose(); } catch { }
         }
     }
 }

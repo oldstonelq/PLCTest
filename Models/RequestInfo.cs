@@ -17,9 +17,14 @@ namespace PlcTest.Models
         public ushort Command { get; set; }
 
         /// <summary>
-        /// 设备代码（0xA8=D寄存器, 0x90=M线圈, 0x9C=X输入, 0x9D=Y输出）
+        /// 设备代码（协议层原始值：二进制协议为 1 字节，ASCII/1E 协议为 2 字节双字符码）
         /// </summary>
-        public byte DeviceCode { get; set; }
+        public int DeviceCode { get; set; }
+
+        /// <summary>
+        /// 设备区域——由协议层从 DeviceCode 映射出的统一语义，服务端业务逻辑只依赖此字段，不感知协议魔法数
+        /// </summary>
+        public MemoryArea? DeviceArea { get; set; }
 
         /// <summary>
         /// 起始地址（24位）

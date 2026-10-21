@@ -1,7 +1,7 @@
 using PlcTest.Models;
 using System;
 
-namespace PlcTest.Client.PlcInterface
+namespace PlcTest.Client.ClientInterface
 {
     /// <summary>
     /// 协议接口

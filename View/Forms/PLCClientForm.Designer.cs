@@ -1,6 +1,6 @@
 using PlcTest.View.CustomControl;
 
-namespace PlcTest.View
+namespace PlcTest.View.Forms
 {
     partial class PlcClientForm
     {

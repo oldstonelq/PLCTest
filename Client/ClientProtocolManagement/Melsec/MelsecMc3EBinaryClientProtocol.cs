@@ -1,5 +1,5 @@
 using PlcTest.Models;
-using PlcTest.Client.PlcInterface;
+using PlcTest.Client.ClientInterface;
 using System;
 using System.Drawing;
 using System.Runtime.Remoting.Messaging;
@@ -168,7 +168,7 @@ namespace PlcTest.Client.ClientProtocolManagement.Melsec
             bool isBit = address.IsBit;
             int length = address.Length;
             byte[] Data = new byte[10 + data.Length];
-            //读:1401
+            //写:1401
             Data[0] = 0x01;
             Data[1] = 0x14;
             //以点为单位:0x01,字为单位0x00
@@ -234,9 +234,10 @@ namespace PlcTest.Client.ClientProtocolManagement.Melsec
                 result.ErrorMsg = "响应副标题错误";
                 return result;
             }
-            if (BitConverter.ToUInt16(data, 9) != 0)
+            ushort endCode = BitConverter.ToUInt16(data, 9);
+            if (endCode != 0)
             {
-                result.ErrorMsg = "结束代码错误";
+                result.ErrorMsg = $"结束代码错误: 0x{endCode:X4}";
                 return result;
             }
 
@@ -254,6 +255,12 @@ namespace PlcTest.Client.ClientProtocolManagement.Melsec
         {
             Result<bool[]> result = new Result<bool[]>();
 
+            // 3E 协议位软元件单次读取上限为 7168 点
+            if (size <= 0 || size > 7168)
+            {
+                result.ErrorMsg = "读取点数超出范围（1-7168）";
+                return result;
+            }
             if (data == null || data.Length <= 11)
             {
                 result.ErrorMsg = "返回数据长度错误";
@@ -264,9 +271,10 @@ namespace PlcTest.Client.ClientProtocolManagement.Melsec
                 result.ErrorMsg = "响应副标题错误";
                 return result;
             }
-            if (BitConverter.ToUInt16(data, 9) != 0)
+            ushort endCode = BitConverter.ToUInt16(data, 9);
+            if (endCode != 0)
             {
-                result.ErrorMsg = "结束代码错误";
+                result.ErrorMsg = $"结束代码错误: 0x{endCode:X4}";
                 return result;
             }
 
@@ -298,6 +306,12 @@ namespace PlcTest.Client.ClientProtocolManagement.Melsec
         {
             Result<short[]> result = new Result<short[]>();
 
+            // 3E 协议字软元件单次读取上限为 960 点
+            if (size <= 0 || size > 960)
+            {
+                result.ErrorMsg = "读取点数超出范围（1-960）";
+                return result;
+            }
             if (data == null || data.Length <= 11)
             {
                 result.ErrorMsg = "返回数据长度错误";
@@ -308,9 +322,10 @@ namespace PlcTest.Client.ClientProtocolManagement.Melsec
                 result.ErrorMsg = "响应副标题错误";
                 return result;
             }
-            if (BitConverter.ToUInt16(data, 9) != 0)
+            ushort endCode = BitConverter.ToUInt16(data, 9);
+            if (endCode != 0)
             {
-                result.ErrorMsg = "结束代码错误";
+                result.ErrorMsg = $"结束代码错误: 0x{endCode:X4}";
                 return result;
             }
 

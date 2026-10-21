@@ -1,5 +1,5 @@
 using PlcTest.Models;
-using PlcTest.Client.PlcInterface;
+using PlcTest.Client.ClientInterface;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -197,6 +197,20 @@ namespace PlcTest.Client.ClientProtocolManagement.Inovance
             return packet;
         }
         /// <summary>
+        /// 校验响应 MBAP 头的事务 ID 与单元 ID 是否与请求一致
+        /// </summary>
+        /// <param name="data">完整响应报文</param>
+        /// <returns>校验失败返回错误信息，成功返回 null</returns>
+        private string ValidateMbap(byte[] data)
+        {
+            ushort trans = (ushort)((data[0] << 8) | data[1]);
+            if (trans != _transactionId)
+                return $"事务 ID 不匹配: 期望 0x{_transactionId:X4}，实际 0x{trans:X4}";
+            if (data[6] != _unitId)
+                return $"单元 ID 不匹配: 期望 0x{_unitId:X2}，实际 0x{data[6]:X2}";
+            return null;
+        }
+        /// <summary>
         /// 解析写返回
         /// </summary>
         /// <param name="data">返回数据</param>
@@ -209,6 +223,12 @@ namespace PlcTest.Client.ClientProtocolManagement.Inovance
                 result.ErrorMsg = "返回数据长度错误";
                 return result;
             }
+            string mbapError = ValidateMbap(data);
+            if (mbapError != null)
+            {
+                result.ErrorMsg = mbapError;
+                return result;
+            }
             int pduOffset = 7;
             byte func = data[pduOffset];
             if ((func & 0x80) != 0)
@@ -217,7 +237,12 @@ namespace PlcTest.Client.ClientProtocolManagement.Inovance
                 result.ErrorMsg = $"Modbus 异常响应: 0x{ex:X2}";
                 return result;
             }
-            // Success for write: function echoed
+            // 写响应应回显请求功能码：单线圈/单寄存器/多线圈/多寄存器
+            if (func != 0x05 && func != 0x06 && func != 0x0F && func != 0x10)
+            {
+                result.ErrorMsg = "功能码不匹配";
+                return result;
+            }
             result.IsSuccess = true;
             result.Data = true;
             return result;
@@ -234,6 +259,12 @@ namespace PlcTest.Client.ClientProtocolManagement.Inovance
             if (data == null || data.Length < 9)
             {
                 result.ErrorMsg = "返回数据长度错误";
+                return result;
+            }
+            string mbapError = ValidateMbap(data);
+            if (mbapError != null)
+            {
+                result.ErrorMsg = mbapError;
                 return result;
             }
             int pduOffset = 7;
@@ -253,6 +284,12 @@ namespace PlcTest.Client.ClientProtocolManagement.Inovance
             if (data.Length < pduOffset + 2 + byteCount)
             {
                 result.ErrorMsg = "返回数据长度不足";
+                return result;
+            }
+            // 字节数必须覆盖期望点数，否则按点数循环会越界读
+            if (byteCount < (size + 7) / 8)
+            {
+                result.ErrorMsg = "返回字节数与期望不符";
                 return result;
             }
             bool[] bits = new bool[size];
@@ -278,6 +315,12 @@ namespace PlcTest.Client.ClientProtocolManagement.Inovance
             if (data == null || data.Length < 9)
             {
                 result.ErrorMsg = "返回数据长度错误";
+                return result;
+            }
+            string mbapError = ValidateMbap(data);
+            if (mbapError != null)
+            {
+                result.ErrorMsg = mbapError;
                 return result;
             }
             int pduOffset = 7;

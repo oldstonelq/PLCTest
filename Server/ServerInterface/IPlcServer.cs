@@ -28,12 +28,5 @@ namespace PlcTest.Server.ServerInterface
         Result<short[]> ReadWordArray(PlcAddress address);
         Result<bool> WriteWord(PlcAddress address, short value);
         Result<bool> WriteWordArray(PlcAddress address, short[] values);
-
-        int GetRegisterCount(MemoryArea area);
-        bool ContainsRegister(MemoryArea area, int address);
-        bool TryAddRegister(MemoryArea area, int address);
-        void ClearRegisters(MemoryArea area);
-        void ResetRegisterValues(MemoryArea area, int start, int length);
-        void ResetAllRegisterValues(MemoryArea area);
     }
 }

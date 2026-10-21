@@ -1,7 +1,8 @@
-using PlcTest.Client.PlcInterface;
+using PlcTest.Client.ClientInterface;
 using System;
 using System.IO.Ports;
 using System.Linq;
+using System.Threading;
 
 namespace PlcTest.Client.ClientCommunication
 {
@@ -15,6 +16,10 @@ namespace PlcTest.Client.ClientCommunication
         /// 串口核心实例
         /// </summary>
         private SerialPort _serialPort;
+        /// <summary>
+        /// 收发串行锁：同一串口上"一问一答"必须成对，防止读线程与写操作交叉
+        /// </summary>
+        private readonly SemaphoreSlim _ioLock = new SemaphoreSlim(1, 1);
         #endregion
 
         #region 串口配置参数
@@ -46,6 +51,14 @@ namespace PlcTest.Client.ClientCommunication
         /// 接收缓冲区最大长度
         /// </summary>
         private const int _bufferMaxLength = 4096;
+        /// <summary>
+        /// 拼接后续字节时的轮询间隔 ms
+        /// </summary>
+        private const int _idleWaitMs = 20;
+        /// <summary>
+        /// 连续多少次无新数据即认为一帧已收全（20ms * 3 = 60ms 兜底）
+        /// </summary>
+        private const int _maxIdleRounds = 3;
         #endregion
         /// <summary>
         /// 沟站函数
@@ -143,21 +156,74 @@ namespace PlcTest.Client.ClientCommunication
         /// <returns>设备返回数据</returns>
         public byte[] SendAndReceiveData(byte[] sendData)
         {
-            if (!IsConnected || _serialPort == null)
-                throw new Exception("串口未打开，无法发送数据");
+            if (sendData == null || sendData.Length == 0)
+                throw new ArgumentException("发送报文不能为空", nameof(sendData));
 
-            // 发送数据
-            _serialPort.Write(sendData, 0, sendData.Length);
+            // 同一串口上的收发必须串行
+            _ioLock.Wait();
+            try
+            {
+                if (!IsConnected || _serialPort == null)
+                    throw new Exception("串口未打开，无法发送数据");
 
+                // 发送数据
+                _serialPort.Write(sendData, 0, sendData.Length);
+
+                return ReadCompleteResponse();
+            }
+            finally
+            {
+                _ioLock.Release();
+            }
+        }
+
+        /// <summary>
+        /// 读取一帧完整响应
+        /// 串口按字节流返回，一次 Read 可能只拿到半帧，需把紧随其后的字节拼齐
+        /// </summary>
+        private byte[] ReadCompleteResponse()
+        {
             byte[] recvBuffer = new byte[_bufferMaxLength];
-            int recvLen = _serialPort.Read(recvBuffer, 0, _bufferMaxLength);
 
-            if (recvLen <= 0)
+            int total;
+            try
+            {
+                total = _serialPort.Read(recvBuffer, 0, recvBuffer.Length);
+            }
+            catch (TimeoutException ex)
+            {
+                throw new Exception("串口读取超时，设备无响应", ex);
+            }
+            catch (InvalidOperationException ex)
+            {
+                throw new Exception("串口已关闭", ex);
+            }
+
+            if (total <= 0)
                 throw new Exception("串口无返回数据，读取超时或设备离线");
 
+            // 后续字节：连续 _maxIdleRounds 次没有新数据即认为一帧收全
+            int idleWait = 0;
+            while (total < recvBuffer.Length && idleWait < _maxIdleRounds)
+            {
+                int available = _serialPort.BytesToRead;
+                if (available > 0)
+                {
+                    int recvLen = _serialPort.Read(recvBuffer, total, Math.Min(available, recvBuffer.Length - total));
+                    if (recvLen <= 0)
+                        break;
+                    total += recvLen;
+                    idleWait = 0;
+                    continue;
+                }
+
+                Thread.Sleep(_idleWaitMs);
+                idleWait++;
+            }
+
             // 截取有效数据返回
-            byte[] result = new byte[recvLen];
-            Array.Copy(recvBuffer, result, recvLen);
+            byte[] result = new byte[total];
+            Array.Copy(recvBuffer, result, total);
             return result;
         }
         #endregion
@@ -171,7 +237,14 @@ namespace PlcTest.Client.ClientCommunication
         {
             try
             {
-                return SerialPort.GetPortNames().OrderBy(p => int.Parse(p.Replace("COM", ""))).ToArray();
+                // 按 COM 后的数字升序排列；不符合 COM 命名习惯的端口名排到末尾，而不是让整个列表报错
+                return SerialPort.GetPortNames()
+                    .OrderBy(p =>
+                    {
+                        int number;
+                        return int.TryParse(p.Replace("COM", ""), out number) ? number : int.MaxValue;
+                    })
+                    .ToArray();
             }
             catch
             {

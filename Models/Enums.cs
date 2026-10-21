@@ -76,34 +76,4 @@ namespace PlcTest.Models
         /// </summary>
         Serial,
     }
-    /// <summary>
-    /// 协议类型枚举
-    /// </summary>
-    public enum ProtocolType
-    {
-        /// <summary>
-        /// 三菱3EASCII协议
-        /// </summary>
-        MelsecMc3EAscii,
-        /// <summary>
-        /// 三菱3EBinary协议
-        /// </summary>
-        MelsecMc3EBinary,
-        /// <summary>
-        /// 西门子协议
-        /// </summary>
-        Siemens,
-        /// <summary>
-        /// 欧姆龙协议
-        /// </summary>
-        Omron,
-        /// <summary>
-        /// 汇川协议Moudbus RTU
-        /// </summary>
-        InovanceModbusRtu,
-        /// <summary>
-        /// 汇川协议Moudbus TCP
-        /// </summary>
-        InovanceModbusTcp,
-    }
 }

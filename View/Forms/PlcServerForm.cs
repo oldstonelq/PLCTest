@@ -8,7 +8,7 @@ using System.ComponentModel;
 using System.Drawing;
 using System.Windows.Forms;
 
-namespace PlcTest.View
+namespace PlcTest.View.Forms
 {
     public partial class PlcServerForm : Form
     {
@@ -16,6 +16,10 @@ namespace PlcTest.View
         /// PLC服务实例
         /// </summary>
         IPlcServer PlcServer = null;
+        /// <summary>
+        /// 模拟寄存器表（并非所有服务端都实现 IRegisterTable，为 null 表示不支持地址表管理）
+        /// </summary>
+        IRegisterTable RegisterTable = null;
         /// <summary>
         /// 当前读写寄存器
         /// </summary>
@@ -48,6 +52,7 @@ namespace PlcTest.View
         {
             InitializeComponent();
             this.PlcServer = plcServer;
+            this.RegisterTable = plcServer as IRegisterTable;
         }
         /// <summary>
         /// 窗体加载
@@ -81,10 +86,11 @@ namespace PlcTest.View
         {
             if (CheckCanStartRead())
             {
-                PlcServer.ClearRegisters(CurrentReadArea);
-                for (int i = CurrentReadAddress; i < CurrentReadLength; i++)
+                RegisterTable?.ClearRegisters(CurrentReadArea);
+                // 注册 [起始地址, 起始地址 + 长度) 区间：原写成 i < CurrentReadLength，起始 100/长度 10 时一个都不注册
+                for (int i = CurrentReadAddress; i < CurrentReadAddress + CurrentReadLength; i++)
                 {
-                    PlcServer.TryAddRegister(CurrentReadArea, i);
+                    RegisterTable?.TryAddRegister(CurrentReadArea, i);
                 }
             }
             else
@@ -100,7 +106,7 @@ namespace PlcTest.View
         /// <param name="e">事件参数</param>
         private void btn_EndRead_Click(object sender, EventArgs e)
         {
-            PlcServer.ClearRegisters(CurrentReadArea);
+            RegisterTable?.ClearRegisters(CurrentReadArea);
         }
         /// <summary>
         /// 写入单个位到模拟寄存器
@@ -168,11 +174,11 @@ namespace PlcTest.View
                 MessageBox.Show("Please Check ClearLength ");
                 return;
             }
-            if (length > PlcServer.GetRegisterCount(CurrentReadArea))
+            if (length > (RegisterTable?.GetRegisterCount(CurrentReadArea) ?? 0))
             {
                 return;
             }
-            PlcServer.ResetRegisterValues(CurrentReadArea, 0, length);
+            RegisterTable?.ResetRegisterValues(CurrentReadArea, CurrentReadAddress, length);
         }
         /// <summary>
         /// 将当前区域全部寄存器重置为默认值
@@ -181,7 +187,7 @@ namespace PlcTest.View
         /// <param name="e">事件参数</param>
         private void btn_ClearAll_Click(object sender, EventArgs e)
         {
-            PlcServer.ResetAllRegisterValues(CurrentReadArea);
+            RegisterTable?.ResetAllRegisterValues(CurrentReadArea);
         }
         /// <summary>
         /// 定时刷新服务端状态和表格显示。
@@ -270,11 +276,11 @@ namespace PlcTest.View
 
                 if (CurrentReadArea == MemoryArea.D)
                 {
-                    if (PlcServer.GetRegisterCount(CurrentReadArea) > 0)
+                    if ((RegisterTable?.GetRegisterCount(CurrentReadArea) ?? 0) > 0)
                     {
                         for (int i = 0; i < DGV.Rows.Count; i++)
                         {
-                            var wordResult = PlcServer.ReadWord(PlcAddress.Word(CurrentReadArea, i));
+                            var wordResult = PlcServer.ReadWord(PlcAddress.Word(CurrentReadArea, CurrentReadAddress + i));
                             short value = wordResult.IsSuccess ? wordResult.Data : (short)0;
                             var bits = ConverterTool.ShortToBoolArray(value);
                             if (bits == null || bits.Length < 16) continue;
@@ -306,12 +312,12 @@ namespace PlcTest.View
                 }
                 else
                 {
-                    if (PlcServer.GetRegisterCount(CurrentReadArea) > 0)
+                    if ((RegisterTable?.GetRegisterCount(CurrentReadArea) ?? 0) > 0)
                     {
 
                         for (int i = 0; i < DGV.Rows.Count; i++)
                         {
-                            var bitResult = PlcServer.ReadBit(PlcAddress.Bit(CurrentReadArea, i));
+                            var bitResult = PlcServer.ReadBit(PlcAddress.Bit(CurrentReadArea, CurrentReadAddress + i));
                             bool bitValue = bitResult.IsSuccess && bitResult.Data;
                             DGV.Rows[i].Cells[16].Value = bitValue ? 1 : 0;
                             if (bitValue)
@@ -357,18 +363,18 @@ namespace PlcTest.View
                 }
                 if (CurrentReadArea == MemoryArea.D)
                 {
-                    var wordResult = PlcServer.ReadWord(PlcAddress.Word(CurrentReadArea, rowindex));
+                    var wordResult = PlcServer.ReadWord(PlcAddress.Word(CurrentReadArea, CurrentReadAddress + rowindex));
                     short currentValue = wordResult.IsSuccess ? wordResult.Data : (short)0;
                     //2.根据当前的值和列数，计算出要写入PLC的值
                     int bitPosition = 16 - columnindex; // 列1对应bit15，列16对应bit0  
                     short writeValue = (short)ConverterTool.ToggleBit(currentValue, bitPosition);
-                    PlcServer.WriteWord(PlcAddress.Word(CurrentReadArea, rowindex), writeValue);
+                    PlcServer.WriteWord(PlcAddress.Word(CurrentReadArea, CurrentReadAddress + rowindex), writeValue);
                 }
                 else
                 {
-                    var bitResult = PlcServer.ReadBit(PlcAddress.Bit(CurrentReadArea, rowindex));
+                    var bitResult = PlcServer.ReadBit(PlcAddress.Bit(CurrentReadArea, CurrentReadAddress + rowindex));
                     bool currentBit = bitResult.IsSuccess && bitResult.Data;
-                    PlcServer.WriteBit(PlcAddress.Bit(CurrentReadArea, rowindex), !currentBit);
+                    PlcServer.WriteBit(PlcAddress.Bit(CurrentReadArea, CurrentReadAddress + rowindex), !currentBit);
                 }
             }
             catch (Exception)

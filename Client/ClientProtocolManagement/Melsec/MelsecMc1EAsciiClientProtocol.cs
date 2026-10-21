@@ -1,5 +1,5 @@
 using PlcTest.Models;
-using PlcTest.Client.PlcInterface;
+using PlcTest.Client.ClientInterface;
 using System;
 using System.Linq;
 using System.Text;
@@ -96,7 +96,7 @@ namespace PlcTest.Client.ClientProtocolManagement.Melsec
             Data[5] = 0x30;
             Data[6] = 0x30;
             Data[7] = 0x41;
-            //寄存器类型
+            //寄存器类型：1E ASCII 为 4 位十六进制文本（如 0x4420 → "4420"）
             Data[8] = Encoding.ASCII.GetBytes(memory.ToString("X4"))[0];
             Data[9] = Encoding.ASCII.GetBytes(memory.ToString("X4"))[1];
             Data[10] = Encoding.ASCII.GetBytes(memory.ToString("X4"))[2];
@@ -106,7 +106,6 @@ namespace PlcTest.Client.ClientProtocolManagement.Melsec
             byte[] mbyte = Encoding.ASCII.GetBytes(Address);
             Array.Copy(mbyte, 0, Data, 12, 8);
             //软元件点数
-            // length = 8;
             ushort val = (ushort)length;
             // 先高低字节调换(大端): 高字节在前，低字节在后
             ushort bigEndianVal = (ushort)((val << 8) | (val >> 8));
@@ -128,8 +127,8 @@ namespace PlcTest.Client.ClientProtocolManagement.Melsec
             int startAddress = address.Address;
             bool isBit = address.IsBit;
             int length = address.Length;
-            byte[] Data = new byte[24+ data.Length];
-            //副头部：功能码：0x00 批量位读取 0x01 批量字读取
+            byte[] Data = new byte[24 + data.Length];
+            //副头部：功能码：0x02 批量位写入 0x03 批量字写入
             Data[0] = 0x30;
             Data[1] = isBit ? (byte)0x32 : (byte)0x33;
             //PLC编号 默认FF
@@ -140,7 +139,7 @@ namespace PlcTest.Client.ClientProtocolManagement.Melsec
             Data[5] = 0x30;
             Data[6] = 0x30;
             Data[7] = 0x41;
-            //寄存器类型
+            //寄存器类型：1E ASCII 为 4 位十六进制文本（如 0x4420 → "4420"）
             Data[8] = Encoding.ASCII.GetBytes(memory.ToString("X4"))[0];
             Data[9] = Encoding.ASCII.GetBytes(memory.ToString("X4"))[1];
             Data[10] = Encoding.ASCII.GetBytes(memory.ToString("X4"))[2];
@@ -150,7 +149,6 @@ namespace PlcTest.Client.ClientProtocolManagement.Melsec
             byte[] mbyte = Encoding.ASCII.GetBytes(Address);
             Array.Copy(mbyte, 0, Data, 12, 8);
             //软元件点数
-            // length = 8;
             ushort val = (ushort)length;
             // 先高低字节调换(大端): 高字节在前，低字节在后
             ushort bigEndianVal = (ushort)((val << 8) | (val >> 8));
@@ -209,17 +207,17 @@ namespace PlcTest.Client.ClientProtocolManagement.Melsec
         public Result<bool[]> ParseReadBitResponse(byte[] data, int size)
         {
             Result<bool[]> result = new Result<bool[]>();
-            string mReStr = Encoding.ASCII.GetString(data);
-            if (data == null || mReStr.Length < 4)
+            if (data == null)
             {
                 result.ErrorMsg = "返回数据长度错误";
                 return result;
             }
-            //if (!CheckResponseHeader(data))
-            //{
-            //    result.ErrorMsg = "响应副标题错误";
-            //    return result;
-            //}
+            string mReStr = Encoding.ASCII.GetString(data);
+            if (mReStr.Length < 4 + size)
+            {
+                result.ErrorMsg = "返回数据长度错误";
+                return result;
+            }
             if (Convert.ToUInt16(mReStr.Substring(2, 2), 16) != 0)
             {
                 result.ErrorMsg = "结束代码错误";
@@ -227,8 +225,7 @@ namespace PlcTest.Client.ClientProtocolManagement.Melsec
             }
 
             // 解析返回数据
-            bool[] RealData = new bool[size];
-            RealData = mReStr.Substring(4, size).Select(o => o == '1').Take(size).ToArray();
+            bool[] RealData = mReStr.Substring(4, size).Select(o => o == '1').Take(size).ToArray();
 
             result.IsSuccess = true;
             result.Data = RealData;
@@ -243,27 +240,27 @@ namespace PlcTest.Client.ClientProtocolManagement.Melsec
         public Result<short[]> ParseReadWordResponse(byte[] data, int size)
         {
             Result<short[]> result = new Result<short[]>();
-            string mReStr = Encoding.ASCII.GetString(data);
-            if (data == null || mReStr.Length < 4+size*4)
+            if (data == null)
             {
                 result.ErrorMsg = "返回数据长度错误";
                 return result;
             }
-            //if (!CheckResponseHeader(data))
-            //{
-            //    result.ErrorMsg = "响应副标题错误";
-            //    return result;
-            //}
+            string mReStr = Encoding.ASCII.GetString(data);
+            if (mReStr.Length < 4 + size * 4)
+            {
+                result.ErrorMsg = "返回数据长度错误";
+                return result;
+            }
             if (Convert.ToUInt16(mReStr.Substring(2, 2), 16) != 0)
             {
                 result.ErrorMsg = "结束代码错误";
                 return result;
             }
-            //解析返回数据
+            //解析返回数据（4 位十六进制文本，用 ToUInt16 再转 short，避免 0x8000 以上溢出）
             short[] RealData = new short[size];
             for (int i = 0; i < size; i++)
             {
-                RealData[i] = Convert.ToInt16(mReStr.Substring(4 + 4 * i, 4), 16);
+                RealData[i] = unchecked((short)Convert.ToUInt16(mReStr.Substring(4 + 4 * i, 4), 16));
             }
 
             result.IsSuccess = true;

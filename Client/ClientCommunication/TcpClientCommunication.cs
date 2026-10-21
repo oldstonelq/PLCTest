@@ -1,10 +1,12 @@
-using PlcTest.Client.PlcInterface;
+using PlcTest.Client.ClientInterface;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.IO.Ports;
 using System.Linq;
 using System.Net.Sockets;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace PlcTest.Client.ClientCommunication
@@ -23,6 +25,10 @@ namespace PlcTest.Client.ClientCommunication
         /// 网络数据流
         /// </summary>
         private NetworkStream _stream;
+        /// <summary>
+        /// 收发串行锁：同一连接上"一问一答"必须成对，防止 UI 读线程与按钮写操作交叉
+        /// </summary>
+        private readonly SemaphoreSlim _ioLock = new SemaphoreSlim(1, 1);
         #endregion
 
         #region 通讯配置参数
@@ -46,6 +52,14 @@ namespace PlcTest.Client.ClientCommunication
         /// 接收缓冲区最大长度(PLC报文通用4096足够)
         /// </summary>
         private const int _bufferMaxLength = 4096;
+        /// <summary>
+        /// 拼接后续分片时的轮询间隔 ms
+        /// </summary>
+        private const int _idleWaitMs = 20;
+        /// <summary>
+        /// 连续多少次无新数据即认为一帧已收全（20ms * 3 = 60ms 兜底）
+        /// </summary>
+        private const int _maxIdleRounds = 3;
         #endregion
 
         #region 构造函数
@@ -101,6 +115,8 @@ namespace PlcTest.Client.ClientCommunication
 
             if (!connectSuccess)
             {
+                // 结束挂起的异步连接，避免残留连接对象
+                try { _tcpClient.EndConnect(connectResult); } catch { }
                 _tcpClient.Close();
                 _tcpClient = null;
                 throw new TimeoutException($"连接PLC[{IpAddress}:{Port}]超时{ConnectTimeout}ms");
@@ -147,22 +163,71 @@ namespace PlcTest.Client.ClientCommunication
         /// <exception cref="Exception">未连接、读写超时、通讯中断抛出异常</exception>
         public byte[] SendAndReceiveData(byte[] sendData)
         {
-            if (!IsConnected || _stream == null)
-                throw new Exception("TCP未建立连接，无法发送数据");
+            if (sendData == null || sendData.Length == 0)
+                throw new ArgumentException("发送报文不能为空", nameof(sendData));
 
-            // 下发指令
-            _stream.Write(sendData, 0, sendData.Length);
+            // 同一连接上的收发必须串行：否则 A 的请求可能读到 B 的响应
+            _ioLock.Wait();
+            try
+            {
+                if (!IsConnected || _stream == null)
+                    throw new Exception("TCP未建立连接，无法发送数据");
 
-            // 接收缓冲区
+                // 下发指令
+                _stream.Write(sendData, 0, sendData.Length);
+                _stream.Flush();
+
+                return ReadCompleteResponse();
+            }
+            finally
+            {
+                _ioLock.Release();
+            }
+        }
+
+        /// <summary>
+        /// 读取一帧完整响应
+        /// TCP 是字节流，一次 Read 拿到的可能只是半帧，需把紧随其后的分片拼齐
+        /// </summary>
+        private byte[] ReadCompleteResponse()
+        {
             byte[] recvBuffer = new byte[_bufferMaxLength];
-            int recvLen = _stream.Read(recvBuffer, 0, _bufferMaxLength);
 
-            if (recvLen <= 0)
+            // 首段阻塞读取，ReadTimeout 到期会抛 IOException
+            int total;
+            try
+            {
+                total = _stream.Read(recvBuffer, 0, recvBuffer.Length);
+            }
+            catch (IOException ex)
+            {
+                throw new Exception("读取PLC响应超时或被对端断开", ex);
+            }
+
+            if (total <= 0)
                 throw new Exception("无返回数据，连接已断开");
 
+            // 后续分片：连续 _maxIdleRounds 次没有新数据即认为一帧收全
+            int idleWait = 0;
+            while (total < recvBuffer.Length && idleWait < _maxIdleRounds)
+            {
+                if (_stream.DataAvailable)
+                {
+                    int recvLen = _stream.Read(recvBuffer, total, recvBuffer.Length - total);
+                    if (recvLen <= 0)
+                        break;
+                    total += recvLen;
+                    idleWait = 0;
+                    continue;
+                }
+
+                Thread.Sleep(_idleWaitMs);
+                idleWait++;
+            }
+
             // 截取有效长度报文返回
-            byte[] result = new byte[recvLen];
-            Array.Copy(recvBuffer, result, recvLen);
+            byte[] result = new byte[total];
+            Array.Copy(recvBuffer, result, total);
             return result;
         }
         #endregion
@@ -173,19 +238,63 @@ namespace PlcTest.Client.ClientCommunication
         /// </summary>
         public async Task<byte[]> SendAndReceiveDataAsync(byte[] sendData)
         {
-            if (!IsConnected || _stream == null)
-                throw new Exception("TCP未建立连接");
+            if (sendData == null || sendData.Length == 0)
+                throw new ArgumentException("发送报文不能为空", nameof(sendData));
 
-            await _stream.WriteAsync(sendData, 0, sendData.Length);
-            byte[] buffer = new byte[_bufferMaxLength];
-            int len = await _stream.ReadAsync(buffer, 0, _bufferMaxLength);
+            // 与同步收发共用同一把锁，保证同一连接上仍是串行的一问一答
+            await _ioLock.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                if (!IsConnected || _stream == null)
+                    throw new Exception("TCP未建立连接");
 
-            if (len <= 0)
-                throw new Exception("异步读取数据为空");
-            
-            byte[] res = new byte[len];
-            Array.Copy(buffer, res, len);
-            return res;
+                await _stream.WriteAsync(sendData, 0, sendData.Length).ConfigureAwait(false);
+                await _stream.FlushAsync().ConfigureAwait(false);
+
+                byte[] buffer = new byte[_bufferMaxLength];
+                int len;
+                // 首包读取加超时，避免对端不回时永久挂起并长期占用 _ioLock
+                using (var readCts = new CancellationTokenSource(ReadWriteTimeout))
+                {
+                    try
+                    {
+                        len = await _stream.ReadAsync(buffer, 0, _bufferMaxLength, readCts.Token).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        throw new TimeoutException($"异步读取超时{ReadWriteTimeout}ms，设备无响应");
+                    }
+                }
+
+                if (len <= 0)
+                    throw new Exception("异步读取数据为空");
+
+                // 拼接后续分片
+                int idleWait = 0;
+                while (len < buffer.Length && idleWait < _maxIdleRounds)
+                {
+                    if (_stream.DataAvailable)
+                    {
+                        int recvLen = await _stream.ReadAsync(buffer, len, buffer.Length - len).ConfigureAwait(false);
+                        if (recvLen <= 0)
+                            break;
+                        len += recvLen;
+                        idleWait = 0;
+                        continue;
+                    }
+
+                    await Task.Delay(_idleWaitMs).ConfigureAwait(false);
+                    idleWait++;
+                }
+
+                byte[] res = new byte[len];
+                Array.Copy(buffer, res, len);
+                return res;
+            }
+            finally
+            {
+                _ioLock.Release();
+            }
         }
 
         /// <summary>

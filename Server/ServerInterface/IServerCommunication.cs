@@ -27,11 +27,11 @@ namespace PlcTest.Server.ServerInterface
         /// 发送数据到指定客户端
         /// </summary>
         /// <param name="data">要发送的字节数据</param>
-        /// <param name="client">目标客户端标识（TCP 为 Socket，串口为 null）</param>
-        void SendToClient(byte[] data, object client);
+        /// <param name="client">目标客户端句柄（串口无客户端概念时传 null）</param>
+        void SendToClient(byte[] data, IClientSession client);
         /// <summary>
-        /// 客户端数据到达事件（附带客户端标识）
+        /// 客户端数据到达事件（附带客户端句柄）
         /// </summary>
-        event Action<byte[], object> OnDataReceived;
+        event Action<byte[], IClientSession> OnDataReceived;
     }
 }

@@ -1,12 +1,10 @@
 using PlcTest.Client.ClientProtocolManagement.Inovance;
-using PlcTest.Client.PlcClient.Inovance;
 using PlcTest.Client.ClientCommunication;
+using PlcTest.Client;
 using PlcTest.Models;
-using PlcTest.Client.PlcClient.Melsec;
-using PlcTest.Client.PlcInterface;
+using PlcTest.Client.ClientInterface;
+using PlcTest.Server;
 using PlcTest.Server.PlcServer;
-using PlcTest.Server.PlcServer.Melsec;
-using PlcTest.Server.ServerCommunication;
 using PlcTest.Server.ServerInterface;
 using PlcTest.Tool;
 using System;
@@ -14,6 +12,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
 using System.Drawing;
+using System.IO.Ports;
 using System.Linq;
 using System.Net;
 using System.Text;
@@ -21,7 +20,7 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using static System.Windows.Forms.VisualStyles.VisualStyleElement.Button;
 
-namespace PlcTest.View
+namespace PlcTest.View.Forms
 {
     public partial class MainForm : Form
     {
@@ -77,31 +76,115 @@ namespace PlcTest.View
         /// <param name="e"></param>
         private void btn_Connect_Click(object sender, EventArgs e)
         {
-            if (!OtherTool.CheckStandardIPv4(tb_PLCInformationIP.Text, out var iPAddress))
+            bool useSerial;
+            string protocolName;
+            using (var settings = new ConnectSettingsForm())
             {
-                tb_PLCInformationIP.Focus();
-                tb_PLCInformationIP.SelectAll();
-                MessageBox.Show("Please Check PLCInformation IP");
-                return;
+                if (settings.ShowDialog(this) != DialogResult.OK)
+                {
+                    return;
+                }
+                useSerial = settings.CommunicationKind == "串口";
+                protocolName = settings.ProtocolName;
             }
-            if (!OtherTool.StringTryParseInt(tb_PLCInformationPort.Text, out var port))
-            {
-                tb_PLCInformationPort.Focus();
-                tb_PLCInformationPort.SelectAll();
-                MessageBox.Show("Please Check PLCInformation Port");
-                return;
-            }
-            // 使用依赖注入：将通信实现和协议实现注入到客户端，避免硬编码
 
-             var builder = new PlcClientBuilder()
-            .UseTcp(tb_PLCInformationIP.Text, port)
-            .UseMelsecMc1EAscii();
-            plcControl = builder.BuildMelsecMcPlcClient();
-            plcControl.Connect();
-            //var comm = new TcpClientCommunication(tb_PLCInformationIP.Text, port);
-            //var protocol = new InovanceModbusRtuClientProtocol();
-            //plcControl = new InovanceTcpPlcClient(comm, protocol);
-            //plcControl.Connect();
+            int number;
+            if (useSerial)
+            {
+                // 串口模式下：IP 输入框填写串口名称（如 COM3），端口输入框填写波特率
+                if (string.IsNullOrWhiteSpace(tb_PLCInformationIP.Text))
+                {
+                    tb_PLCInformationIP.Focus();
+                    tb_PLCInformationIP.SelectAll();
+                    MessageBox.Show("请在 IP 输入框填写串口名称（如 COM3）");
+                    return;
+                }
+                if (!OtherTool.StringTryParseInt(tb_PLCInformationPort.Text, out number, 1200, 921600))
+                {
+                    tb_PLCInformationPort.Focus();
+                    tb_PLCInformationPort.SelectAll();
+                    MessageBox.Show("请在端口输入框填写波特率（1200-921600）");
+                    return;
+                }
+            }
+            else
+            {
+                if (!OtherTool.CheckStandardIPv4(tb_PLCInformationIP.Text, out var iPAddress))
+                {
+                    tb_PLCInformationIP.Focus();
+                    tb_PLCInformationIP.SelectAll();
+                    MessageBox.Show("Please Check PLCInformation IP");
+                    return;
+                }
+                if (!OtherTool.StringTryParseInt(tb_PLCInformationPort.Text, out number, 1, 65535))
+                {
+                    tb_PLCInformationPort.Focus();
+                    tb_PLCInformationPort.SelectAll();
+                    MessageBox.Show("Please Check PLCInformation Port");
+                    return;
+                }
+            }
+
+            try
+            {
+                // 使用依赖注入：将通信实现和协议实现注入到客户端，避免硬编码
+                var builder = new PlcClientBuilder();
+                if (useSerial)
+                {
+                    builder.UseSerial(tb_PLCInformationIP.Text.Trim(), number, System.IO.Ports.Parity.None, 8, System.IO.Ports.StopBits.One);
+                }
+                else
+                {
+                    builder.UseTcp(tb_PLCInformationIP.Text.Trim(), number);
+                }
+
+                switch (protocolName)
+                {
+                    case "汇川 Modbus TCP":
+                        builder.UseInovanceModbusTcp();
+                        plcControl = builder.BuildInovancePlcClient();
+                        break;
+                    case "汇川 Modbus RTU":
+                        builder.UseInovanceModbusRtu();
+                        plcControl = builder.BuildInovancePlcClient();
+                        break;
+                    case "三菱 MC 3E ASCII":
+                        builder.UseMelsecMc3EAscii();
+                        plcControl = builder.BuildMelsecMcPlcClient();
+                        break;
+                    case "三菱 MC 1E ASCII":
+                        builder.UseMelsecMc1EAscii();
+                        plcControl = builder.BuildMelsecMcPlcClient();
+                        break;
+                    case "三菱 MC 1E Binary":
+                        builder.UseMelsecMc1EBinary();
+                        plcControl = builder.BuildMelsecMcPlcClient();
+                        break;
+                    case "三菱 MC 4E Binary":
+                        builder.UseMelsecMc4EBinary();
+                        plcControl = builder.BuildMelsecMcPlcClient();
+                        break;
+                    case "三菱 MC 4E ASCII":
+                        builder.UseMelsecMc4EAscii();
+                        plcControl = builder.BuildMelsecMcPlcClient();
+                        break;
+                    case "西门子 S7-1200":
+                        builder.UseSiemensS71200();
+                        plcControl = builder.BuildSiemensPlcClient();
+                        break;
+                    default:
+                        builder.UseMelsecMc3EBinary();
+                        plcControl = builder.BuildMelsecMcPlcClient();
+                        break;
+                }
+
+                plcControl.Connect();
+            }
+            catch (Exception ex)
+            {
+                plcControl = null;
+                MessageBox.Show($"连接失败: {ex.Message}");
+            }
         }
         /// <summary>
         /// 断开PLC客户端连接
@@ -151,22 +234,72 @@ namespace PlcTest.View
         /// <param name="e"></param>
         private void btn_OpenServer_Click(object sender, EventArgs e)
         {
-            if (!OtherTool .CheckStandardIPv4(tb_ServiceInformationIP.Text ,out var iPAddress))
-            {
-                tb_ServiceInformationIP.Focus();
-                tb_ServiceInformationIP.SelectAll();
-                MessageBox.Show("Please Check ServiceInformation IP");
+            // 先选择通信方式与协议，再校验地址/端口
+            var settings = new ConnectSettingsForm(true);
+            if (settings.ShowDialog(this) != DialogResult.OK)
                 return;
+
+            PlcServerBuilder builder;
+            if (settings.CommunicationKind == "串口")
+            {
+                // 串口模式：IP 输入框填串口名，端口输入框填波特率
+                string portName = tb_ServiceInformationIP.Text.Trim();
+                if (string.IsNullOrEmpty(portName))
+                {
+                    MessageBox.Show("请填写串口名（如 COM3）");
+                    return;
+                }
+                if (!OtherTool.StringTryParseInt(tb_ServiceInformationPort.Text, out var baudRate, 1200, 921600))
+                {
+                    tb_ServiceInformationPort.Focus();
+                    tb_ServiceInformationPort.SelectAll();
+                    MessageBox.Show("Please Check ServiceInformation BaudRate");
+                    return;
+                }
+                builder = new PlcServerBuilder().UseSerial(portName, baudRate, Parity.None, 8, StopBits.One);
             }
-            if (!OtherTool.StringTryParseInt(tb_ServiceInformationPort.Text, out var port))
+            else
             {
-                tb_ServiceInformationPort.Focus ();
-                tb_ServiceInformationPort.SelectAll ();
-                MessageBox.Show("Please Check ServiceInformation Port");
-                return;
-            } 
-            PlcServer = new MelsecMc3EPlcServer(new TcpServerCommunication(tb_ServiceInformationIP.Text, port));
-            PlcServer.OpenServer();
+                if (!OtherTool.CheckStandardIPv4(tb_ServiceInformationIP.Text, out var iPAddress))
+                {
+                    tb_ServiceInformationIP.Focus();
+                    tb_ServiceInformationIP.SelectAll();
+                    MessageBox.Show("Please Check ServiceInformation IP");
+                    return;
+                }
+                if (!OtherTool.StringTryParseInt(tb_ServiceInformationPort.Text, out var port, 1, 65535))
+                {
+                    tb_ServiceInformationPort.Focus();
+                    tb_ServiceInformationPort.SelectAll();
+                    MessageBox.Show("Please Check ServiceInformation Port");
+                    return;
+                }
+                builder = new PlcServerBuilder().UseTcp(tb_ServiceInformationIP.Text.Trim(), port);
+            }
+
+            switch (settings.ProtocolName)
+            {
+                case "三菱 MC 3E Binary": builder.UseMelsecMc3E(); break;
+                case "三菱 MC 3E ASCII": builder.UseMelsecMc3EAscii(); break;
+                case "三菱 MC 4E Binary": builder.UseMelsecMc4EBinary(); break;
+                case "三菱 MC 4E ASCII": builder.UseMelsecMc4EAscii(); break;
+                case "三菱 MC 1E Binary": builder.UseMelsecMc1EBinary(); break;
+                case "三菱 MC 1E ASCII": builder.UseMelsecMc1EAscii(); break;
+                default:
+                    MessageBox.Show("不支持的协议");
+                    return;
+            }
+
+            try
+            {
+                PlcServer = builder.Build();
+                PlcServer.OpenServer();
+            }
+            catch (Exception ex)
+            {
+                PlcServer = null;
+                MessageBox.Show($"开启服务失败: {ex.Message}");
+            }
         }
         /// <summary>
         /// 关闭PLC服务

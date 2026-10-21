@@ -1,22 +1,59 @@
 using PlcTest.Models;
-using PlcTest.Client.PlcInterface;
+using PlcTest.Client.ClientInterface;
 using System;
+using System.Linq;
+using System.Text;
 
 namespace PlcTest.Client.ClientProtocolManagement.Melsec
 {
     /// <summary>
     /// 三菱MC4EAscii通讯协议
+    /// 4E 帧与 3E 帧的头部结构相同（副标题 + 网络号 + PLC号 + 目标模块IO号 + 站号 + 数据长度），
+    /// 区别只在副标题：请求 "4E00"，响应 "D400"。
     /// </summary>
     public class MelsecMc4EAsciiClientProtocol : IPlcClientProtocol
     {
         /// <summary>
-        /// 获取寄存器地址的真实编码（返回 int，可包含扩展编码）
+        ///获取寄存器地址的真实编码
         /// </summary>
         /// <param name="memoryArea">寄存器区域</param>
         /// <returns>寄存器地址的真实编码</returns>
         public int GetMemoryCode(MemoryArea memoryArea)
         {
-            throw new NotImplementedException();
+            // ASCII 模式的设备码由 2 个 ASCII 字符组成：高字节为第 1 字符，低字节为第 2 字符。
+            // 单字符软元件（X/Y/M/L/F/V/B/D/W/R/S/Z）的第 2 个字符是 '*'，不是空格；多字符软元件用双字母。
+            switch (memoryArea)
+            {
+                case MemoryArea.SM: return 0x534D; // "SM"
+                case MemoryArea.SD: return 0x5344; // "SD"
+                case MemoryArea.X: return 0x582A;  // "X*"
+                case MemoryArea.Y: return 0x592A;  // "Y*"
+                case MemoryArea.M: return 0x4D2A;  // "M*"
+                case MemoryArea.L: return 0x4C2A;  // "L*"
+                case MemoryArea.F: return 0x462A;  // "F*"
+                case MemoryArea.V: return 0x562A;  // "V*"
+                case MemoryArea.B: return 0x422A;  // "B*"
+                case MemoryArea.D: return 0x442A;  // "D*"
+                case MemoryArea.W: return 0x572A;  // "W*"
+                case MemoryArea.TS: return 0x5453; // "TS"
+                case MemoryArea.TC: return 0x5443; // "TC"
+                case MemoryArea.TN: return 0x544E; // "TN"
+                case MemoryArea.SS: return 0x5353; // "SS"
+                case MemoryArea.SC: return 0x5343; // "SC"
+                case MemoryArea.SN: return 0x534E; // "SN"
+                case MemoryArea.CS: return 0x4353; // "CS"
+                case MemoryArea.CC: return 0x4343; // "CC"
+                case MemoryArea.CN: return 0x434E; // "CN"
+                case MemoryArea.SB: return 0x5342; // "SB"
+                case MemoryArea.SW: return 0x5357; // "SW"
+                case MemoryArea.S: return 0x532A;  // "S*"
+                case MemoryArea.DX: return 0x4458; // "DX"
+                case MemoryArea.DY: return 0x4459; // "DY"
+                case MemoryArea.Z: return 0x5A2A;  // "Z*"
+                case MemoryArea.R: return 0x522A;  // "R*"
+                case MemoryArea.ZR: return 0x5A52; // "ZR"
+                default: throw new ArgumentOutOfRangeException(nameof(memoryArea), memoryArea, "不支持的软元件区域");
+            }
         }
         /// <summary>
         /// 写入位数据转Byte数组
@@ -25,7 +62,12 @@ namespace PlcTest.Client.ClientProtocolManagement.Melsec
         /// <returns>打包后的字节数组</returns>
         public byte[] GetWriteBitData(bool[] bools)
         {
-            throw new NotImplementedException();
+            byte[] mData = new byte[bools.Length];
+            for (int i = 0; i < bools.Length; i++)
+            {
+                mData[i] = bools[i] ? (byte)0x31 : (byte)0x30;
+            }
+            return mData;
         }
         /// <summary>
         /// 写入字数据转Byte数组
@@ -34,7 +76,15 @@ namespace PlcTest.Client.ClientProtocolManagement.Melsec
         /// <returns打包后的字节数组></returns>
         public byte[] GetWriteWordData(short[] shorts)
         {
-            throw new NotImplementedException();
+            byte[] mData = new byte[shorts.Length * 4];
+            for (int i = 0; i < shorts.Length; i++)
+            {
+                // 先转 ushort 再取十六进制，避免负数生成 8 个字符导致数据错位
+                byte[] mbyte = Encoding.ASCII.GetBytes(
+                    Convert.ToString((ushort)shorts[i], 16).ToUpper().PadLeft(4, '0'));
+                Array.Copy(mbyte, 0, mData, i * 4, 4);
+            }
+            return mData;
         }
         /// <summary>
         /// 创建读取数据包
@@ -43,7 +93,31 @@ namespace PlcTest.Client.ClientProtocolManagement.Melsec
         /// <returns>读取命令报文</returns>
         public byte[] BuildReadData(PlcAddress address)
         {
-            throw new NotImplementedException();
+            int memory = GetMemoryCode(address.Area);
+            int startAddress = address.Address;
+            bool isBit = address.IsBit;
+            int length = address.Length;
+            byte[] Data = new byte[20];
+            // 读:0401
+            Data[0] = 0x30;
+            Data[1] = 0x34;
+            Data[2] = 0x30;
+            Data[3] = 0x31;
+            // 以点为单位:0001,字为单位:0000
+            Data[4] = 0x30;
+            Data[5] = 0x30;
+            Data[6] = 0x30;
+            Data[7] = isBit ? (byte)0x31 : (byte)0x30;
+            // 软元件类型（2 个 ASCII 字符，高字节为第 1 字符）
+            Data[8] = (byte)((memory >> 8) & 0xFF);
+            Data[9] = (byte)(memory & 0xFF);
+            // 起始地址（6 位十进制）
+            byte[] mbyte = Encoding.ASCII.GetBytes(startAddress.ToString().PadLeft(6, '0'));
+            Array.Copy(mbyte, 0, Data, 10, 6);
+            // 软元件点数（4 位十六进制）
+            byte[] lengthBytes = Encoding.ASCII.GetBytes(Convert.ToString(length, 16).PadLeft(4, '0').ToUpper());
+            Array.Copy(lengthBytes, 0, Data, 16, 4);
+            return Data;
         }
         /// <summary>
         /// 创建写入数据包
@@ -53,7 +127,33 @@ namespace PlcTest.Client.ClientProtocolManagement.Melsec
         /// <returns>写命令报文</returns>
         public byte[] BuildWriteData(PlcAddress address, byte[] data)
         {
-            throw new NotImplementedException();
+            int memory = GetMemoryCode(address.Area);
+            int startAddress = address.Address;
+            bool isBit = address.IsBit;
+            int length = address.Length;
+            byte[] Data = new byte[20 + data.Length];
+            // 写:1401
+            Data[0] = 0x31;
+            Data[1] = 0x34;
+            Data[2] = 0x30;
+            Data[3] = 0x31;
+            // 以点为单位:0001,字为单位:0000
+            Data[4] = 0x30;
+            Data[5] = 0x30;
+            Data[6] = 0x30;
+            Data[7] = isBit ? (byte)0x31 : (byte)0x30;
+            // 软元件类型（2 个 ASCII 字符，高字节为第 1 字符）
+            Data[8] = (byte)((memory >> 8) & 0xFF);
+            Data[9] = (byte)(memory & 0xFF);
+            // 起始地址（6 位十进制）
+            byte[] mbyte = Encoding.ASCII.GetBytes(startAddress.ToString().PadLeft(6, '0'));
+            Array.Copy(mbyte, 0, Data, 10, 6);
+            // 软元件点数（4 位十六进制）
+            byte[] lengthBytes = Encoding.ASCII.GetBytes(Convert.ToString(length, 16).PadLeft(4, '0').ToUpper());
+            Array.Copy(lengthBytes, 0, Data, 16, 4);
+            // 写入数据
+            Array.Copy(data, 0, Data, 20, data.Length);
+            return Data;
         }
         /// <summary>
         /// 拼接完整数据包
@@ -62,7 +162,39 @@ namespace PlcTest.Client.ClientProtocolManagement.Melsec
         /// <returns>完整命令报文</returns>
         public byte[] BuildCompletePack(byte[] data)
         {
-            throw new NotImplementedException();
+            byte[] Command = new byte[22 + data.Length];
+            // 副标题 "4E00"
+            Command[0] = 0x34;
+            Command[1] = 0x45;
+            Command[2] = 0x30;
+            Command[3] = 0x30;
+            // 网络号
+            Command[4] = 0x30;
+            Command[5] = 0x30;
+            // PLC编号
+            Command[6] = 0x46;
+            Command[7] = 0x46;
+            // 目标模块IO编号
+            Command[8] = 0x30;
+            Command[9] = 0x33;
+            Command[10] = 0x46;
+            Command[11] = 0x46;
+            // 目标模块站号
+            Command[12] = 0x30;
+            Command[13] = 0x30;
+            // 数据长度（从 CPU 监视定时器起算的字符数）
+            byte[] mByte = Encoding.ASCII.GetBytes(Convert.ToString(Command.Length - 18, 16).PadLeft(4, '0').ToUpper());
+            Command[14] = mByte[0];
+            Command[15] = mByte[1];
+            Command[16] = mByte[2];
+            Command[17] = mByte[3];
+            // CPU监视定时器
+            Command[18] = 0x30;
+            Command[19] = 0x30;
+            Command[20] = 0x31;
+            Command[21] = 0x30;
+            data.CopyTo(Command, 22);
+            return Command;
         }
         /// <summary>
         /// 解析写返回
@@ -71,7 +203,34 @@ namespace PlcTest.Client.ClientProtocolManagement.Melsec
         /// <returns>返回写入结果</returns>
         public Result<bool> ParseWriteResponse(byte[] data)
         {
-            throw new NotImplementedException();
+            Result<bool> result = new Result<bool>();
+            if (data == null)
+            {
+                result.ErrorMsg = "返回数据为空";
+                return result;
+            }
+            string mReStr = Encoding.ASCII.GetString(data);
+            // 响应头 18 字符（副标题 4 + 网络号 2 + PLC号 2 + IO号 4 + 站号 2 + 长度 4）+ 结束码 4
+            if (mReStr.Length < 22)
+            {
+                result.ErrorMsg = "返回数据长度错误";
+                return result;
+            }
+            if (!CheckResponseHeader(mReStr))
+            {
+                result.ErrorMsg = "响应副标题错误";
+                return result;
+            }
+            ushort endCode = Convert.ToUInt16(mReStr.Substring(18, 4), 16);
+            if (endCode != 0)
+            {
+                result.ErrorMsg = $"结束代码错误: 0x{endCode:X4}";
+                return result;
+            }
+
+            result.IsSuccess = true;
+            result.Data = true;
+            return result;
         }
         /// <summary>
         /// 解析读位数据返回
@@ -81,7 +240,40 @@ namespace PlcTest.Client.ClientProtocolManagement.Melsec
         /// <returns>位数据数组</returns>
         public Result<bool[]> ParseReadBitResponse(byte[] data, int size)
         {
-            throw new NotImplementedException();
+            Result<bool[]> result = new Result<bool[]>();
+            if (size <= 0 || size > 7168)
+            {
+                result.ErrorMsg = "读取点数超出范围（1-7168）";
+                return result;
+            }
+            if (data == null)
+            {
+                result.ErrorMsg = "返回数据为空";
+                return result;
+            }
+            string mReStr = Encoding.ASCII.GetString(data);
+            if (mReStr.Length < 22 + size)
+            {
+                result.ErrorMsg = "返回数据长度错误";
+                return result;
+            }
+            if (!CheckResponseHeader(mReStr))
+            {
+                result.ErrorMsg = "响应副标题错误";
+                return result;
+            }
+            ushort endCode = Convert.ToUInt16(mReStr.Substring(18, 4), 16);
+            if (endCode != 0)
+            {
+                result.ErrorMsg = $"结束代码错误: 0x{endCode:X4}";
+                return result;
+            }
+
+            // 解析返回数据（每点 1 个 ASCII 字符，'1' 为 ON）
+            bool[] realData = mReStr.Substring(22, size).Select(o => o == '1').Take(size).ToArray();
+            result.IsSuccess = true;
+            result.Data = realData;
+            return result;
         }
         /// <summary>
         /// 解析读字数据返回
@@ -91,7 +283,51 @@ namespace PlcTest.Client.ClientProtocolManagement.Melsec
         /// <returns>字数据数组</returns>
         public Result<short[]> ParseReadWordResponse(byte[] data, int size)
         {
-            throw new NotImplementedException();
+            Result<short[]> result = new Result<short[]>();
+            if (size <= 0 || size > 960)
+            {
+                result.ErrorMsg = "读取点数超出范围（1-960）";
+                return result;
+            }
+            if (data == null)
+            {
+                result.ErrorMsg = "返回数据为空";
+                return result;
+            }
+            string mReStr = Encoding.ASCII.GetString(data);
+            if (mReStr.Length < 22 + 4 * size)
+            {
+                result.ErrorMsg = "返回数据长度错误";
+                return result;
+            }
+            if (!CheckResponseHeader(mReStr))
+            {
+                result.ErrorMsg = "响应副标题错误";
+                return result;
+            }
+            ushort endCode = Convert.ToUInt16(mReStr.Substring(18, 4), 16);
+            if (endCode != 0)
+            {
+                result.ErrorMsg = $"结束代码错误: 0x{endCode:X4}";
+                return result;
+            }
+
+            // 解析返回数据（每字 4 个 ASCII 十六进制字符，unchecked 处理 0x8000 以上的负数）
+            short[] realData = new short[size];
+            for (int i = 0; i < size; i++)
+            {
+                realData[i] = unchecked((short)Convert.ToInt32(mReStr.Substring(22 + 4 * i, 4), 16));
+            }
+            result.IsSuccess = true;
+            result.Data = realData;
+            return result;
+        }
+        /// <summary>
+        /// 校验 4E 响应副标题（"D400"）
+        /// </summary>
+        private static bool CheckResponseHeader(string response)
+        {
+            return response.StartsWith("D400");
         }
     }
 }

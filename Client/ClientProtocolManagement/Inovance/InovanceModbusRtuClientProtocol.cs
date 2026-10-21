@@ -1,5 +1,5 @@
 using PlcTest.Models;
-using PlcTest.Client.PlcInterface;
+using PlcTest.Client.ClientInterface;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -183,6 +183,12 @@ namespace PlcTest.Client.ClientProtocolManagement.Inovance
                 result.ErrorMsg = $"Modbus 异常: 0x{data[pduOffset + 1]:X2}";
                 return result; 
             }
+            // 写响应应回显请求功能码：单线圈/单寄存器/多线圈/多寄存器
+            if (func != 0x05 && func != 0x06 && func != 0x0F && func != 0x10)
+            {
+                result.ErrorMsg = "功能码不匹配";
+                return result;
+            }
             result.IsSuccess = true; 
             result.Data = true; 
             return result;
@@ -225,6 +231,12 @@ namespace PlcTest.Client.ClientProtocolManagement.Inovance
             { 
                 result.ErrorMsg = "返回数据长度不足";
                 return result; }
+            // 字节数必须覆盖期望点数，否则按点数循环会越界读
+            if (byteCount < (size + 7) / 8)
+            {
+                result.ErrorMsg = "返回字节数与期望不符";
+                return result;
+            }
 
             bool[] bits = new bool[size];
             for (int i = 0; i < size; i++) 

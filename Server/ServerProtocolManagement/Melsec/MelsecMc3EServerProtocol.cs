@@ -1,4 +1,3 @@
-
 using PlcTest.Models;
 using PlcTest.Server.ServerInterface;
 using System;
@@ -6,7 +5,7 @@ using System;
 namespace PlcTest.Server.ServerProtocolManagement.Melsec
 {
     /// <summary>
-    /// 三菱 MC 3E 服务端协议实现——负责请求解析和响应构建
+    /// 三菱 MC 3E 二进制服务端协议实现——负责请求解析和响应构建
     /// </summary>
     public class MelsecMc3EServerProtocol : IServerProtocol
     {
@@ -57,6 +56,16 @@ namespace PlcTest.Server.ServerProtocolManagement.Melsec
             // 设备代码
             info.DeviceCode = data[addrOffset + 3];
 
+            // 设备代码 → 统一内存区域：把 MC 3E 的设备码语义收敛在协议层，
+            // 上层的服务端逻辑不再出现 0xA8/0x90 这类协议魔法数
+            switch (info.DeviceCode)
+            {
+                case 0xA8: info.DeviceArea = MemoryArea.D; break;
+                case 0x90: info.DeviceArea = MemoryArea.M; break;
+                case 0x9C: info.DeviceArea = MemoryArea.X; break;
+                case 0x9D: info.DeviceArea = MemoryArea.Y; break;
+            }
+
             // 软元件点数
             info.Points = BitConverter.ToUInt16(data, addrOffset + 4);
 
@@ -78,23 +87,20 @@ namespace PlcTest.Server.ServerProtocolManagement.Melsec
         }
 
         /// <summary>
-        /// 构建 MC 3E 响应头（11 字节）
+        /// 构建 MC 3E 响应头（9 字节，不含结束码；结束码由 <see cref="BuildEndCodeResponse"/> 提供）
         /// </summary>
         public byte[] BuildResponseHeader(byte[] request, int responseDataLength)
         {
-            byte[] header = new byte[11];
+            byte[] header = new byte[9];
             // 副标题：响应标识
             header[0] = 0xD0;
             header[1] = 0x00;
             // 从请求中复制网络号 / PC号 / IO号 / 站号（偏移 2~6，共 5 字节）
-            Array.Copy(request, 2, header, 2, 5);
-            // 响应数据长度（低字节在前，长度 = 数据区 + 结束码2字节）
-            int totalLen = responseDataLength + 2;
-            header[7] = (byte)(totalLen % 256);
-            header[8] = (byte)(totalLen / 256);
-            // 结束码（2 字节），后续由调用方设置 0x00 0x00 表示成功
-            header[9] = 0x00;
-            header[10] = 0x00;
+            if (request != null && request.Length >= 7)
+                Array.Copy(request, 2, header, 2, 5);
+            // 响应数据长度（低字节在前，已包含结束码 2 字节与数据）
+            header[7] = (byte)(responseDataLength & 0xFF);
+            header[8] = (byte)((responseDataLength >> 8) & 0xFF);
             return header;
         }
 
@@ -134,6 +140,59 @@ namespace PlcTest.Server.ServerProtocolManagement.Melsec
             }
 
             return data;
+        }
+
+        /// <summary>
+        /// 构建结束码响应数据区（3E 二进制：2 字节小端）
+        /// </summary>
+        public byte[] BuildEndCodeResponse(ushort endCode)
+        {
+            return new byte[2]
+            {
+                (byte)(endCode & 0xFF),
+                (byte)((endCode >> 8) & 0xFF)
+            };
+        }
+
+        /// <summary>
+        /// 从写入数据区解析位数据（每字节 2 点，高4位=偶数位，低4位=奇数位）
+        /// </summary>
+        public bool[] ParseWriteBits(byte[] data, int points)
+        {
+            if (data == null || points <= 0)
+                return new bool[0];
+
+            bool[] bits = new bool[points];
+            int byteCount = (points + 1) / 2;
+            for (int bIdx = 0; bIdx < byteCount && bIdx < data.Length; bIdx++)
+            {
+                int idx0 = bIdx * 2;
+                if (idx0 < points)
+                    bits[idx0] = (data[bIdx] & 0x10) != 0;
+
+                int idx1 = bIdx * 2 + 1;
+                if (idx1 < points)
+                    bits[idx1] = (data[bIdx] & 0x01) != 0;
+            }
+            return bits;
+        }
+
+        /// <summary>
+        /// 从写入数据区解析字数据（每字 2 字节小端）
+        /// </summary>
+        public short[] ParseWriteWords(byte[] data, int points)
+        {
+            if (data == null || points <= 0)
+                return new short[0];
+
+            short[] words = new short[points];
+            for (int i = 0; i < points; i++)
+            {
+                int off = i * 2;
+                if (data.Length >= off + 2)
+                    words[i] = BitConverter.ToInt16(data, off);
+            }
+            return words;
         }
     }
 }

@@ -1,5 +1,5 @@
 using PlcTest.Models;
-using PlcTest.Client.PlcInterface;
+using PlcTest.Client.ClientInterface;
 using System;
 
 namespace PlcTest.Client.ClientProtocolManagement.Siemens
@@ -181,10 +181,9 @@ namespace PlcTest.Client.ClientProtocolManagement.Siemens
             //写入数据类型: 字节 0X04 位0X03
             param[15] = isBit ? (byte)0x03 : (byte)0x04;
 
-            //写入数据长度
-
-            param[16] = (byte)((addrVal >> 8) & 0xFF);
-            param[17] = (byte)(addrVal & 0xFF);
+            //写入数据长度（按实际写入数据字节数，不是起始地址）
+            param[16] = (byte)((data.Length >> 8) & 0xFF);
+            param[17] = (byte)(data.Length & 0xFF);
 
             Array.Copy(data, 0, param, 18, data.Length);
             return param;

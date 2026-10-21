@@ -1,5 +1,5 @@
 using PlcTest.Models;
-using PlcTest.Client.PlcInterface;
+using PlcTest.Client.ClientInterface;
 using PlcTest.Tool;
 using System;
 using System.ComponentModel;
@@ -9,7 +9,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
-namespace PlcTest.View
+namespace PlcTest.View.Forms
 {
     public partial class PlcClientForm : Form
     {
@@ -49,6 +49,10 @@ namespace PlcTest.View
         /// 工作线程
         /// </summary>
         private Task _readTask;
+        /// <summary>
+        /// 上一次读取失败的信息，用于抑制每秒重复刷屏
+        /// </summary>
+        private string _lastReadError;
         /// <summary>
         ///  这个属性可以增加界面动态加载的流畅性
         /// </summary>
@@ -283,7 +287,14 @@ namespace PlcTest.View
         /// <param name="e">事件参数</param>
         private void timer1_Tick(object sender, EventArgs e)
         {
-            RefreshUI();
+            try
+            {
+                RefreshUI();
+            }
+            catch
+            {
+                // 界面刷新异常不允许穿透到 UI 线程导致程序闪退，下一轮定时器继续尝试
+            }
         }
         /// <summary>
         /// 刷新按钮状态和数据表格
@@ -377,7 +388,8 @@ namespace PlcTest.View
                 {
                     if (CurrentReadshort.Length > 0)
                     {
-                        for (int i = 0; i < DGV.Rows.Count; i++)
+                        int dRows = Math.Min(DGV.Rows.Count, CurrentReadshort.Length);
+                        for (int i = 0; i < dRows; i++)
                         {
                             var bits = ConverterTool.ShortToBoolArray(CurrentReadshort[i]);
                             if (bits == null || bits.Length < 16) continue;
@@ -406,7 +418,8 @@ namespace PlcTest.View
                 {
                     if (CurrentReadBit.Length > 0)
                     {
-                        for (int i = 0; i < DGV.Rows.Count; i++)
+                        int bitRows = Math.Min(DGV.Rows.Count, CurrentReadBit.Length);
+                        for (int i = 0; i < bitRows; i++)
                         {
                             DGV.Rows[i].Cells[16].Value = CurrentReadBit[i] ? 1 : 0;
                             if (CurrentReadBit[i])
@@ -452,6 +465,11 @@ namespace PlcTest.View
                             if (readresult.IsSuccess)
                             {
                                 CurrentReadshort = readresult.Data;
+                                ReportReadError(null);
+                            }
+                            else
+                            {
+                                ReportReadError("读取失败: " + readresult.ErrorMsg);
                             }
                         }
                         else
@@ -460,6 +478,11 @@ namespace PlcTest.View
                             if (readresult.IsSuccess)
                             {
                                 CurrentReadBit = readresult.Data;
+                                ReportReadError(null);
+                            }
+                            else
+                            {
+                                ReportReadError("读取失败: " + readresult.ErrorMsg);
                             }
                         }
                     }
@@ -474,9 +497,10 @@ namespace PlcTest.View
                 {
                     break;
                 }
-                catch (Exception)
+                catch (Exception ex)
                 {
-                    // 忽略，继续循环
+                    // 通讯异常不再静默丢弃，否则断线时界面毫无反应
+                    ReportReadError("读取异常: " + ex.Message);
                 }
             }
         }
@@ -611,6 +635,24 @@ namespace PlcTest.View
             _readCts = null;
             _readTask = null;
             base.OnFormClosing(e);
+        }
+        /// <summary>
+        /// 上报读取失败信息：同一条错误只写一次日志，避免每秒刷屏
+        /// </summary>
+        /// <param name="message">错误信息，传 null 表示读取已恢复</param>
+        private void ReportReadError(string message)
+        {
+            if (string.IsNullOrEmpty(message))
+            {
+                _lastReadError = null;
+                return;
+            }
+            if (_lastReadError == message)
+            {
+                return;
+            }
+            _lastReadError = message;
+            AddInfo(message);
         }
         /// <summary>
         /// 增加日志打印到文本框

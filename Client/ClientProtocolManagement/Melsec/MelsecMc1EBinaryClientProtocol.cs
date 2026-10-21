@@ -1,5 +1,5 @@
 using PlcTest.Models;
-using PlcTest.Client.PlcInterface;
+using PlcTest.Client.ClientInterface;
 using System;
 
 namespace PlcTest.Client.ClientProtocolManagement.Melsec
@@ -171,15 +171,16 @@ namespace PlcTest.Client.ClientProtocolManagement.Melsec
         /// <returns>返回写入结果</returns>
         public Result<bool> ParseWriteResponse(byte[] data)
         {
-            // 响应格式：副标题(1) + 结束代码(2)
-            if (data == null || data.Length < 2)
+            // 响应格式：副标题(1) + 结束代码(2，小端)
+            if (data == null || data.Length < 3)
                 return Result<bool>.Fail("响应数据过短。");
 
-            // 检查结束代码（小端）
-            if (data[1] == 0x0000)
+            // 检查完整 16 位结束代码，高字节非 0 的失败不能被漏判
+            ushort endCode = BitConverter.ToUInt16(data, 1);
+            if (endCode == 0)
                 return Result<bool>.Success(true);
             else
-                return Result<bool>.Fail($"写入失败，结束代码: 0x{data[1]:X4}");
+                return Result<bool>.Fail($"写入失败，结束代码: 0x{endCode:X4}");
         }
         /// <summary>
         /// 解析读位数据返回
@@ -189,16 +190,21 @@ namespace PlcTest.Client.ClientProtocolManagement.Melsec
         /// <returns>位数据数组</returns>
         public Result<bool[]> ParseReadBitResponse(byte[] data, int size)
         {
-            // 响应格式：副标题(1) + 结束代码(2) + 数据(size字节)
-            if (data == null || data.Length < 2 + size)
+            // 响应格式：副标题(1) + 结束代码(2，小端) + 位数据（每字节 2 点：高 4 位=偶数位，低 4 位=奇数位）
+            int dataLen = (size + 1) / 2;
+            if (data == null || data.Length < 3 + dataLen)
                 return Result<bool[]>.Fail("响应数据长度不足。");
-            
-            if (data[1] != 0)
-                return Result<bool[]>.Fail($"读取失败，结束代码: 0x{data[1]:X4}");
+
+            ushort endCode = BitConverter.ToUInt16(data, 1);
+            if (endCode != 0)
+                return Result<bool[]>.Fail($"读取失败，结束代码: 0x{endCode:X4}");
 
             bool[] bits = new bool[size];
             for (int i = 0; i < size; i++)
-                bits[i] = data[2 + i] != 0x00;
+            {
+                byte val = data[3 + i / 2];
+                bits[i] = (i % 2 == 0) ? (val & 0x10) != 0 : (val & 0x01) != 0;
+            }
 
             return Result<bool[]>.Success(bits);
         }
@@ -210,19 +216,20 @@ namespace PlcTest.Client.ClientProtocolManagement.Melsec
         /// <returns>字数据数组</returns>
         public Result<short[]> ParseReadWordResponse(byte[] data, int size)
         {
-            // 响应格式：副标题(1) + 结束代码(2) + 数据(size * 2字节)
+            // 响应格式：副标题(1) + 结束代码(2，小端) + 数据(size * 2字节)
             int dataLen = size * 2;
-            if (data == null || data.Length < 2 + dataLen)
+            if (data == null || data.Length < 3 + dataLen)
                 return Result<short[]>.Fail("响应数据长度不足。");
-           
-            if (data[1] != 0)
-                return Result<short[]>.Fail($"读取失败，结束代码: 0x{data[1]:X4}");
+
+            ushort endCode = BitConverter.ToUInt16(data, 1);
+            if (endCode != 0)
+                return Result<short[]>.Fail($"读取失败，结束代码: 0x{endCode:X4}");
 
             short[] values = new short[size];
             for (int i = 0; i < size; i++)
             {
                 byte[] wordBytes = new byte[2];
-                Array.Copy(data, 2 + i * 2, wordBytes, 0, 2);
+                Array.Copy(data, 3 + i * 2, wordBytes, 0, 2);
                 if (!BitConverter.IsLittleEndian)
                     Array.Reverse(wordBytes);
                 values[i] = BitConverter.ToInt16(wordBytes, 0);
