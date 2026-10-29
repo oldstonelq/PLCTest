@@ -1,5 +1,6 @@
 using PlcTest.Models;
 using System;
+using System.Collections.Generic;
 
 namespace PlcTest.Client.ClientInterface
 {
@@ -13,9 +14,24 @@ namespace PlcTest.Client.ClientInterface
         /// </summary>
         bool IsConnected { get; }
         /// <summary>
-        /// 连接
+        /// 当前协议支持的全部软元件区域。
+        /// 界面用它填充选择框，避免让用户选到这台 PLC 上根本不存在的软元件。
         /// </summary>
-        void Connect();
+        /// <returns>受支持的区域，按枚举声明顺序</returns>
+        IReadOnlyList<MemoryArea> GetSupportedAreas();
+        /// <summary>
+        /// 该软元件区域在当前协议下允许的访问方式。
+        /// 界面据此决定本次读写走位分支还是字分支，不再硬编码"是不是 D"。
+        /// </summary>
+        /// <param name="area">软元件区域</param>
+        /// <returns>允许的访问方式</returns>
+        AreaAccess GetAreaAccess(MemoryArea area);
+        /// <summary>
+        /// 连接：同步建立连接并把结果返回给调用方，成功后才启动后台心跳（断线自动重连）。
+        /// 连接失败不再静默，调用方可以直接把 ErrorMsg 显示出来。
+        /// </summary>
+        /// <returns>连接结果</returns>
+        Result<bool> Connect();
         /// <summary>
         /// 关闭连接
         /// </summary>

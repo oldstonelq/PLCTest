@@ -2,6 +2,7 @@ using PlcTest.Models;
 using PlcTest.Client.ClientInterface;
 using PlcTest.Tool;
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Drawing;
 using System.Drawing.Imaging;
@@ -30,9 +31,13 @@ namespace PlcTest.View.Forms
         /// </summary>
         int CurrentReadLength = 0;
         /// <summary>
-        /// 是否在工作
+        /// 是否在工作（后台读取线程会读它，UI 线程会写它，必须 volatile）
         /// </summary>
-        bool IsWorking = false;
+        volatile bool IsWorking = false;
+        /// <summary>
+        /// 日志框最多保留的行数，超出后从头部裁掉，避免长时间轮询把界面拖死
+        /// </summary>
+        private const int MaxLogLines = 500;
         /// <summary>
         /// 读取到的字节数组
         /// /// </summary>
@@ -90,14 +95,79 @@ namespace PlcTest.View.Forms
 
         private void InitCombox()
         {
-            cmb_Area.Items.Clear();
-            cmb_Area.Items.AddRange(Enum.GetNames(typeof(MemoryArea)));
+            // 区域列表来自实际连接的协议，PLC 上不存在的软元件不会出现在选择框里。
+            // 例如汇川 Modbus 只有 M/SM/B/S/X/Y/TS/CS/D/SD/R/TN/CN，且随机型变化；
+            // 三菱 3E 有 28 种，1E 只有 10 种。
+            IReadOnlyList<MemoryArea> areas;
+            if (PLCControl == null)
+            {
+                areas = new List<MemoryArea>();
+            }
+            else
+            {
+                areas = PLCControl.GetSupportedAreas();
+            }
 
-            cmb_WriteBitArea.Items.Clear();
-            cmb_WriteBitArea.Items.AddRange(Enum.GetNames(typeof(MemoryArea)));
+            FillAreaCombo(cmb_Area, areas);
+            FillAreaCombo(cmb_WriteBitArea, FilterAreas(areas, AreaAccess.Bit));
+            FillAreaCombo(cmb_WriteWordArea, FilterAreas(areas, AreaAccess.Word));
 
-            cmb_WriteWordArea.Items.Clear();
-            cmb_WriteWordArea.Items.AddRange(Enum.GetNames(typeof(MemoryArea)));
+            // 让 CurrentReadArea 与下拉框的首选项保持一致，避免首次刷表格时区名对不上
+            MemoryArea initialArea;
+            if (cmb_Area.SelectedItem != null
+                && Enum.TryParse(cmb_Area.SelectedItem.ToString(), out initialArea))
+            {
+                CurrentReadArea = initialArea;
+            }
+        }
+
+        /// <summary>
+        /// 填充区域下拉框，尽量默认选中 D（最常用），没有 D 时选第一项。
+        /// </summary>
+        private static void FillAreaCombo(ComboBox combo, IReadOnlyList<MemoryArea> areas)
+        {
+            combo.Items.Clear();
+            foreach (MemoryArea area in areas)
+            {
+                combo.Items.Add(area.ToString());
+            }
+
+            if (combo.Items.Count == 0)
+            {
+                return;
+            }
+
+            int preferred = combo.Items.IndexOf(MemoryArea.D.ToString());
+            combo.SelectedIndex = preferred >= 0 ? preferred : 0;
+        }
+
+        /// <summary>
+        /// 按访问方式筛选区域（写位只看支持位的，写字只看支持字的）。
+        /// </summary>
+        private IReadOnlyList<MemoryArea> FilterAreas(IReadOnlyList<MemoryArea> areas, AreaAccess needed)
+        {
+            var result = new List<MemoryArea>();
+            foreach (MemoryArea area in areas)
+            {
+                if ((PLCControl.GetAreaAccess(area) & needed) != 0)
+                {
+                    result.Add(area);
+                }
+            }
+            return result;
+        }
+
+        /// <summary>
+        /// 该区域当前是否按位处理。由协议声明的访问方式决定，不再硬编码"是不是 D"。
+        /// 既能按位又能按字的区域（如三菱 M）按位处理，与界面原有的位表格展示方式一致。
+        /// </summary>
+        private bool IsBitArea(MemoryArea area)
+        {
+            if (PLCControl == null)
+            {
+                return area != MemoryArea.D;
+            }
+            return (PLCControl.GetAreaAccess(area) & AreaAccess.Bit) != 0;
         }
 
         #region Button
@@ -171,15 +241,23 @@ namespace PlcTest.View.Forms
 
             if (PLCControl != null && PLCControl.IsConnected)
             {
-                var writeresult=PLCControl.WriteBit(PlcAddress.Bit(WriteArea, WriteAddress), WriteValue == 1);
-                if (!writeresult.IsSuccess)
-                {
-                    MessageBox.Show("Write Error Reson :" + writeresult.ErrorMsg);
-                }
+                // 后台线程写，避免同步收发（超时 1 s）卡住界面
+                WriteBitDataAsync(WriteArea, WriteAddress, WriteValue == 1);
             }
             else
             {
                 MessageBox.Show("Please Check Connection Status ");
+            }
+        }
+        /// <summary>
+        /// 后台执行位写入
+        /// </summary>
+        private async void WriteBitDataAsync(MemoryArea area, int address, bool value)
+        {
+            Result<bool> writeresult = await Task.Run(() => PLCControl.WriteBit(PlcAddress.Bit(area, address), value));
+            if (!writeresult.IsSuccess)
+            {
+                MessageBox.Show("Write Error Reson :" + writeresult.ErrorMsg);
             }
         }
         /// <summary>
@@ -208,15 +286,23 @@ namespace PlcTest.View.Forms
 
             if (PLCControl != null && PLCControl.IsConnected)
             {
-                var writeresult= PLCControl.WriteWord(PlcAddress.Word(WriteArea, WriteAddress), WriteValue);
-                if (!writeresult.IsSuccess)
-                {
-                    MessageBox.Show("Write Error Reson :"+writeresult .ErrorMsg);
-                }
+                // 后台线程写，避免同步收发（超时 1 s）卡住界面
+                WriteWordDataAsync(WriteArea, WriteAddress, WriteValue);
             }
             else
             {
                 MessageBox.Show("Please Check Connection Status ");
+            }
+        }
+        /// <summary>
+        /// 后台执行字写入
+        /// </summary>
+        private async void WriteWordDataAsync(MemoryArea area, int address, short value)
+        {
+            Result<bool> writeresult = await Task.Run(() => PLCControl.WriteWord(PlcAddress.Word(area, address), value));
+            if (!writeresult.IsSuccess)
+            {
+                MessageBox.Show("Write Error Reson :" + writeresult.ErrorMsg);
             }
         }
     
@@ -227,30 +313,18 @@ namespace PlcTest.View.Forms
         /// <param name="e">事件参数</param>
         private void btn_ClearLength_Click(object sender, EventArgs e)
         {
-            if (PLCControl != null && PLCControl.IsConnected)
-            {
-                if (!OtherTool.StringTryParseInt(tb_ClearLength.Text, out var ClearLength,1))
-                {
-                    MessageBox.Show("Please Check ClearLength ");
-                }
-                else
-                {
-                    if (CurrentReadArea == MemoryArea.D)
-                    {
-                        short[] clearData = new short[ClearLength];
-                        var res = PLCControl.WriteWordArray(PlcAddress.Word(CurrentReadArea, CurrentReadAddress, null, ClearLength), clearData);
-                    }
-                    else
-                    {
-                        bool[] clearData = new bool[ClearLength];
-                        var res = PLCControl.WriteBitArray(PlcAddress.Bit(CurrentReadArea, CurrentReadAddress, null, ClearLength), clearData);
-                    }
-                }
-            }
-            else
+            if (PLCControl == null || !PLCControl.IsConnected)
             {
                 MessageBox.Show("Please Check Connection Status ");
+                return;
             }
+            if (!OtherTool.StringTryParseInt(tb_ClearLength.Text, out var ClearLength,1))
+            {
+                MessageBox.Show("Please Check ClearLength ");
+                return;
+            }
+            // 后台线程写，避免同步收发（超时 1 s）卡住界面
+            ClearRangeAsync(CurrentReadArea, CurrentReadAddress, ClearLength);
         }
         /// <summary>
         /// 用默认值覆盖当前区域的全部寄存器数据。
@@ -259,22 +333,36 @@ namespace PlcTest.View.Forms
         /// <param name="e">事件参数。</param>
         private void btn_ClearAll_Click(object sender, EventArgs e)
         {
-            if (PLCControl != null && PLCControl.IsConnected)
-            {
-                if (CurrentReadArea == MemoryArea.D)
-                {
-                    short[] clearData = new short[CurrentReadLength];
-                    PLCControl.WriteWordArray(PlcAddress.Word(CurrentReadArea, CurrentReadAddress, null, CurrentReadLength), clearData);
-                }
-                else
-                {
-                    bool[] clearData = new bool[CurrentReadLength];
-                    PLCControl.WriteBitArray(PlcAddress.Bit(CurrentReadArea, CurrentReadAddress, null, CurrentReadLength), clearData);
-                }
-            }
-            else
+            if (PLCControl == null || !PLCControl.IsConnected)
             {
                 MessageBox.Show("Please Check Connection Status ");
+                return;
+            }
+            if (CurrentReadLength <= 0)
+            {
+                MessageBox.Show("Please Check Address Information ");
+                return;
+            }
+            // 后台线程写，避免同步收发（超时 1 s）卡住界面
+            ClearRangeAsync(CurrentReadArea, CurrentReadAddress, CurrentReadLength);
+        }
+        /// <summary>
+        /// 后台清空指定区间的寄存器，失败时提示原因（原来这里连返回值都没看）
+        /// </summary>
+        private async void ClearRangeAsync(MemoryArea area, int startAddress, int length)
+        {
+            Result<bool> res = await Task.Run(() =>
+            {
+                if (!IsBitArea(area))
+                {
+                    return PLCControl.WriteWordArray(PlcAddress.Word(area, startAddress, null, length), new short[length]);
+                }
+                return PLCControl.WriteBitArray(PlcAddress.Bit(area, startAddress, null, length), new bool[length]);
+            });
+
+            if (!res.IsSuccess)
+            {
+                MessageBox.Show("Clear Error Reson :" + res.ErrorMsg);
             }
         }
         #endregion
@@ -384,7 +472,7 @@ namespace PlcTest.View.Forms
                     DGV.Rows[i].Cells[0].Value = CurrentReadArea.ToString() + (i + CurrentReadAddress).ToString();
 
                 }
-                if (CurrentReadArea == MemoryArea.D)
+                if (!IsBitArea(CurrentReadArea))
                 {
                     if (CurrentReadshort.Length > 0)
                     {
@@ -459,7 +547,7 @@ namespace PlcTest.View.Forms
                 {
                     if (PLCControl != null && PLCControl.IsConnected)
                     {
-                        if (CurrentReadArea== MemoryArea.D)
+                        if (!IsBitArea(CurrentReadArea))
                         {
                             var readresult = PLCControl.ReadWordArray(PlcAddress.Word(CurrentReadArea, CurrentReadAddress, null, CurrentReadLength));
                             if (readresult.IsSuccess)
@@ -486,10 +574,10 @@ namespace PlcTest.View.Forms
                             }
                         }
                     }
-                    // 使用 WaitHandle 或 Task.Delay 支持取消
+                    // 使用 Task.Delay 支持取消（原来是 .Wait(token)，在 async 方法里同步阻塞）
                     try
                     {
-                        Task.Delay(1000, token).Wait(token);
+                        await Task.Delay(1000, token).ConfigureAwait(true);
                     }
                     catch (OperationCanceledException) { break; }
                 }
@@ -540,7 +628,7 @@ namespace PlcTest.View.Forms
         /// </summary>
         /// <param name="sender">事件源</param>
         /// <param name="e">事件参数</param>
-        private void DGV_CellDoubleClick(object sender, DataGridViewCellEventArgs e)
+        private async void DGV_CellDoubleClick(object sender, DataGridViewCellEventArgs e)
         {
             try
             {
@@ -551,7 +639,7 @@ namespace PlcTest.View.Forms
                 {
                     return;
                 }
-                if (CurrentReadArea== MemoryArea.D)
+                if (!IsBitArea(CurrentReadArea))
                 {
                     if (columnindex <= 0 || columnindex > 16)
                     {
@@ -566,10 +654,11 @@ namespace PlcTest.View.Forms
                     //2.根据当前的值和列数，计算出要写入PLC的值
                     int bitPosition = 16 - columnindex; // 列1对应bit15，列16对应bit0  
                     short writeValue = (short)ConverterTool.ToggleBit(CurrentValue, bitPosition);
-                    var res = PLCControl.WriteWord(PlcAddress.Word(CurrentReadArea, CurrentReadAddress + rowindex), writeValue);
+                    // 后台写，避免卡界面
+                    var res = await Task.Run(() => PLCControl.WriteWord(PlcAddress.Word(CurrentReadArea, CurrentReadAddress + rowindex), writeValue));
                     if (!res.IsSuccess)
                     {
-                        MessageBox.Show("Write Error ");
+                        MessageBox.Show("Write Error :" + res.ErrorMsg);
                     }
                 }
                 else
@@ -582,19 +671,17 @@ namespace PlcTest.View.Forms
                     {
                         return;
                     }
-                    var res = PLCControl.WriteBit(PlcAddress.Bit(CurrentReadArea, CurrentReadAddress + rowindex), CurrentValue==0);
+                    var res = await Task.Run(() => PLCControl.WriteBit(PlcAddress.Bit(CurrentReadArea, CurrentReadAddress + rowindex), CurrentValue == 0));
                     if (!res.IsSuccess)
                     {
-                        MessageBox.Show("Write Error ");
+                        MessageBox.Show("Write Error :" + res.ErrorMsg);
                     }
                 }
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                if (this.IsHandleCreated)
-                {
-                    //this.BeginInvoke((Action)(() => MessageBox.Show(this, ex.Message)));
-                }
+                // 双击反写失败不能静默，否则用户以为写进去了
+                AddInfo("双击写入异常: " + ex.Message);
             }
         }
 
@@ -604,6 +691,17 @@ namespace PlcTest.View.Forms
         /// <param name="e"></param>
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
+            // 退订通讯日志事件：否则窗体释放后，协议线程仍会回调本窗体，抛出的异常会被
+            // 通讯层 catch 成"通讯异常"，让后续读写莫名失败
+            try
+            {
+                if (PLCControl != null)
+                {
+                    PLCControl.ShowCommMessageEvent -= AddInfo;
+                }
+            }
+            catch { }
+
             // 停止 UI 定时器，避免关闭后 UI 回调
             try
             {
@@ -620,10 +718,10 @@ namespace PlcTest.View.Forms
                 _readCts?.Cancel();
             }
             catch { }
-            // 等待任务结束（短超时）
+            // 等待任务结束（短超时）。AddInfo 已改为 BeginInvoke，不会再与 UI 线程互等
             try
             {
-                _readTask?.Wait(2000);
+                _readTask?.Wait(1000);
             }
             catch { }
             // 清理本地 CTS/Task 引用（不 Dispose plcControl，因为它由外部管理）
@@ -655,18 +753,60 @@ namespace PlcTest.View.Forms
             AddInfo(message);
         }
         /// <summary>
-        /// 增加日志打印到文本框
+        /// 增加日志打印到文本框。
+        /// 协议线程/读取线程都会调到这里，用 BeginInvoke 投递（Invoke 会阻塞等待 UI，
+        /// 而 UI 线程关窗时可能在等读取线程，两者互等会卡住）。
         /// </summary>
         /// <param name="info"></param>
         private void AddInfo(string info)
         {
+            if (tb_Info == null || tb_Info.IsDisposed)
+            {
+                return;
+            }
             if (tb_Info.InvokeRequired)
             {
-                tb_Info.Invoke(new Action<string>(AddInfo), info);
+                try
+                {
+                    tb_Info.BeginInvoke(new Action<string>(AddInfo), info);
+                }
+                catch (ObjectDisposedException)
+                {
+                    // 控件已销毁，丢弃这条日志即可
+                }
+                catch (InvalidOperationException)
+                {
+                    // 窗体句柄已销毁，丢弃这条日志即可
+                }
             }
             else
             {
                 tb_Info.AppendText(info + "\r\n");
+                TrimLogIfTooLong();
+            }
+        }
+        /// <summary>
+        /// 日志超过上限后从头部裁掉，避免长时间轮询把文本框撑爆
+        /// </summary>
+        private void TrimLogIfTooLong()
+        {
+            try
+            {
+                if (tb_Info.Lines.Length <= MaxLogLines)
+                {
+                    return;
+                }
+
+                string[] lines = tb_Info.Lines;
+                string[] kept = new string[MaxLogLines];
+                Array.Copy(lines, lines.Length - MaxLogLines, kept, 0, MaxLogLines);
+                tb_Info.Lines = kept;
+                tb_Info.SelectionStart = tb_Info.TextLength;
+                tb_Info.ScrollToCaret();
+            }
+            catch
+            {
+                // 裁剪失败不影响日志展示
             }
         }
     }

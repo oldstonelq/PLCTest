@@ -35,6 +35,44 @@ namespace PlcTest.Client.ClientProtocolManagement.Siemens
                     throw new ArgumentOutOfRangeException(nameof(area), "无效的存储区类型");
             }
         }
+        /// <summary>
+        /// 该存储区允许的访问方式。
+        /// S7 的 M/X/Y 既可按字节/字访问，也可按位访问（如 M0.3）。
+        /// </summary>
+        /// <param name="area">存储区</param>
+        /// <returns>允许的访问方式</returns>
+        public AreaAccess GetAreaAccess(MemoryArea area)
+        {
+            switch (area)
+            {
+                case MemoryArea.X:
+                case MemoryArea.Y:
+                case MemoryArea.M:
+                    return AreaAccess.Both;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(area), "无效的存储区类型");
+            }
+        }
+
+        /// <summary>
+        /// DB / 存储区大小由 PLC 组态决定，协议层不做限制。
+        /// </summary>
+        /// <param name="memoryArea">寄存器区域</param>
+        /// <returns>最大编号；-1 表示协议不做限制</returns>
+        public int GetMaxIndex(MemoryArea memoryArea)
+        {
+            return -1;
+        }
+
+        /// <summary>
+        /// 根据响应前缀推断整帧长度：TPKT 头的 [2..3] 为大端总长度（含 TPKT 头本身）。
+        /// </summary>
+        public int GetResponseFrameLength(byte[] request, byte[] buffer, int available)
+        {
+            if (buffer == null || available < 4) return -1;
+            if (buffer[0] != 0x03) return -1;
+            return (buffer[2] << 8) | buffer[3];
+        }
 
         /// <summary>
         /// 将 bool 数组转为 S7 位写入数据（每 bool 占 1 字节，0x00/0x01）

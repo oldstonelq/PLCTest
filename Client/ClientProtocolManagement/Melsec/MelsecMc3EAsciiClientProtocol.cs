@@ -18,40 +18,47 @@ namespace PlcTest.Client.ClientProtocolManagement.Melsec
         /// <returns>寄存器地址的真实编码</returns>
         public int GetMemoryCode(MemoryArea memoryArea)
         {
-            // ASCII 模式的设备码由 2 个 ASCII 字符组成：高字节为第 1 字符，低字节为第 2 字符。
-            // 单字符软元件（X/Y/M/L/F/V/B/D/W/R/S/Z）的第 2 个字符是 '*'，不是空格；多字符软元件用双字母。
-            switch (memoryArea)
+            // ASCII 软元件代码由 2 个 ASCII 字符打包：高字节第 1 字符，低字节第 2 字符，
+            // 单字符软元件（X/Y/M/L/F/V/B/D/W/S/Z/R）补 '*'，多字符软元件（SM/TS/DX/ZR…）用双字母。
+            return Melsec3E4EDeviceCatalog.Get(memoryArea).AsciiCodeWord;
+        }
+        /// <summary>
+        /// 该软元件区域允许的访问方式。
+        /// 位软元件（M/X/Y 等）既可位访问也可字访问（字访问时每字 16 点）；字软元件（D/W/R 等）只能字访问。
+        /// </summary>
+        /// <param name="memoryArea">寄存器区域</param>
+        /// <returns>允许的访问方式</returns>
+        public AreaAccess GetAreaAccess(MemoryArea memoryArea)
+        {
+            // 位/字能力由软元件表统一声明，协议不再自己维护第二套规则
+            return Melsec3E4EDeviceCatalog.Get(memoryArea).Access;
+        }
+
+        /// <summary>
+        /// 软元件编号上限取自 <see cref="Melsec3E4EDeviceCatalog"/>（基本型 QCPU 默认范围），
+        /// 仅用于发出报文前的越界提示，不影响报文结构。
+        /// </summary>
+        /// <param name="memoryArea">寄存器区域</param>
+        /// <returns>最大编号；-1 表示协议不做限制</returns>
+        public int GetMaxIndex(MemoryArea memoryArea)
+        {
+            return Melsec3E4EDeviceCatalog.Get(memoryArea).DefaultMaxIndex;
+        }
+
+        /// <summary>
+        /// 根据响应前缀推断整帧长度：3E ASCII 响应为 18 字符头 + [14..17] 四位十六进制"数据长度"（从结束码起算）。
+        /// </summary>
+        public int GetResponseFrameLength(byte[] request, byte[] buffer, int available)
+        {
+            if (buffer == null || available < 18) return -1;
+            if (buffer[0] != (byte)'D' || buffer[1] != (byte)'0') return -1;
+            string lengthText = Encoding.ASCII.GetString(buffer, 14, 4);
+            ushort bodyLength;
+            if (!ushort.TryParse(lengthText, System.Globalization.NumberStyles.HexNumber, null, out bodyLength))
             {
-                case MemoryArea.SM: return 0x534D; // "SM"
-                case MemoryArea.SD: return 0x5344; // "SD"
-                case MemoryArea.X: return 0x582A;  // "X*"
-                case MemoryArea.Y: return 0x592A;  // "Y*"
-                case MemoryArea.M: return 0x4D2A;  // "M*"
-                case MemoryArea.L: return 0x4C2A;  // "L*"
-                case MemoryArea.F: return 0x462A;  // "F*"
-                case MemoryArea.V: return 0x562A;  // "V*"
-                case MemoryArea.B: return 0x422A;  // "B*"
-                case MemoryArea.D: return 0x442A;  // "D*"
-                case MemoryArea.W: return 0x572A;  // "W*"
-                case MemoryArea.TS: return 0x5453; // "TS"
-                case MemoryArea.TC: return 0x5443; // "TC"
-                case MemoryArea.TN: return 0x544E; // "TN"
-                case MemoryArea.SS: return 0x5353; // "SS"
-                case MemoryArea.SC: return 0x5343; // "SC"
-                case MemoryArea.SN: return 0x534E; // "SN"
-                case MemoryArea.CS: return 0x4353; // "CS"
-                case MemoryArea.CC: return 0x4343; // "CC"
-                case MemoryArea.CN: return 0x434E; // "CN"
-                case MemoryArea.SB: return 0x5342; // "SB"
-                case MemoryArea.SW: return 0x5357; // "SW"
-                case MemoryArea.S: return 0x532A;  // "S*"
-                case MemoryArea.DX: return 0x4458; // "DX"
-                case MemoryArea.DY: return 0x4459; // "DY"
-                case MemoryArea.Z: return 0x5A2A;  // "Z*"
-                case MemoryArea.R: return 0x522A;  // "R*"
-                case MemoryArea.ZR: return 0x5A52; // "ZR"
-                default: throw new ArgumentOutOfRangeException(nameof(memoryArea), memoryArea, "不支持的软元件区域");
+                return -1;
             }
+            return 18 + bodyLength;
         }
         /// <summary>
         /// 写入位数据转Byte数组
@@ -108,7 +115,7 @@ namespace PlcTest.Client.ClientProtocolManagement.Melsec
             Data[8] = (byte)((memory >> 8) & 0xFF);
             Data[9] = (byte)(memory & 0xFF);
             //起始地址
-            string Address = startAddress.ToString().PadLeft(6, '0');
+            string Address = Melsec3E4EDeviceCatalog.Get(address.Area).FormatIndex(startAddress, 6);
             byte[] mbyte = Encoding.ASCII.GetBytes(Address);
             Array.Copy(mbyte, 0, Data, 10, 6);
             //软元件点数
@@ -144,7 +151,7 @@ namespace PlcTest.Client.ClientProtocolManagement.Melsec
             Data[8] = (byte)((memory >> 8) & 0xFF);
             Data[9] = (byte)(memory & 0xFF);
             //起始地址
-            string Address = startAddress.ToString("X6");
+            string Address = Melsec3E4EDeviceCatalog.Get(address.Area).FormatIndex(startAddress, 6);
             byte[] mbyte = Encoding.ASCII.GetBytes(Address);
             Array.Copy(mbyte, 0, Data, 10, 6);
             //软元件点数
@@ -224,6 +231,8 @@ namespace PlcTest.Client.ClientProtocolManagement.Melsec
             if (endCode != 0)
             {
                 result.ErrorMsg = $"结束代码错误: 0x{endCode:X4}";
+                result.Kind = ErrorKind.DeviceEndCode;
+                result.EndCode = endCode;
                 return result;
             }
 
@@ -260,6 +269,8 @@ namespace PlcTest.Client.ClientProtocolManagement.Melsec
             if (endCode != 0)
             {
                 result.ErrorMsg = $"结束代码错误: 0x{endCode:X4}";
+                result.Kind = ErrorKind.DeviceEndCode;
+                result.EndCode = endCode;
                 return result;
             }
 
@@ -300,6 +311,8 @@ namespace PlcTest.Client.ClientProtocolManagement.Melsec
             if (endCode != 0)
             {
                 result.ErrorMsg = $"结束代码错误: 0x{endCode:X4}";
+                result.Kind = ErrorKind.DeviceEndCode;
+                result.EndCode = endCode;
                 return result;
             }
             //解析返回数据

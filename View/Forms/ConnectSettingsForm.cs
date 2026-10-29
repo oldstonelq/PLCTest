@@ -1,13 +1,15 @@
 using System;
 using System.Drawing;
 using System.Windows.Forms;
+using PlcTest.Models;
 
 namespace PlcTest.View.Forms
 {
     /// <summary>
     /// 连接/服务端设置对话框：选择通信方式与通讯协议。
     /// 主界面的 IP/端口输入框在 TCP 模式下分别表示 IP 与端口，串口模式下分别表示串口名与波特率。
-    /// 服务端模式下只列出服务端已实现的协议（三菱 MC 系列）。
+    /// 协议与通讯方式都使用枚举，下拉框内容由 <see cref="ProtocolTypeExtensions.GetProtocols"/> 自动生成，
+    /// 新增协议只需在 <see cref="ProtocolType"/> 枚举中增加一项。
     /// </summary>
     public class ConnectSettingsForm : Form
     {
@@ -16,14 +18,14 @@ namespace PlcTest.View.Forms
         private readonly bool _isServer;
 
         /// <summary>
-        /// 选中的通信方式："TCP" 或 "串口"
+        /// 选中的通信方式
         /// </summary>
-        public string CommunicationKind { get; private set; }
+        public CommunicationType Communication { get; private set; }
 
         /// <summary>
-        /// 选中的通讯协议显示名
+        /// 选中的通讯协议
         /// </summary>
-        public string ProtocolName { get; private set; }
+        public ProtocolType Protocol { get; private set; }
 
         /// <summary>
         /// 客户端连接设置对话框
@@ -72,7 +74,9 @@ namespace PlcTest.View.Forms
                 Width = 180
             };
 
-            _cmbCommunicationKind.Items.AddRange(new object[] { "TCP", "串口" });
+            // 通讯方式同样用枚举，显示名由 ToString 决定
+            _cmbCommunicationKind.Items.Add(new ComboOption(CommunicationType.Tcp, "TCP"));
+            _cmbCommunicationKind.Items.Add(new ComboOption(CommunicationType.Serial, "串口"));
             _cmbCommunicationKind.SelectedIndexChanged += (s, e) => RefreshProtocols();
 
             var btnOk = new Button
@@ -91,8 +95,16 @@ namespace PlcTest.View.Forms
             };
             btnOk.Click += (s, e) =>
             {
-                CommunicationKind = _cmbCommunicationKind.SelectedItem as string;
-                ProtocolName = _cmbProtocol.SelectedItem as string;
+                if (_cmbCommunicationKind.SelectedItem is ComboOption communication &&
+                    communication.Value is CommunicationType communicationType)
+                {
+                    Communication = communicationType;
+                }
+                if (_cmbProtocol.SelectedItem is ComboOption protocol &&
+                    protocol.Value is ProtocolType protocolType)
+                {
+                    Protocol = protocolType;
+                }
             };
 
             AcceptButton = btnOk;
@@ -113,58 +125,45 @@ namespace PlcTest.View.Forms
         /// </summary>
         private void RefreshProtocols()
         {
-            _cmbProtocol.Items.Clear();
+            if (!(_cmbCommunicationKind.SelectedItem is ComboOption option) ||
+                !(option.Value is CommunicationType communication))
+            {
+                return;
+            }
 
-            if (_isServer)
+            _cmbProtocol.Items.Clear();
+            foreach (var protocol in ProtocolTypeExtensions.GetProtocols(communication, _isServer))
             {
-                if (_cmbCommunicationKind.SelectedIndex == 0)
-                {
-                    // TCP：3E / 4E 帧
-                    _cmbProtocol.Items.AddRange(new object[]
-                    {
-                        "三菱 MC 3E Binary",
-                        "三菱 MC 3E ASCII",
-                        "三菱 MC 4E Binary",
-                        "三菱 MC 4E ASCII"
-                    });
-                }
-                else
-                {
-                    // 串口：1E 帧（无外层头，直接帧）
-                    _cmbProtocol.Items.AddRange(new object[]
-                    {
-                        "三菱 MC 1E Binary",
-                        "三菱 MC 1E ASCII"
-                    });
-                }
-            }
-            else if (_cmbCommunicationKind.SelectedIndex == 0)
-            {
-                _cmbProtocol.Items.AddRange(new object[]
-                {
-                    "三菱 MC 3E Binary",
-                    "三菱 MC 3E ASCII",
-                    "三菱 MC 1E Binary",
-                    "三菱 MC 1E ASCII",
-                    "三菱 MC 4E Binary",
-                    "三菱 MC 4E ASCII",
-                    "汇川 Modbus TCP",
-                    "西门子 S7-1200"
-                });
-            }
-            else
-            {
-                _cmbProtocol.Items.AddRange(new object[]
-                {
-                    "三菱 MC 1E Binary",
-                    "三菱 MC 1E ASCII",
-                    "汇川 Modbus RTU"
-                });
+                _cmbProtocol.Items.Add(new ComboOption(protocol, protocol.GetDisplayName()));
             }
 
             if (_cmbProtocol.Items.Count > 0)
             {
                 _cmbProtocol.SelectedIndex = 0;
+            }
+        }
+
+        /// <summary>
+        /// 下拉框项：Value 为枚举值，Text 为界面显示名。
+        /// </summary>
+        private sealed class ComboOption
+        {
+            public object Value { get; }
+            public string Text { get; }
+
+            public ComboOption(object value, string text)
+            {
+                Value = value;
+                Text = text;
+            }
+            /// <summary>
+            /// 没有设置 DisplayMember 指定属性
+            /// 重写 ToString 方法返回 Text，确保下拉框显示界面名。
+            /// </summary>
+            /// <returns></returns>
+            public override string ToString()
+            {
+                return Text;
             }
         }
     }

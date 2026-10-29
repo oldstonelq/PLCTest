@@ -1,4 +1,5 @@
 using PlcTest.Models;
+using PlcTest.Server.ServerProtocolManagement;
 using PlcTest.Server.ServerInterface;
 using System;
 
@@ -14,6 +15,25 @@ namespace PlcTest.Server.ServerProtocolManagement.Melsec
         /// <summary>
         /// 验证请求报文头（1E 无外层头，只校验长度与功能码）
         /// </summary>
+        /// <summary>
+        /// 1E 二进制没有长度字段：读请求固定 12 字节；写请求的数据长度随点数变化，交给空闲判据收帧。
+        /// </summary>
+        public int GetRequestFrameLength(byte[] buffer, int available)
+        {
+            if (buffer == null || available < 1)
+            {
+                return 0;
+            }
+
+            byte subHeader = buffer[0];
+            // 0x00 批量位读、0x01 批量字读，帧长固定 12 字节
+            if (subHeader <= 0x01)
+            {
+                return available >= 12 ? 12 : 0;
+            }
+            return -1;
+        }
+
         public bool ValidateRequestHeader(byte[] data)
         {
             if (data == null || data.Length < 12)
@@ -36,6 +56,8 @@ namespace PlcTest.Server.ServerProtocolManagement.Melsec
 
             // 功能码：0/1 读，2/3 写（位/字的区别由软元件区域决定）
             info.Command = data[0] <= 0x01 ? (ushort)0x0401 : (ushort)0x1401;
+            // 功能码最低位：0/2 是位读写，1/3 是字读写
+            info.IsBit = (data[0] & 0x01) == 0;
 
             // 起始地址（4 字节小端，24 位有效）
             info.StartAddress = data[4] | (data[5] << 8) | (data[6] << 16);
@@ -58,24 +80,11 @@ namespace PlcTest.Server.ServerProtocolManagement.Melsec
         }
 
         /// <summary>
-        /// 设备码（双字符）→ 内存区域
+        /// 1E 双字符设备码（12 种）
         /// </summary>
         private static MemoryArea? DecodeDeviceArea(int deviceCode)
         {
-            switch (deviceCode)
-            {
-                case 0x4420: return MemoryArea.D;
-                case 0x5220: return MemoryArea.R;
-                case 0x544E: return MemoryArea.TN;
-                case 0x5453: return MemoryArea.TS;
-                case 0x434E: return MemoryArea.CN;
-                case 0x4353: return MemoryArea.CS;
-                case 0x5820: return MemoryArea.X;
-                case 0x5920: return MemoryArea.Y;
-                case 0x4D20: return MemoryArea.M;
-                case 0x5320: return MemoryArea.S;
-                default: return null;
-            }
+            return MelsecServerDeviceMapper.From1E(deviceCode);
         }
 
         /// <summary>

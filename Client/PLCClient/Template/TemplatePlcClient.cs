@@ -27,6 +27,60 @@ namespace PlcTest.Client.PlcClient.Template
         /// 连接状态:
         /// </summary>
         public bool IsConnected => _comm == null ? false : _comm.IsConnected;
+
+        /// <summary>
+        /// 当前协议支持的软元件区域（界面只展示这些，避免出现这台 PLC 上不存在的软元件）。
+        /// </summary>
+        /// <returns>受支持的区域，按枚举声明顺序</returns>
+        public IReadOnlyList<MemoryArea> GetSupportedAreas()
+        {
+            var areas = new List<MemoryArea>();
+            foreach (MemoryArea area in Enum.GetValues(typeof(MemoryArea)))
+            {
+                AreaAccess access;
+                if (TryGetAreaAccess(area, out access))
+                {
+                    areas.Add(area);
+                }
+            }
+            return areas;
+        }
+
+        /// <summary>
+        /// 该区域在当前协议下允许的访问方式。
+        /// </summary>
+        /// <param name="area">软元件区域</param>
+        /// <returns>允许的访问方式</returns>
+        public AreaAccess GetAreaAccess(MemoryArea area)
+        {
+            if (_communicationProtocol == null)
+            {
+                throw new InvalidOperationException("协议未初始化，无法查询软元件区域");
+            }
+            return _communicationProtocol.GetAreaAccess(area);
+        }
+
+        /// <summary>
+        /// 探测协议是否认识该区域——各协议支持的软元件范围不同，认不出的会抛异常。
+        /// </summary>
+        private bool TryGetAreaAccess(MemoryArea area, out AreaAccess access)
+        {
+            access = AreaAccess.None;
+            if (_communicationProtocol == null)
+            {
+                return false;
+            }
+            try
+            {
+                access = _communicationProtocol.GetAreaAccess(area);
+                return true;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
         /// <summary>
         /// 取消令牌
         /// </summary>
@@ -58,23 +112,35 @@ namespace PlcTest.Client.PlcClient.Template
         /// <summary>
         /// 连接方法
         /// </summary>
-        public void Connect()
+        public Result<bool> Connect()
         {
             // 1. 先判断：心跳任务正在运行，直接返回，禁止重复启动
             if (_connectTask != null && !_connectTask.IsCompleted)
             {
-                return;
+                return Result<bool>.Success(true);
             }
-            // 2. 清理上一次残留的令牌源，释放资源
+            // 2. 同步建连，失败原因返回给调用方
+            try
+            {
+                _comm.ConnectServer();
+            }
+            catch (Exception ex)
+            {
+                return Result<bool>.Fail("连接失败: " + ex.Message);
+            }
+            if (!IsConnected)
+            {
+                return Result<bool>.Fail("连接失败: 通讯对象未能建立连接");
+            }
+            // 3. 清理上一次残留的令牌源，启动心跳循环
             if (_cts != null)
             {
                 _cts.Dispose();
                 _cts = null;
             }
-            // 3. 新建令牌，启动心跳循环
             _cts = new CancellationTokenSource();
-            //4. 启动心跳循环任务
             _connectTask = Task.Run(() => HeartBeatLoop(_cts.Token), _cts.Token);
+            return Result<bool>.Success(true);
         }
         /// <summary>
         /// 断开连接方法

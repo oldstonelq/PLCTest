@@ -27,7 +27,10 @@ namespace PlcTest.Client.ClientInterface
         /// 发送并返回数据
         /// </summary>
         /// <param name="data">发送报文</param>
+        /// <param name="responseLengthResolver">
+        /// 响应帧长度解析器，通讯层据此读满一帧；传 null 时回退到"空闲判据"。
+        /// </param>
         /// <returns>返回接收报文</returns>
-        byte[] SendAndReceiveData(byte[] data);
+        byte[] SendAndReceiveData(byte[] data, ResponseFrameLengthResolver responseLengthResolver);
     }
 }

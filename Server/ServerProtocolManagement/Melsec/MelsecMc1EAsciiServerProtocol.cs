@@ -1,4 +1,5 @@
 using PlcTest.Models;
+using PlcTest.Server.ServerProtocolManagement;
 using PlcTest.Server.ServerInterface;
 using System;
 using System.Text;
@@ -15,6 +16,25 @@ namespace PlcTest.Server.ServerProtocolManagement.Melsec
         /// <summary>
         /// 验证请求报文头（1E ASCII 无外层头，只校验长度）
         /// </summary>
+        /// <summary>
+        /// 1E ASCII 没有长度字段：读请求固定 24 字符；写请求交给空闲判据收帧。
+        /// </summary>
+        public int GetRequestFrameLength(byte[] buffer, int available)
+        {
+            if (buffer == null || available < 2)
+            {
+                return 0;
+            }
+
+            // [0] 站号，[1] 功能码：'0'/'1' 为批量读（固定 24 字符），'2'/'3' 为批量写
+            byte func = buffer[1];
+            if (func == (byte)'0' || func == (byte)'1')
+            {
+                return available >= 24 ? 24 : 0;
+            }
+            return -1;
+        }
+
         public bool ValidateRequestHeader(byte[] data)
         {
             return data != null && data.Length >= 24;
@@ -39,6 +59,9 @@ namespace PlcTest.Server.ServerProtocolManagement.Melsec
             else if (command == "02") info.Command = 0x1401;
             else if (command == "03") info.Command = 0x1401;
 
+            // 功能码：'0'/'2' 是位读写，'1'/'3' 是字读写
+            info.IsBit = command == "00" || command == "02";
+
             // 软元件代码（4 位十六进制文本，如 0x4420 → "4420"）
             string codeText = Encoding.ASCII.GetString(data, 8, 4);
             if (!int.TryParse(codeText, System.Globalization.NumberStyles.HexNumber, null, out int deviceCode))
@@ -49,9 +72,9 @@ namespace PlcTest.Server.ServerProtocolManagement.Melsec
             info.DeviceCode = deviceCode;
             info.DeviceArea = DecodeDeviceArea(deviceCode);
 
-            // 起始地址：8 位十进制
+            // 起始地址：8 位十六进制（1E 帧的编号统一按十六进制，与客户端 ToString("X8") 对应）
             string addr = Encoding.ASCII.GetString(data, 12, 8);
-            if (!int.TryParse(addr, out int startAddress))
+            if (!int.TryParse(addr, System.Globalization.NumberStyles.HexNumber, null, out int startAddress))
             {
                 info.Command = 0;
                 return info;
@@ -78,24 +101,11 @@ namespace PlcTest.Server.ServerProtocolManagement.Melsec
         }
 
         /// <summary>
-        /// 设备码（双字符）→ 内存区域
+        /// 1E 双字符设备码（12 种）
         /// </summary>
         private static MemoryArea? DecodeDeviceArea(int deviceCode)
         {
-            switch (deviceCode)
-            {
-                case 0x4420: return MemoryArea.D;
-                case 0x5220: return MemoryArea.R;
-                case 0x544E: return MemoryArea.TN;
-                case 0x5453: return MemoryArea.TS;
-                case 0x434E: return MemoryArea.CN;
-                case 0x4353: return MemoryArea.CS;
-                case 0x5820: return MemoryArea.X;
-                case 0x5920: return MemoryArea.Y;
-                case 0x4D20: return MemoryArea.M;
-                case 0x5320: return MemoryArea.S;
-                default: return null;
-            }
+            return MelsecServerDeviceMapper.From1E(deviceCode);
         }
 
         /// <summary>

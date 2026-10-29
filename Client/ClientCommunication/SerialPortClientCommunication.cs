@@ -153,8 +153,9 @@ namespace PlcTest.Client.ClientCommunication
         /// 下发串口指令并读取返回报文
         /// </summary>
         /// <param name="sendData">发送字节数组</param>
+        /// <param name="responseLengthResolver">响应帧长度解析器，为 null 时回退到空闲判据</param>
         /// <returns>设备返回数据</returns>
-        public byte[] SendAndReceiveData(byte[] sendData)
+        public byte[] SendAndReceiveData(byte[] sendData, ResponseFrameLengthResolver responseLengthResolver)
         {
             if (sendData == null || sendData.Length == 0)
                 throw new ArgumentException("发送报文不能为空", nameof(sendData));
@@ -169,7 +170,7 @@ namespace PlcTest.Client.ClientCommunication
                 // 发送数据
                 _serialPort.Write(sendData, 0, sendData.Length);
 
-                return ReadCompleteResponse();
+                return ReadCompleteResponse(sendData, responseLengthResolver);
             }
             finally
             {
@@ -179,9 +180,9 @@ namespace PlcTest.Client.ClientCommunication
 
         /// <summary>
         /// 读取一帧完整响应
-        /// 串口按字节流返回，一次 Read 可能只拿到半帧，需把紧随其后的字节拼齐
+        /// 优先按协议给出的帧长读满；协议判不出长度（返回 -1）时才回退到空闲判据。
         /// </summary>
-        private byte[] ReadCompleteResponse()
+        private byte[] ReadCompleteResponse(byte[] request, ResponseFrameLengthResolver resolver)
         {
             byte[] recvBuffer = new byte[_bufferMaxLength];
 
@@ -202,23 +203,76 @@ namespace PlcTest.Client.ClientCommunication
             if (total <= 0)
                 throw new Exception("串口无返回数据，读取超时或设备离线");
 
-            // 后续字节：连续 _maxIdleRounds 次没有新数据即认为一帧收全
-            int idleWait = 0;
-            while (total < recvBuffer.Length && idleWait < _maxIdleRounds)
+            int frameLength = -1;
+            if (resolver != null)
             {
-                int available = _serialPort.BytesToRead;
-                if (available > 0)
+                try
                 {
-                    int recvLen = _serialPort.Read(recvBuffer, total, Math.Min(available, recvBuffer.Length - total));
+                    frameLength = resolver(request, recvBuffer, total);
+                }
+                catch
+                {
+                    frameLength = -1;
+                }
+            }
+
+            // 协议给出的长度超出缓冲上限，视为判定不可信
+            if (frameLength > recvBuffer.Length)
+            {
+                frameLength = -1;
+            }
+
+            if (frameLength > 0)
+            {
+                // 按协议长度读满
+                while (total < frameLength)
+                {
+                    int available = _serialPort.BytesToRead;
+                    if (available <= 0)
+                    {
+                        try
+                        {
+                            total += _serialPort.Read(recvBuffer, total, frameLength - total);
+                        }
+                        catch (TimeoutException ex)
+                        {
+                            throw new Exception("串口读取超时，帧未收全", ex);
+                        }
+                        continue;
+                    }
+
+                    int recvLen = _serialPort.Read(recvBuffer, total, Math.Min(available, frameLength - total));
                     if (recvLen <= 0)
                         break;
                     total += recvLen;
-                    idleWait = 0;
-                    continue;
                 }
 
-                Thread.Sleep(_idleWaitMs);
-                idleWait++;
+                // 一问一答模式下不应多收；多出来的一律截掉，避免污染解析
+                if (total > frameLength)
+                {
+                    total = frameLength;
+                }
+            }
+            else
+            {
+                // 回退：连续 _maxIdleRounds 次没有新数据即认为一帧收全
+                int idleWait = 0;
+                while (total < recvBuffer.Length && idleWait < _maxIdleRounds)
+                {
+                    int available = _serialPort.BytesToRead;
+                    if (available > 0)
+                    {
+                        int recvLen = _serialPort.Read(recvBuffer, total, Math.Min(available, recvBuffer.Length - total));
+                        if (recvLen <= 0)
+                            break;
+                        total += recvLen;
+                        idleWait = 0;
+                        continue;
+                    }
+
+                    Thread.Sleep(_idleWaitMs);
+                    idleWait++;
+                }
             }
 
             // 截取有效数据返回

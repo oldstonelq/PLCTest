@@ -19,67 +19,40 @@ namespace PlcTest.Client.ClientProtocolManagement.Melsec
         /// <returns>寄存器地址的真实编码</returns>
         public int GetMemoryCode(MemoryArea memoryArea)
         {
-            switch (memoryArea)    //软元件                    类型     编号范围   进制 
-            {
-                case MemoryArea.SM://特殊继电器               位数据   000000~001023  10进制
-                    return 0x91;
-                case MemoryArea.SD://特殊寄存器               字数据   000000~001023  10进制
-                    return 0xA9;
-                case MemoryArea.X://输入                      位数据   000000~0007FF  16进制
-                    return 0x9C;
-                case MemoryArea.Y://输出                      位数据   000000~0007FF  16进制
-                    return 0x9D;
-                case MemoryArea.M://内部继电器*2              位数据   000000~008191  10进制
-                    return 0x90;
-                case MemoryArea.L://锁存继电器*2              位数据   000000~002027  10进制
-                    return 0x92;
-                case MemoryArea.F://报警器                    位数据   000000~001023  10进制
-                    return 0x93;
-                case MemoryArea.V://变址继电器                位数据   000000~001023  10进制
-                    return 0x94;
-                case MemoryArea.B://链接继电器                位数据   000000~0007FF  16进制
-                    return 0xA0;
-                case MemoryArea.D://数据寄存器                字数据   000000~011135  10进制
-                    return 0xA8;
-                case MemoryArea.W://链接寄存器                字数据   000000~0007FF  16进制
-                    return 0xB4;
-                case MemoryArea.TS://定时器*3 -触点           位数据   000000~000511  10进制
-                    return 0XC1;
-                case MemoryArea.TC://定时器*3 -线圈           位数据   000000~000511  10进制
-                    return 0xC0;
-                case MemoryArea.TN://定时器*3 -当前值         字数据   000000~000511  10进制
-                    return 0xC2;
-                case MemoryArea.SS://累计定时器*3 -触点       位数据   000000~000511  10进制
-                    return 0xC7;
-                case MemoryArea.SC://累计定时器*3 -线圈       位数据   000000~000511  10进制
-                    return 0xC6;
-                case MemoryArea.SN://累计定时器*3 -当前值     字数据   000000~000511  10进制
-                    return 0xC8;
-                case MemoryArea.CS://计数器*3 -触点           位数据   000000~000511  10进制
-                    return 0xC4;
-                case MemoryArea.CC://计数器*3 -线圈           位数据   000000~000511  10进制
-                    return 0xC3;
-                case MemoryArea.CN://计数器*3 -当前值         字数据   000000~000511  10进制
-                    return 0xC5;
-                case MemoryArea.SB://链接特殊继电器           位数据   000000~0003FF  16进制
-                    return 0xA1;
-                case MemoryArea.SW://链接特殊寄存器           字数据   000000~0003FF  16进制
-                    return 0xB5;
-                case MemoryArea.S://步进继电器*2              位数据   000000~002027  10进制
-                    return 0x98;
-                case MemoryArea.DX://直接输入                 位数据   000000~0007FF  16进制
-                    return 0xA2;
-                case MemoryArea.DY://直接输出                 位数据   000000~0007FF  16进制
-                    return 0xA3;
-                case MemoryArea.Z://变址寄存器                字数据   000000~000009  10进制
-                    return 0xCC;
-                case MemoryArea.R://文件寄存器*4              字数据   000000~032767  16进制
-                    return 0xAF;
-                case MemoryArea.ZR://文件寄存器*6             字数据   000000~00FFFF  16进制
-                    return 0xB0;
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(memoryArea), "无效寄存器类型");
-            }
+            // 二进制软元件代码取自 Melsec3E4EDeviceCatalog（与《基本型 QCPU 软元件一览》一致）
+            return Melsec3E4EDeviceCatalog.Get(memoryArea).BinaryCode;
+        }
+        /// <summary>
+        /// 该软元件区域允许的访问方式。
+        /// 位软元件（M/X/Y 等）既可位访问也可字访问（字访问时每字 16 点）；字软元件（D/W/R 等）只能字访问。
+        /// </summary>
+        /// <param name="memoryArea">寄存器区域</param>
+        /// <returns>允许的访问方式</returns>
+        public AreaAccess GetAreaAccess(MemoryArea memoryArea)
+        {
+            // 位/字能力由软元件表统一声明，协议不再自己维护第二套规则
+            return Melsec3E4EDeviceCatalog.Get(memoryArea).Access;
+        }
+
+        /// <summary>
+        /// 软元件编号上限取自 <see cref="Melsec3E4EDeviceCatalog"/>（基本型 QCPU 默认范围），
+        /// 仅用于发出报文前的越界提示，不影响报文结构。
+        /// </summary>
+        /// <param name="memoryArea">寄存器区域</param>
+        /// <returns>最大编号；-1 表示协议不做限制</returns>
+        public int GetMaxIndex(MemoryArea memoryArea)
+        {
+            return Melsec3E4EDeviceCatalog.Get(memoryArea).DefaultMaxIndex;
+        }
+
+        /// <summary>
+        /// 根据响应前缀推断整帧长度：3E 二进制响应为 9 字节头 + [7..8] 小端"数据长度"（从结束码起算）。
+        /// </summary>
+        public int GetResponseFrameLength(byte[] request, byte[] buffer, int available)
+        {
+            if (buffer == null || available < 9) return -1;
+            if (buffer[0] != 0xD0 || buffer[1] != 0x00) return -1;
+            return 9 + (buffer[7] | (buffer[8] << 8));
         }
         /// <summary>
         /// 写入位数据转Byte数组
@@ -238,6 +211,8 @@ namespace PlcTest.Client.ClientProtocolManagement.Melsec
             if (endCode != 0)
             {
                 result.ErrorMsg = $"结束代码错误: 0x{endCode:X4}";
+                result.Kind = ErrorKind.DeviceEndCode;
+                result.EndCode = endCode;
                 return result;
             }
 
@@ -275,6 +250,8 @@ namespace PlcTest.Client.ClientProtocolManagement.Melsec
             if (endCode != 0)
             {
                 result.ErrorMsg = $"结束代码错误: 0x{endCode:X4}";
+                result.Kind = ErrorKind.DeviceEndCode;
+                result.EndCode = endCode;
                 return result;
             }
 
@@ -326,6 +303,8 @@ namespace PlcTest.Client.ClientProtocolManagement.Melsec
             if (endCode != 0)
             {
                 result.ErrorMsg = $"结束代码错误: 0x{endCode:X4}";
+                result.Kind = ErrorKind.DeviceEndCode;
+                result.EndCode = endCode;
                 return result;
             }
 

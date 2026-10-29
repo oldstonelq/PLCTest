@@ -17,6 +17,16 @@ namespace PlcTest.Server.ServerCommunication
         /// </summary>
         private readonly SerialPort _serialPort;
         /// <summary>
+        /// 请求帧长解析（由服务端协议注入）；未设置或协议判不出长度时，按空闲超时收帧。
+        /// </summary>
+        public ServerFrameLengthResolver FrameLengthResolver { get; set; }
+        /// <summary>探测缓冲大小（足够容纳 MC 1E 的最大写请求）</summary>
+        private const int ProbeBufferSize = 4096;
+        /// <summary>等首字节的超时（毫秒）</summary>
+        private const int FirstByteTimeoutMs = 500;
+        /// <summary>协议判不出帧长时的空闲超时（毫秒）</summary>
+        private const int IdleTimeoutMs = 60;
+        /// <summary>
         /// 异步操作锁
         /// </summary>
         private readonly object _sync = new object();
@@ -119,41 +129,84 @@ namespace PlcTest.Server.ServerCommunication
             catch { }
         }
         /// <summary>
-        /// 按 MC 3E 帧格式读取一整帧（9 字节头中的“请求数据长度”决定后续字节数）
+        /// 读取一整帧请求。
+        /// 帧长由注入的 <see cref="FrameLengthResolver"/>（即服务端协议）决定：
+        /// 协议能算出长度就按长度读满；算不出（如 MC 1E）就回退到「一小段时间没有新数据」判据。
         /// </summary>
         private byte[] ReadFrame()
         {
-            byte[] header = new byte[9];
-            if (!ReadExact(header, 0, header.Length)) return null;
-
-            // 请求数据长度是小端（低字节在前）：header[7] 低字节、header[8] 高字节
-            int bodyLen = header[7] | (header[8] << 8);
-            if (bodyLen <= 0 || bodyLen > 0xFFFF - 9) return null;
-
-            byte[] frame = new byte[9 + bodyLen];
-            Array.Copy(header, frame, 9);
-            if (!ReadExact(frame, 9, bodyLen)) return null;
-            return frame;
-        }
-        /// <summary>
-        /// 从串口读满指定字节数（受 ReadTimeout 约束）
-        /// </summary>
-        private bool ReadExact(byte[] buffer, int offset, int count)
-        {
+            byte[] buffer = new byte[ProbeBufferSize];
             int filled = 0;
-            while (filled < count)
+            int savedTimeout = _serialPort.ReadTimeout;
+
+            try
             {
-                int n;
-                try
+                // 先等首字节，避免在没有请求时空转
+                _serialPort.ReadTimeout = FirstByteTimeoutMs;
+                if (!ReadOnce(buffer, ref filled))
                 {
-                    n = _serialPort.Read(buffer, offset + filled, count - filled);
+                    return null;
                 }
-                catch (TimeoutException) { return false; }
-                catch (Exception) { return false; }
-                if (n <= 0) return false;
-                filled += n;
+
+                // 收齐整帧：协议能算出长度就按长度读，算不出就用空闲超时
+                _serialPort.ReadTimeout = IdleTimeoutMs;
+                ServerFrameLengthResolver resolver = FrameLengthResolver;
+                while (filled < buffer.Length)
+                {
+                    int total = resolver != null ? resolver(buffer, filled) : -1;
+                    if (total > 0 && filled >= total)
+                    {
+                        break;
+                    }
+
+                    if (!ReadOnce(buffer, ref filled))
+                    {
+                        break;
+                    }
+                }
             }
-            return true;
+            finally
+            {
+                try { _serialPort.ReadTimeout = savedTimeout; } catch { }
+            }
+
+            return filled > 0 ? Trim(buffer, filled) : null;
+        }
+
+        /// <summary>
+        /// 从串口读一次（至少 1 字节，受当前 ReadTimeout 约束）。
+        /// </summary>
+        private bool ReadOnce(byte[] buffer, ref int filled)
+        {
+            try
+            {
+                int n = _serialPort.Read(buffer, filled, buffer.Length - filled);
+                if (n <= 0)
+                {
+                    return false;
+                }
+                filled += n;
+                return true;
+            }
+            catch (TimeoutException)
+            {
+                return false;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static byte[] Trim(byte[] source, int length)
+        {
+            if (length == source.Length)
+            {
+                return source;
+            }
+            byte[] result = new byte[length];
+            Array.Copy(source, result, length);
+            return result;
         }
     }
 }

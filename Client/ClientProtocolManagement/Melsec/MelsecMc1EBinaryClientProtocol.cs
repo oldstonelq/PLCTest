@@ -14,32 +14,55 @@ namespace PlcTest.Client.ClientProtocolManagement.Melsec
         /// </summary>
         /// <param name="memoryArea">寄存器区域</param>
         /// <returns>寄存器地址的真实编码</returns>
+        /// <summary>
+        /// 适用机型，决定软元件编号上限。默认 FX3G / FX3GC（依据 Document/Melsec/1E寄存器地址.png）。
+        /// </summary>
+        public Melsec1ECpuModel CpuModel { get; set; } = Melsec1ECpuModel.Fx3G;
+
         public int GetMemoryCode(MemoryArea memoryArea)
         {
-            switch (memoryArea)
+            // 2 字节软元件代码取自 1E 软元件表；单字符软元件用空格(0x20)补齐，与 3E 的 '*' 不同
+            return Melsec1EDeviceCatalog.Get(memoryArea).Code;
+        }
+        /// <summary>
+        /// 该软元件区域允许的访问方式。
+        /// A 兼容 1E 帧支持的软元件较少：位软元件 X/Y/M/S/TS/CS，字软元件 D/R/TN/CN。
+        /// </summary>
+        /// <param name="memoryArea">寄存器区域</param>
+        /// <returns>允许的访问方式</returns>
+        public AreaAccess GetAreaAccess(MemoryArea memoryArea)
+        {
+            // 位/字能力由 1E 软元件表统一声明：TS/CS 是触点只支持位，TN/CN 是当前值只支持字
+            return Melsec1EDeviceCatalog.Get(memoryArea).Access;
+        }
+
+        /// <summary>
+        /// 软元件编号上限取自 <see cref="Melsec1EDeviceCatalog"/>，按 <see cref="CpuModel"/> 机型取值（默认 FX3G/FX3GC）。
+        /// </summary>
+        /// <param name="memoryArea">寄存器区域</param>
+        /// <returns>最大编号；-1 表示协议不做限制</returns>
+        public int GetMaxIndex(MemoryArea memoryArea)
+        {
+            return Melsec1EDeviceCatalog.Get(memoryArea).GetMaxIndex(CpuModel);
+        }
+
+
+
+        /// <summary>
+        /// 根据请求推断整帧长度：1E 二进制响应没有长度字段，只能由"功能码 + 点数"推算。
+        /// 响应 = 副标题(1) + 结束码(2) + 数据。
+        /// </summary>
+        public int GetResponseFrameLength(byte[] request, byte[] buffer, int available)
+        {
+            if (request == null || request.Length < 12) return -1;
+            int points = request[10] | (request[11] << 8);
+            switch (request[0])
             {
-                case MemoryArea.D:
-                    return 0x4420;   //数据寄存器
-                case MemoryArea.R:
-                    return 0x5220;   //扩展寄存器
-                case MemoryArea.TN:
-                    return 0x544E;   //定时器-当前值 
-                case MemoryArea.TS:
-                    return 0x5453;   //定时器-触点
-                case MemoryArea.CN:
-                    return 0x434E;   //计数器-当前值
-                case MemoryArea.CS:
-                    return 0x4353;   //计数器-触点
-                case MemoryArea.X:
-                    return 0x5820;   //输入
-                case MemoryArea.Y:
-                    return 0x5920;   //输出
-                case MemoryArea.M:
-                    return 0x4D20;   //辅助继电器
-                case MemoryArea.S:
-                    return 0x5320;   //状态
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(memoryArea), "无效寄存器类型");
+                case 0x00: return 3 + (points + 1) / 2;
+                case 0x01: return 3 + points * 2;
+                case 0x02:
+                case 0x03: return 3;
+                default: return -1;
             }
         }
         /// <summary>
@@ -180,7 +203,7 @@ namespace PlcTest.Client.ClientProtocolManagement.Melsec
             if (endCode == 0)
                 return Result<bool>.Success(true);
             else
-                return Result<bool>.Fail($"写入失败，结束代码: 0x{endCode:X4}");
+                return Result<bool>.DeviceFail($"写入失败，结束代码: 0x{endCode:X4}", endCode);
         }
         /// <summary>
         /// 解析读位数据返回
@@ -197,7 +220,7 @@ namespace PlcTest.Client.ClientProtocolManagement.Melsec
 
             ushort endCode = BitConverter.ToUInt16(data, 1);
             if (endCode != 0)
-                return Result<bool[]>.Fail($"读取失败，结束代码: 0x{endCode:X4}");
+                return Result<bool[]>.DeviceFail($"读取失败，结束代码: 0x{endCode:X4}", endCode);
 
             bool[] bits = new bool[size];
             for (int i = 0; i < size; i++)
@@ -223,7 +246,7 @@ namespace PlcTest.Client.ClientProtocolManagement.Melsec
 
             ushort endCode = BitConverter.ToUInt16(data, 1);
             if (endCode != 0)
-                return Result<short[]>.Fail($"读取失败，结束代码: 0x{endCode:X4}");
+                return Result<short[]>.DeviceFail($"读取失败，结束代码: 0x{endCode:X4}", endCode);
 
             short[] values = new short[size];
             for (int i = 0; i < size; i++)

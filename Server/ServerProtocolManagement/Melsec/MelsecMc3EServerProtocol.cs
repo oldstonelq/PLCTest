@@ -1,4 +1,5 @@
 using PlcTest.Models;
+using PlcTest.Server.ServerProtocolManagement;
 using PlcTest.Server.ServerInterface;
 using System;
 
@@ -12,6 +13,24 @@ namespace PlcTest.Server.ServerProtocolManagement.Melsec
         /// <summary>
         /// 验证请求报文头
         /// </summary>
+        /// <summary>
+        /// 3E 二进制：头部 9 字节，[7..8] 小端为"从 CPU 监视定时器起算"的字节数，整帧 = 9 + 长度。
+        /// </summary>
+        public int GetRequestFrameLength(byte[] buffer, int available)
+        {
+            if (buffer == null || available < 9)
+            {
+                return 0;
+            }
+
+            int bodyLen = buffer[7] | (buffer[8] << 8);
+            if (bodyLen <= 0 || bodyLen > 0xFFFF - 9)
+            {
+                return -1;
+            }
+            return 9 + bodyLen;
+        }
+
         public bool ValidateRequestHeader(byte[] data)
         {
             if (data == null || data.Length < 11)
@@ -37,6 +56,8 @@ namespace PlcTest.Server.ServerProtocolManagement.Melsec
             if (len >= cmdOffset + 4)
             {
                 info.Command = BitConverter.ToUInt16(data, cmdOffset);
+                // 子命令位于命令之后 2 字节，bit0 置位表示按位访问
+                info.IsBit = (BitConverter.ToUInt16(data, cmdOffset + 2) & 0x0001) != 0;
             }
 
             // 请求数据区从偏移 15 开始（cmdOffset + 4）
@@ -58,13 +79,7 @@ namespace PlcTest.Server.ServerProtocolManagement.Melsec
 
             // 设备代码 → 统一内存区域：把 MC 3E 的设备码语义收敛在协议层，
             // 上层的服务端逻辑不再出现 0xA8/0x90 这类协议魔法数
-            switch (info.DeviceCode)
-            {
-                case 0xA8: info.DeviceArea = MemoryArea.D; break;
-                case 0x90: info.DeviceArea = MemoryArea.M; break;
-                case 0x9C: info.DeviceArea = MemoryArea.X; break;
-                case 0x9D: info.DeviceArea = MemoryArea.Y; break;
-            }
+            info.DeviceArea = MelsecServerDeviceMapper.From3EBinary(info.DeviceCode);
 
             // 软元件点数
             info.Points = BitConverter.ToUInt16(data, addrOffset + 4);

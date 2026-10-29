@@ -23,6 +23,33 @@ namespace PlcTest.Client.ClientProtocolManagement.Template
             throw new NotImplementedException();
         }
         /// <summary>
+        /// 该软元件区域允许的访问方式（协议未实现）。
+        /// </summary>
+        /// <param name="memoryArea">寄存器区域</param>
+        /// <returns>允许的访问方式</returns>
+        public AreaAccess GetAreaAccess(MemoryArea memoryArea)
+        {
+            throw new NotImplementedException();
+        }
+
+        /// <summary>
+        /// 骨架实现：不做编号范围限制。
+        /// </summary>
+        /// <param name="memoryArea">寄存器区域</param>
+        /// <returns>最大编号；-1 表示协议不做限制</returns>
+        public int GetMaxIndex(MemoryArea memoryArea)
+        {
+            return -1;
+        }
+
+        /// <summary>
+        /// 根据响应前缀推断整帧长度（协议未实现，返回 -1 交给通讯层按空闲判据收帧）。
+        /// </summary>
+        public int GetResponseFrameLength(byte[] request, byte[] buffer, int available)
+        {
+            return -1;
+        }
+        /// <summary>
         /// 写入位数据转Byte数组
         /// </summary>
         /// <param name="bools">位数据</param>

@@ -1,4 +1,5 @@
 using PlcTest.Models;
+using PlcTest.Server.ServerProtocolManagement;
 using PlcTest.Server.ServerInterface;
 using System;
 
@@ -15,6 +16,24 @@ namespace PlcTest.Server.ServerProtocolManagement.Melsec
         /// <summary>
         /// 验证请求报文头（副标题 0x54 0x00）
         /// </summary>
+        /// <summary>
+        /// 4E 二进制：头部 15 字节，[11..12] 小端为"从 CPU 监视定时器起算"的字节数，整帧 = 13 + 长度。
+        /// </summary>
+        public int GetRequestFrameLength(byte[] buffer, int available)
+        {
+            if (buffer == null || available < 13)
+            {
+                return 0;
+            }
+
+            int bodyLen = buffer[11] | (buffer[12] << 8);
+            if (bodyLen <= 0 || bodyLen > 0xFFFF - 13)
+            {
+                return -1;
+            }
+            return 13 + bodyLen;
+        }
+
         public bool ValidateRequestHeader(byte[] data)
         {
             if (data == null || data.Length < 15)
@@ -39,6 +58,9 @@ namespace PlcTest.Server.ServerProtocolManagement.Melsec
 
             // 命令（偏移 15-16）
             info.Command = BitConverter.ToUInt16(data, 15);
+
+            // 子命令位于命令之后 2 字节，bit0 置位表示按位访问
+            info.IsBit = (BitConverter.ToUInt16(data, 17) & 0x0001) != 0;
 
             // 起始地址（3 字节小端，偏移 19~21）
             info.StartAddress = data[19] | (data[20] << 8) | (data[21] << 16);
@@ -66,42 +88,11 @@ namespace PlcTest.Server.ServerProtocolManagement.Melsec
         }
 
         /// <summary>
-        /// 设备码（单字节）→ 内存区域
+        /// 4E 二进制设备码（1 字节）
         /// </summary>
         private static MemoryArea? DecodeDeviceArea(int deviceCode)
         {
-            switch (deviceCode)
-            {
-                case 0x91: return MemoryArea.SM;
-                case 0xA9: return MemoryArea.SD;
-                case 0x9C: return MemoryArea.X;
-                case 0x9D: return MemoryArea.Y;
-                case 0x90: return MemoryArea.M;
-                case 0x92: return MemoryArea.L;
-                case 0x93: return MemoryArea.F;
-                case 0x94: return MemoryArea.V;
-                case 0xA0: return MemoryArea.B;
-                case 0xA8: return MemoryArea.D;
-                case 0xB4: return MemoryArea.W;
-                case 0xC1: return MemoryArea.TS;
-                case 0xC0: return MemoryArea.TC;
-                case 0xC2: return MemoryArea.TN;
-                case 0xC7: return MemoryArea.SS;
-                case 0xC6: return MemoryArea.SC;
-                case 0xC8: return MemoryArea.SN;
-                case 0xC4: return MemoryArea.CS;
-                case 0xC3: return MemoryArea.CC;
-                case 0xC5: return MemoryArea.CN;
-                case 0xA1: return MemoryArea.SB;
-                case 0xB5: return MemoryArea.SW;
-                case 0x98: return MemoryArea.S;
-                case 0xA2: return MemoryArea.DX;
-                case 0xA3: return MemoryArea.DY;
-                case 0xCC: return MemoryArea.Z;
-                case 0xAF: return MemoryArea.R;
-                case 0xB0: return MemoryArea.ZR;
-                default: return null;
-            }
+            return MelsecServerDeviceMapper.From3EBinary(deviceCode);
         }
 
         /// <summary>

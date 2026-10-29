@@ -15,6 +15,19 @@ namespace PlcTest.Server.ServerInterface
         bool ValidateRequestHeader(byte[] data);
 
         /// <summary>
+        /// 根据已收到的字节推断"这一帧请求应该有多长"，供通讯层按长度读满，
+        /// 不再由通讯层写死某一种协议的头部结构。
+        /// </summary>
+        /// <param name="buffer">已收到的字节</param>
+        /// <param name="available">buffer 中的有效字节数</param>
+        /// <returns>
+        /// 大于 0：整帧长度；
+        /// 等于 0：头部还不够，需要继续读；
+        /// 小于 0：本协议没有长度字段（如 MC 1E），无法判定，由通讯层回退到空闲判据。
+        /// </returns>
+        int GetRequestFrameLength(byte[] buffer, int available);
+
+        /// <summary>
         /// 解析请求报文为结构化数据
         /// </summary>
         RequestInfo ParseRequest(byte[] data);

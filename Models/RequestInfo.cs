@@ -37,6 +37,12 @@ namespace PlcTest.Models
         public ushort Points { get; set; }
 
         /// <summary>
+        /// 本次请求按位还是按字访问。
+        /// 同一个软元件可能既能按位又能按字（如三菱的 M），服务端靠这个区分读位表还是字表。
+        /// </summary>
+        public bool IsBit { get; set; }
+
+        /// <summary>
         /// 写入数据（仅写入请求时有值，读取请求为 null）
         /// </summary>
         public byte[] WriteData { get; set; }

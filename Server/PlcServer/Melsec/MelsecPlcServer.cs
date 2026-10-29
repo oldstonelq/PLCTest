@@ -24,19 +24,39 @@ namespace PlcTest.Server.PlcServer.Melsec
         private readonly object _memoryLock = new object();
 
         /// <summary>
+        /// 单次请求允许的最大点数（防止异常报文申请超大数组）
+        /// </summary>
+        private const int MaxPointsPerRequest = 2000;
+
+        /// <summary>
         /// 服务端协议接口（负责报文解析与构建）
         /// </summary>
         private readonly IServerProtocol _protocol;
 
         /// <summary>
-        /// D 寄存器（字设备）
+        /// 字设备表：按软元件区域分开存（D / SD / R / TN / W / ZR …）
         /// </summary>
-        private readonly ConcurrentDictionary<int, short> dRegisters = new ConcurrentDictionary<int, short>();
+        private readonly ConcurrentDictionary<MemoryArea, ConcurrentDictionary<int, short>> _wordTables
+            = new ConcurrentDictionary<MemoryArea, ConcurrentDictionary<int, short>>();
 
         /// <summary>
-        /// M/X/Y 线圈（位设备，共用一张位表）
+        /// 位设备表：按软元件区域分开存（M / X / Y / TS / B …）
+        /// 同一区域既能按位又能按字时（如 M），位与字各存一份、互不联动。
         /// </summary>
-        private readonly ConcurrentDictionary<int, bool> mBits = new ConcurrentDictionary<int, bool>();
+        private readonly ConcurrentDictionary<MemoryArea, ConcurrentDictionary<int, bool>> _bitTables
+            = new ConcurrentDictionary<MemoryArea, ConcurrentDictionary<int, bool>>();
+
+        /// <summary>取（必要时创建）某个区域的字表</summary>
+        private ConcurrentDictionary<int, short> WordTable(MemoryArea area)
+        {
+            return _wordTables.GetOrAdd(area, key => new ConcurrentDictionary<int, short>());
+        }
+
+        /// <summary>取（必要时创建）某个区域的位表</summary>
+        private ConcurrentDictionary<int, bool> BitTable(MemoryArea area)
+        {
+            return _bitTables.GetOrAdd(area, key => new ConcurrentDictionary<int, bool>());
+        }
 
         /// <summary>
         /// 服务是否开启
@@ -57,6 +77,9 @@ namespace PlcTest.Server.PlcServer.Melsec
         {
             _comm = comm ?? throw new ArgumentNullException(nameof(comm));
             _protocol = protocol ?? throw new ArgumentNullException(nameof(protocol));
+
+            // 把"这一帧有多长"的判断交给协议，通讯层不再写死某一种帧头
+            _comm.FrameLengthResolver = _protocol.GetRequestFrameLength;
         }
 
         /// <summary>
@@ -140,69 +163,79 @@ namespace PlcTest.Server.PlcServer.Melsec
         }
 
         /// <summary>
-        /// 处理批量读取——从寄存器读取数据，返回「结束码 + 数据」的数据区
+        /// 处理批量读取——按请求的位/字与软元件区域读对应表，返回「结束码 + 数据」的数据区
         /// </summary>
         private byte[] HandleRead(RequestInfo request)
         {
-            byte[] payload;
-            switch (request.DeviceArea)
+            if (!request.DeviceArea.HasValue)
             {
-                case MemoryArea.D: // D 寄存器
-                    {
-                        short[] words = new short[request.Points];
-                        for (int i = 0; i < request.Points; i++)
-                            dRegisters.TryGetValue(request.StartAddress + i, out words[i]);
-                        payload = _protocol.BuildWordReadResponse(words);
-                        break;
-                    }
-                case MemoryArea.M: // M 线圈
-                case MemoryArea.X: // X 输入位（与 M 共用位表）
-                case MemoryArea.Y: // Y 输出位（与 M 共用位表）
-                    {
-                        bool[] bits = new bool[request.Points];
-                        for (int i = 0; i < request.Points; i++)
-                            mBits.TryGetValue(request.StartAddress + i, out bits[i]);
-                        payload = _protocol.BuildBitReadResponse(bits);
-                        break;
-                    }
-                default:
-                    return _protocol.BuildEndCodeResponse(0x0001);
+                return _protocol.BuildEndCodeResponse(0x0001);
+            }
+            if (request.Points == 0 || request.Points > MaxPointsPerRequest)
+            {
+                return _protocol.BuildEndCodeResponse(0x0001);
+            }
+
+            MemoryArea area = request.DeviceArea.Value;
+            byte[] payload;
+            if (request.IsBit)
+            {
+                var table = BitTable(area);
+                bool[] bits = new bool[request.Points];
+                for (int i = 0; i < request.Points; i++)
+                {
+                    table.TryGetValue(request.StartAddress + i, out bits[i]);
+                }
+                payload = _protocol.BuildBitReadResponse(bits);
+            }
+            else
+            {
+                var table = WordTable(area);
+                short[] words = new short[request.Points];
+                for (int i = 0; i < request.Points; i++)
+                {
+                    table.TryGetValue(request.StartAddress + i, out words[i]);
+                }
+                payload = _protocol.BuildWordReadResponse(words);
             }
             return Concat(_protocol.BuildEndCodeResponse(0x0000), payload);
         }
 
         /// <summary>
-        /// 处理批量写入——解析写入数据并存入寄存器，返回「结束码」数据区
+        /// 处理批量写入——按请求的位/字与软元件区域写入对应表，返回「结束码」数据区
         /// </summary>
         private byte[] HandleWrite(RequestInfo request)
         {
-            switch (request.DeviceArea)
+            if (!request.DeviceArea.HasValue)
             {
-                case MemoryArea.D: // D 寄存器
-                    {
-                        short[] words = _protocol.ParseWriteWords(request.WriteData, request.Points);
-                        if (words != null)
-                        {
-                            for (int i = 0; i < request.Points && i < words.Length; i++)
-                                dRegisters[request.StartAddress + i] = words[i];
-                        }
-                        return _protocol.BuildEndCodeResponse(0x0000);
-                    }
-                case MemoryArea.M: // M 线圈
-                case MemoryArea.X: // X 输入位
-                case MemoryArea.Y: // Y 输出位
-                    {
-                        bool[] bits = _protocol.ParseWriteBits(request.WriteData, request.Points);
-                        if (bits != null)
-                        {
-                            for (int i = 0; i < request.Points && i < bits.Length; i++)
-                                mBits[request.StartAddress + i] = bits[i];
-                        }
-                        return _protocol.BuildEndCodeResponse(0x0000);
-                    }
-                default:
-                    return _protocol.BuildEndCodeResponse(0x0001);
+                return _protocol.BuildEndCodeResponse(0x0001);
             }
+
+            MemoryArea area = request.DeviceArea.Value;
+            if (request.IsBit)
+            {
+                bool[] bits = _protocol.ParseWriteBits(request.WriteData, request.Points);
+                if (bits != null)
+                {
+                    var table = BitTable(area);
+                    for (int i = 0; i < request.Points && i < bits.Length; i++)
+                    {
+                        table[request.StartAddress + i] = bits[i];
+                    }
+                }
+                return _protocol.BuildEndCodeResponse(0x0000);
+            }
+
+            short[] words = _protocol.ParseWriteWords(request.WriteData, request.Points);
+            if (words != null)
+            {
+                var table = WordTable(area);
+                for (int i = 0; i < request.Points && i < words.Length; i++)
+                {
+                    table[request.StartAddress + i] = words[i];
+                }
+            }
+            return _protocol.BuildEndCodeResponse(0x0000);
         }
 
         /// <summary>
@@ -219,7 +252,7 @@ namespace PlcTest.Server.PlcServer.Melsec
         }
 
         /// <summary>
-        /// 读取单个位寄存器的值。
+        /// 读取单个位。
         /// </summary>
         /// <param name="address">统一地址模型。</param>
         /// <returns>读取结果。</returns>
@@ -227,13 +260,9 @@ namespace PlcTest.Server.PlcServer.Melsec
         {
             try
             {
-                if (address.Area == MemoryArea.M || address.Area == MemoryArea.X || address.Area == MemoryArea.Y)
-                {
-                    if (mBits.TryGetValue(address.Address, out bool val))
-                        return Result<bool>.Success(val);
-                    return Result<bool>.Success(false);
-                }
-                return Result<bool>.Fail($"MemoryArea.{address.Area} 不支持位读取");
+                bool val;
+                BitTable(address.Area).TryGetValue(address.Address, out val);
+                return Result<bool>.Success(val);
             }
             catch (Exception ex)
             {
@@ -242,7 +271,7 @@ namespace PlcTest.Server.PlcServer.Melsec
         }
 
         /// <summary>
-        /// 读取位寄存器数组。
+        /// 读取位数组。
         /// </summary>
         /// <param name="address">统一地址模型，长度从 <see cref="PlcAddress.Length"/> 读取。</param>
         /// <returns>读取结果。</returns>
@@ -251,19 +280,17 @@ namespace PlcTest.Server.PlcServer.Melsec
             try
             {
                 if (address.Length <= 0)
-                    return Result<bool[]>.Fail("读取长度必须大于0");
-
-                if (address.Area == MemoryArea.M || address.Area == MemoryArea.X || address.Area == MemoryArea.Y)
                 {
-                    var result = new bool[address.Length];
-                    for (int i = 0; i < address.Length; i++)
-                    {
-                        mBits.TryGetValue(address.Address + i, out bool val);
-                        result[i] = val;
-                    }
-                    return Result<bool[]>.Success(result);
+                    return Result<bool[]>.Fail("读取长度必须大于0");
                 }
-                return Result<bool[]>.Fail($"MemoryArea.{address.Area} 不支持位数组读取");
+
+                var table = BitTable(address.Area);
+                bool[] values = new bool[address.Length];
+                for (int i = 0; i < values.Length; i++)
+                {
+                    table.TryGetValue(address.Address + i, out values[i]);
+                }
+                return Result<bool[]>.Success(values);
             }
             catch (Exception ex)
             {
@@ -272,24 +299,14 @@ namespace PlcTest.Server.PlcServer.Melsec
         }
 
         /// <summary>
-        /// 写入单个位寄存器。
+        /// 写入单个位。
         /// </summary>
-        /// <param name="address">统一地址模型。</param>
-        /// <param name="value">写入值。</param>
-        /// <returns>写入结果。</returns>
         public Result<bool> WriteBit(PlcAddress address, bool value)
         {
             try
             {
-                if (address.Area == MemoryArea.M || address.Area == MemoryArea.X || address.Area == MemoryArea.Y)
-                {
-                    lock (_memoryLock)
-                    {
-                        mBits[address.Address] = value;
-                    }
-                    return Result<bool>.Success(true);
-                }
-                return Result<bool>.Fail($"MemoryArea.{address.Area} 不支持位写入");
+                BitTable(address.Area)[address.Address] = value;
+                return Result<bool>.Success(true);
             }
             catch (Exception ex)
             {
@@ -298,30 +315,23 @@ namespace PlcTest.Server.PlcServer.Melsec
         }
 
         /// <summary>
-        /// 写入位寄存器数组。
+        /// 写入位数组。
         /// </summary>
-        /// <param name="address">统一地址模型。</param>
-        /// <param name="values">位数据数组。</param>
-        /// <returns>写入结果。</returns>
         public Result<bool> WriteBitArray(PlcAddress address, bool[] values)
         {
             try
             {
                 if (values == null || values.Length == 0)
-                    return Result<bool>.Fail("写入数组不能为空");
-
-                if (address.Area == MemoryArea.M || address.Area == MemoryArea.X || address.Area == MemoryArea.Y)
                 {
-                    lock (_memoryLock)
-                    {
-                        for (int i = 0; i < values.Length; i++)
-                        {
-                            mBits[address.Address + i] = values[i];
-                        }
-                    }
-                    return Result<bool>.Success(true);
+                    return Result<bool>.Fail("写入数据为空");
                 }
-                return Result<bool>.Fail($"MemoryArea.{address.Area} 不支持位数组写入");
+
+                var table = BitTable(address.Area);
+                for (int i = 0; i < values.Length; i++)
+                {
+                    table[address.Address + i] = values[i];
+                }
+                return Result<bool>.Success(true);
             }
             catch (Exception ex)
             {
@@ -330,20 +340,15 @@ namespace PlcTest.Server.PlcServer.Melsec
         }
 
         /// <summary>
-        /// 读取单个字寄存器的值。
+        /// 读取单个字。
         /// </summary>
-        /// <param name="address">统一地址模型。</param>
-        /// <returns>读取结果。</returns>
         public Result<short> ReadWord(PlcAddress address)
         {
             try
             {
-                if (address.Area == MemoryArea.D)
-                {
-                    dRegisters.TryGetValue(address.Address, out short val);
-                    return Result<short>.Success(val);
-                }
-                return Result<short>.Fail($"MemoryArea.{address.Area} 不支持字读取");
+                short val;
+                WordTable(address.Area).TryGetValue(address.Address, out val);
+                return Result<short>.Success(val);
             }
             catch (Exception ex)
             {
@@ -352,28 +357,24 @@ namespace PlcTest.Server.PlcServer.Melsec
         }
 
         /// <summary>
-        /// 读取字寄存器数组。
+        /// 读取字数组。
         /// </summary>
-        /// <param name="address">统一地址模型，长度从 <see cref="PlcAddress.Length"/> 读取。</param>
-        /// <returns>读取结果。</returns>
         public Result<short[]> ReadWordArray(PlcAddress address)
         {
             try
             {
                 if (address.Length <= 0)
-                    return Result<short[]>.Fail("读取长度必须大于0");
-
-                if (address.Area == MemoryArea.D)
                 {
-                    var result = new short[address.Length];
-                    for (int i = 0; i < address.Length; i++)
-                    {
-                        dRegisters.TryGetValue(address.Address + i, out short val);
-                        result[i] = val;
-                    }
-                    return Result<short[]>.Success(result);
+                    return Result<short[]>.Fail("读取长度必须大于0");
                 }
-                return Result<short[]>.Fail($"MemoryArea.{address.Area} 不支持字数组读取");
+
+                var table = WordTable(address.Area);
+                short[] values = new short[address.Length];
+                for (int i = 0; i < values.Length; i++)
+                {
+                    table.TryGetValue(address.Address + i, out values[i]);
+                }
+                return Result<short[]>.Success(values);
             }
             catch (Exception ex)
             {
@@ -382,24 +383,14 @@ namespace PlcTest.Server.PlcServer.Melsec
         }
 
         /// <summary>
-        /// 写入单个字寄存器。
+        /// 写入单个字。
         /// </summary>
-        /// <param name="address">统一地址模型。</param>
-        /// <param name="value">写入值。</param>
-        /// <returns>写入结果。</returns>
         public Result<bool> WriteWord(PlcAddress address, short value)
         {
             try
             {
-                if (address.Area == MemoryArea.D)
-                {
-                    lock (_memoryLock)
-                    {
-                        dRegisters[address.Address] = value;
-                    }
-                    return Result<bool>.Success(true);
-                }
-                return Result<bool>.Fail($"MemoryArea.{address.Area} 不支持字写入");
+                WordTable(address.Area)[address.Address] = value;
+                return Result<bool>.Success(true);
             }
             catch (Exception ex)
             {
@@ -408,30 +399,23 @@ namespace PlcTest.Server.PlcServer.Melsec
         }
 
         /// <summary>
-        /// 写入字寄存器数组。
+        /// 写入字数组。
         /// </summary>
-        /// <param name="address">统一地址模型。</param>
-        /// <param name="values">字数据数组。</param>
-        /// <returns>写入结果。</returns>
         public Result<bool> WriteWordArray(PlcAddress address, short[] values)
         {
             try
             {
                 if (values == null || values.Length == 0)
-                    return Result<bool>.Fail("写入数组不能为空");
-
-                if (address.Area == MemoryArea.D)
                 {
-                    lock (_memoryLock)
-                    {
-                        for (int i = 0; i < values.Length; i++)
-                        {
-                            dRegisters[address.Address + i] = values[i];
-                        }
-                    }
-                    return Result<bool>.Success(true);
+                    return Result<bool>.Fail("写入数据为空");
                 }
-                return Result<bool>.Fail($"MemoryArea.{address.Area} 不支持字数组写入");
+
+                var table = WordTable(address.Area);
+                for (int i = 0; i < values.Length; i++)
+                {
+                    table[address.Address + i] = values[i];
+                }
+                return Result<bool>.Success(true);
             }
             catch (Exception ex)
             {
@@ -441,105 +425,102 @@ namespace PlcTest.Server.PlcServer.Melsec
 
         #region 辅助方法（供UI层使用）
         /// <summary>
-        /// 获取指定区域的寄存器数量
+        /// 获取指定区域已建立的寄存器数量（位表优先）
         /// </summary>
         public int GetRegisterCount(MemoryArea area)
         {
-            switch (area)
+            ConcurrentDictionary<int, bool> bits;
+            if (_bitTables.TryGetValue(area, out bits) && bits.Count > 0)
             {
-                case MemoryArea.D:
-                    return dRegisters.Count;
-                case MemoryArea.M:
-                case MemoryArea.X:
-                case MemoryArea.Y:
-                    return mBits.Count;
-                default:
-                    return 0;
+                return bits.Count;
             }
+            ConcurrentDictionary<int, short> words;
+            if (_wordTables.TryGetValue(area, out words))
+            {
+                return words.Count;
+            }
+            return 0;
         }
 
         /// <summary>
-        /// 检查指定地址是否存在寄存器
+        /// 检查指定地址在该区域的位表或字表中是否存在
         /// </summary>
         public bool ContainsRegister(MemoryArea area, int address)
         {
-            if (area == MemoryArea.D)
-                return dRegisters.ContainsKey(address);
-            return mBits.ContainsKey(address);
+            ConcurrentDictionary<int, bool> bits;
+            if (_bitTables.TryGetValue(area, out bits) && bits.ContainsKey(address))
+            {
+                return true;
+            }
+            ConcurrentDictionary<int, short> words;
+            return _wordTables.TryGetValue(area, out words) && words.ContainsKey(address);
         }
 
         /// <summary>
-        /// 尝试添加寄存器（仅在不存在时添加）
+        /// 尝试添加寄存器（位表与字表各加一个初始值）
         /// </summary>
         public bool TryAddRegister(MemoryArea area, int address)
         {
             if (address < 0)
+            {
                 return false;
-
-            if (area == MemoryArea.D)
-                return dRegisters.TryAdd(address, 0);
-            return mBits.TryAdd(address, false);
+            }
+            bool addedBit = BitTable(area).TryAdd(address, false);
+            bool addedWord = WordTable(area).TryAdd(address, 0);
+            return addedBit || addedWord;
         }
 
         /// <summary>
-        /// 清空指定区域的所有寄存器
+        /// 清空指定区域的位表与字表
         /// </summary>
         public void ClearRegisters(MemoryArea area)
         {
-            if (area == MemoryArea.D)
-                dRegisters.Clear();
-            else
-                mBits.Clear();
+            ConcurrentDictionary<int, bool> bits;
+            if (_bitTables.TryGetValue(area, out bits))
+            {
+                bits.Clear();
+            }
+            ConcurrentDictionary<int, short> words;
+            if (_wordTables.TryGetValue(area, out words))
+            {
+                words.Clear();
+            }
         }
 
         /// <summary>
-        /// 清空指定区域指定范围内的寄存器值（设为默认值，不清除Key）
+        /// 把指定区间内的寄存器值恢复为初始值（保留 Key）
         /// </summary>
         public void ResetRegisterValues(MemoryArea area, int start, int length)
         {
-            lock (_memoryLock)
+            if (length <= 0)
             {
-                if (area == MemoryArea.D)
+                return;
+            }
+
+            ConcurrentDictionary<int, bool> bits;
+            if (_bitTables.TryGetValue(area, out bits))
+            {
+                for (int i = start; i < start + length; i++)
                 {
-                    for (int i = start; i < start + length; i++)
-                    {
-                        if (dRegisters.ContainsKey(i))
-                            dRegisters[i] = 0;
-                    }
+                    bits[i] = false;
                 }
-                else
+            }
+            ConcurrentDictionary<int, short> words;
+            if (_wordTables.TryGetValue(area, out words))
+            {
+                for (int i = start; i < start + length; i++)
                 {
-                    for (int i = start; i < start + length; i++)
-                    {
-                        if (mBits.ContainsKey(i))
-                            mBits[i] = false;
-                    }
+                    words[i] = 0;
                 }
             }
         }
 
         /// <summary>
-        /// 重置指定区域所有寄存器的值
+        /// 把指定区域的位表与字表全部恢复初始值
         /// </summary>
         public void ResetAllRegisterValues(MemoryArea area)
         {
-            lock (_memoryLock)
-            {
-                if (area == MemoryArea.D)
-                {
-                    foreach (var key in dRegisters.Keys)
-                    {
-                        dRegisters[key] = 0;
-                    }
-                }
-                else
-                {
-                    foreach (var key in mBits.Keys)
-                    {
-                        mBits[key] = false;
-                    }
-                }
-            }
+            ClearRegisters(area);
         }
         #endregion
     }

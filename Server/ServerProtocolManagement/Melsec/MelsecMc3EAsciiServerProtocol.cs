@@ -1,4 +1,5 @@
 using PlcTest.Models;
+using PlcTest.Server.ServerProtocolManagement;
 using PlcTest.Server.ServerInterface;
 using System;
 using System.Text;
@@ -15,6 +16,24 @@ namespace PlcTest.Server.ServerProtocolManagement.Melsec
         /// <summary>
         /// 验证请求报文头（副标题 "5000"）
         /// </summary>
+        /// <summary>
+        /// 3E ASCII：头部 18 字符，[14..17] 是 4 位十六进制文本表示的数据长度，整帧 = 18 + 长度。
+        /// </summary>
+        public int GetRequestFrameLength(byte[] buffer, int available)
+        {
+            if (buffer == null || available < 18)
+            {
+                return 0;
+            }
+
+            int bodyLen;
+            if (!AsciiFrameHelper.TryParseHex(buffer, 14, 4, out bodyLen) || bodyLen <= 0)
+            {
+                return -1;
+            }
+            return 18 + bodyLen;
+        }
+
         public bool ValidateRequestHeader(byte[] data)
         {
             if (data == null || data.Length < 22)
@@ -38,6 +57,14 @@ namespace PlcTest.Server.ServerProtocolManagement.Melsec
             // 命令区从偏移 22 开始：命令(4) + 子命令(4)
             string command = Encoding.ASCII.GetString(data, 22, 4);
             info.Command = command == "1401" ? (ushort)0x1401 : (ushort)0x0401;
+
+            // 子命令 4 位十六进制文本，bit0 置位表示按位访问
+            ushort subCommand;
+            if (ushort.TryParse(Encoding.ASCII.GetString(data, 26, 4),
+                System.Globalization.NumberStyles.HexNumber, null, out subCommand))
+            {
+                info.IsBit = (subCommand & 0x0001) != 0;
+            }
 
             // 软元件代码（2 个 ASCII 字符）
             info.DeviceCode = (data[30] << 8) | data[31];
@@ -72,42 +99,11 @@ namespace PlcTest.Server.ServerProtocolManagement.Melsec
         }
 
         /// <summary>
-        /// 设备码（双字符）→ 内存区域
+        /// ASCII 双字符设备码（如 "D*" = 0x442A）
         /// </summary>
         private static MemoryArea? DecodeDeviceArea(int deviceCode)
         {
-            switch (deviceCode)
-            {
-                case 0x534D: return MemoryArea.SM;
-                case 0x5344: return MemoryArea.SD;
-                case 0x582A: return MemoryArea.X;
-                case 0x592A: return MemoryArea.Y;
-                case 0x4D2A: return MemoryArea.M;
-                case 0x4C2A: return MemoryArea.L;
-                case 0x462A: return MemoryArea.F;
-                case 0x562A: return MemoryArea.V;
-                case 0x422A: return MemoryArea.B;
-                case 0x442A: return MemoryArea.D;
-                case 0x572A: return MemoryArea.W;
-                case 0x5453: return MemoryArea.TS;
-                case 0x5443: return MemoryArea.TC;
-                case 0x544E: return MemoryArea.TN;
-                case 0x5353: return MemoryArea.SS;
-                case 0x5343: return MemoryArea.SC;
-                case 0x534E: return MemoryArea.SN;
-                case 0x4353: return MemoryArea.CS;
-                case 0x4343: return MemoryArea.CC;
-                case 0x434E: return MemoryArea.CN;
-                case 0x5342: return MemoryArea.SB;
-                case 0x5357: return MemoryArea.SW;
-                case 0x532A: return MemoryArea.S;
-                case 0x4458: return MemoryArea.DX;
-                case 0x4459: return MemoryArea.DY;
-                case 0x5A2A: return MemoryArea.Z;
-                case 0x522A: return MemoryArea.R;
-                case 0x5A52: return MemoryArea.ZR;
-                default: return null;
-            }
+            return MelsecServerDeviceMapper.From3EAscii(deviceCode);
         }
 
         /// <summary>

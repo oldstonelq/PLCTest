@@ -50,6 +50,16 @@ namespace PlcTest.Server.ServerCommunication
         public bool IsRunning { get; private set; }
 
         /// <summary>
+        /// 请求帧长解析（由服务端协议注入）；未设置时一律按空闲判据收帧。
+        /// </summary>
+        public ServerFrameLengthResolver FrameLengthResolver { get; set; }
+
+        /// <summary>探测缓冲大小（足够容纳 MC 1E 的最大写请求）</summary>
+        private const int ProbeBufferSize = 4096;
+        /// <summary>协议判不出帧长时的空闲判据（毫秒）</summary>
+        private const int IdleTimeoutMs = 60;
+
+        /// <summary>
         /// 已连接客户端数量
         /// </summary>
         public int ClientCount
@@ -304,20 +314,67 @@ namespace PlcTest.Server.ServerCommunication
         /// </summary>
         /// <param name="socket">客户端 Socket</param>
         /// <returns>完整帧；对端关闭或帧非法时返回 null</returns>
-        private static byte[] ReadFrame(Socket socket)
+        private byte[] ReadFrame(Socket socket)
         {
-            byte[] header = new byte[9];
+            byte[] buffer = new byte[ProbeBufferSize];
             int filled = 0;
-            while (filled < header.Length)
+            ServerFrameLengthResolver resolver = FrameLengthResolver;
+
+            while (true)
             {
+                int total = resolver != null ? resolver(buffer, filled) : -1;
+
+                if (total > 0)
+                {
+                    return ReadExact(socket, buffer, filled, total);
+                }
+
+                // total == 0 表示头部不足，继续读；total < 0 表示协议判不出长度，回退空闲判据
+                if (total < 0 || filled >= buffer.Length)
+                {
+                    return ReadUntilIdle(socket, buffer, filled);
+                }
+
                 int n;
                 try
                 {
-                    n = socket.Receive(header, filled, header.Length - filled, SocketFlags.None);
+                    n = socket.Receive(buffer, filled, buffer.Length - filled, SocketFlags.None);
                 }
                 catch (SocketException) { return null; }
                 catch (ObjectDisposedException) { return null; }
                 catch (Exception) { return null; }
+
+                if (n <= 0)
+                {
+                    return filled > 0 ? Trim(buffer, filled) : null;
+                }
+                filled += n;
+            }
+        }
+
+        /// <summary>
+        /// 按协议给出的整帧长度把剩余字节读满。
+        /// </summary>
+        private static byte[] ReadExact(Socket socket, byte[] buffer, int filled, int total)
+        {
+            if (total > buffer.Length)
+            {
+                byte[] grown = new byte[total];
+                Array.Copy(buffer, grown, filled);
+                buffer = grown;
+            }
+
+            while (filled < total)
+            {
+                int n;
+                try
+                {
+                    n = socket.Receive(buffer, filled, total - filled, SocketFlags.None);
+                }
+                catch (SocketException) { return null; }
+                catch (ObjectDisposedException) { return null; }
+                catch (Exception) { return null; }
+
                 if (n <= 0)
                 {
                     return null;
@@ -325,33 +382,58 @@ namespace PlcTest.Server.ServerCommunication
                 filled += n;
             }
 
-            // MC 3E 的“请求数据长度”是从 CPU 监视定时器起算的字节数（小端：低字节在前），整帧 = 9 + 长度
-            int bodyLen = header[7] | (header[8] << 8);
-            if (bodyLen <= 0 || bodyLen > 0xFFFF - 9)
-            {
-                return null;
-            }
+            return Trim(buffer, total);
+        }
 
-            byte[] frame = new byte[9 + bodyLen];
-            Array.Copy(header, frame, 9);
-            filled = 9;
-            while (filled < frame.Length)
+        /// <summary>
+        /// 协议没有长度字段时的兜底：继续收，直到 <see cref="IdleTimeoutMs"/> 内没有新数据为止。
+        /// </summary>
+        private static byte[] ReadUntilIdle(Socket socket, byte[] buffer, int filled)
+        {
+            while (filled < buffer.Length)
             {
+                bool readable;
+                try
+                {
+                    readable = socket.Poll(IdleTimeoutMs * 1000, SelectMode.SelectRead);
+                }
+                catch
+                {
+                    break;
+                }
+                if (!readable)
+                {
+                    break;
+                }
+
                 int n;
                 try
                 {
-                    n = socket.Receive(frame, filled, frame.Length - filled, SocketFlags.None);
+                    n = socket.Receive(buffer, filled, buffer.Length - filled, SocketFlags.None);
                 }
-                catch (SocketException) { return null; }
-                catch (ObjectDisposedException) { return null; }
-                catch (Exception) { return null; }
+                catch
+                {
+                    break;
+                }
                 if (n <= 0)
                 {
-                    return null;
+                    break;
                 }
                 filled += n;
             }
-            return frame;
+
+            return filled > 0 ? Trim(buffer, filled) : null;
+        }
+
+        private static byte[] Trim(byte[] source, int length)
+        {
+            if (length == source.Length)
+            {
+                return source;
+            }
+            byte[] result = new byte[length];
+            Array.Copy(source, result, length);
+            return result;
         }
         /// <summary>
         /// 向指定客户端发送数据

@@ -77,15 +77,15 @@ namespace PlcTest.View.Forms
         private void btn_Connect_Click(object sender, EventArgs e)
         {
             bool useSerial;
-            string protocolName;
+            ProtocolType protocol;
             using (var settings = new ConnectSettingsForm())
             {
                 if (settings.ShowDialog(this) != DialogResult.OK)
                 {
                     return;
                 }
-                useSerial = settings.CommunicationKind == "串口";
-                protocolName = settings.ProtocolName;
+                useSerial = settings.Communication == CommunicationType.Serial;
+                protocol = settings.Protocol;
             }
 
             int number;
@@ -138,47 +138,56 @@ namespace PlcTest.View.Forms
                     builder.UseTcp(tb_PLCInformationIP.Text.Trim(), number);
                 }
 
-                switch (protocolName)
+                switch (protocol)
                 {
-                    case "汇川 Modbus TCP":
+                    case ProtocolType.InovanceModbusTcp:
                         builder.UseInovanceModbusTcp();
                         plcControl = builder.BuildInovancePlcClient();
                         break;
-                    case "汇川 Modbus RTU":
+                    case ProtocolType.InovanceModbusRtu:
                         builder.UseInovanceModbusRtu();
                         plcControl = builder.BuildInovancePlcClient();
                         break;
-                    case "三菱 MC 3E ASCII":
+                    case ProtocolType.MelsecMc3EBinary:
+                        builder.UseMelsecMc3EBinary();
+                        plcControl = builder.BuildMelsecMcPlcClient();
+                        break;
+                    case ProtocolType.MelsecMc3EAscii:
                         builder.UseMelsecMc3EAscii();
                         plcControl = builder.BuildMelsecMcPlcClient();
                         break;
-                    case "三菱 MC 1E ASCII":
-                        builder.UseMelsecMc1EAscii();
-                        plcControl = builder.BuildMelsecMcPlcClient();
-                        break;
-                    case "三菱 MC 1E Binary":
-                        builder.UseMelsecMc1EBinary();
-                        plcControl = builder.BuildMelsecMcPlcClient();
-                        break;
-                    case "三菱 MC 4E Binary":
+                    case ProtocolType.MelsecMc4EBinary:
                         builder.UseMelsecMc4EBinary();
                         plcControl = builder.BuildMelsecMcPlcClient();
                         break;
-                    case "三菱 MC 4E ASCII":
+                    case ProtocolType.MelsecMc4EAscii:
                         builder.UseMelsecMc4EAscii();
                         plcControl = builder.BuildMelsecMcPlcClient();
                         break;
-                    case "西门子 S7-1200":
+                    case ProtocolType.MelsecMc1EBinary:
+                        builder.UseMelsecMc1EBinary();
+                        plcControl = builder.BuildMelsecMcPlcClient();
+                        break;
+                    case ProtocolType.MelsecMc1EAscii:
+                        builder.UseMelsecMc1EAscii();
+                        plcControl = builder.BuildMelsecMcPlcClient();
+                        break;
+                    case ProtocolType.SiemensS71200:
                         builder.UseSiemensS71200();
                         plcControl = builder.BuildSiemensPlcClient();
                         break;
                     default:
-                        builder.UseMelsecMc3EBinary();
-                        plcControl = builder.BuildMelsecMcPlcClient();
-                        break;
+                        MessageBox.Show("不支持的协议");
+                        return;
                 }
 
-                plcControl.Connect();
+                // 连接结果同步返回：失败原因能直接显示，不再出现"点了连接却没反应"
+                Result<bool> connectResult = plcControl.Connect();
+                if (!connectResult.IsSuccess)
+                {
+                    plcControl = null;
+                    MessageBox.Show(connectResult.ErrorMsg, "连接失败");
+                }
             }
             catch (Exception ex)
             {
@@ -193,6 +202,15 @@ namespace PlcTest.View.Forms
         /// <param name="e"></param>
         private void btn_Disconnect_Click(object sender, EventArgs e)
         {
+            // 子窗体绑定的是当前这条连接的协议实例，断开时一并关掉。
+            // 否则下次连另一个协议（比如从三菱换成汇川）后复用旧窗体，
+            // 区域下拉框里还是上一台 PLC 的软元件列表。
+            if (plcClientForm != null && !plcClientForm.IsDisposed)
+            {
+                plcClientForm.Close();
+            }
+            plcClientForm = null;
+
             if (plcControl != null)
             {
                 plcControl.Disconnect();
@@ -240,7 +258,7 @@ namespace PlcTest.View.Forms
                 return;
 
             PlcServerBuilder builder;
-            if (settings.CommunicationKind == "串口")
+            if (settings.Communication == CommunicationType.Serial)
             {
                 // 串口模式：IP 输入框填串口名，端口输入框填波特率
                 string portName = tb_ServiceInformationIP.Text.Trim();
@@ -277,14 +295,16 @@ namespace PlcTest.View.Forms
                 builder = new PlcServerBuilder().UseTcp(tb_ServiceInformationIP.Text.Trim(), port);
             }
 
-            switch (settings.ProtocolName)
+            switch (settings.Protocol)
             {
-                case "三菱 MC 3E Binary": builder.UseMelsecMc3E(); break;
-                case "三菱 MC 3E ASCII": builder.UseMelsecMc3EAscii(); break;
-                case "三菱 MC 4E Binary": builder.UseMelsecMc4EBinary(); break;
-                case "三菱 MC 4E ASCII": builder.UseMelsecMc4EAscii(); break;
-                case "三菱 MC 1E Binary": builder.UseMelsecMc1EBinary(); break;
-                case "三菱 MC 1E ASCII": builder.UseMelsecMc1EAscii(); break;
+                case ProtocolType.MelsecMc3EBinary: builder.UseMelsecMc3E(); break;
+                case ProtocolType.MelsecMc3EAscii: builder.UseMelsecMc3EAscii(); break;
+                case ProtocolType.MelsecMc4EBinary: builder.UseMelsecMc4EBinary(); break;
+                case ProtocolType.MelsecMc4EAscii: builder.UseMelsecMc4EAscii(); break;
+                case ProtocolType.MelsecMc1EBinary: builder.UseMelsecMc1EBinary(); break;
+                case ProtocolType.MelsecMc1EAscii: builder.UseMelsecMc1EAscii(); break;
+                case ProtocolType.InovanceModbusTcp: builder.UseInovanceModbusTcp(); break;
+                case ProtocolType.InovanceModbusRtu: builder.UseInovanceModbusRtu(); break;
                 default:
                     MessageBox.Show("不支持的协议");
                     return;

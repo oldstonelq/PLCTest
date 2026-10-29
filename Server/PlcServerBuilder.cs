@@ -1,6 +1,8 @@
+using PlcTest.Server.PlcServer.Inovance;
 using PlcTest.Server.PlcServer.Melsec;
 using PlcTest.Server.ServerCommunication;
 using PlcTest.Server.ServerInterface;
+using PlcTest.Server.ServerProtocolManagement.Inovance;
 using PlcTest.Server.ServerProtocolManagement.Melsec;
 using System;
 using System.IO.Ports;
@@ -25,6 +27,14 @@ namespace PlcTest.Server
         /// 服务端工厂：通讯方式与协议确定后，按协议类型创建对应的服务端
         /// </summary>
         private Func<IServerCommunication, IServerProtocol, IPlcServer> _serverFactory;
+        /// <summary>
+        /// Modbus 服务端协议实例（与 MC 协议二选一）
+        /// </summary>
+        private IModbusServerProtocol _modbusProtocol;
+        /// <summary>
+        /// Modbus 服务端工厂
+        /// </summary>
+        private Func<IServerCommunication, IModbusServerProtocol, IPlcServer> _modbusServerFactory;
 
         #region 通讯方式
         /// <summary>
@@ -122,6 +132,34 @@ namespace PlcTest.Server
         }
         #endregion
 
+        #region Modbus 协议（汇川）
+        /// <summary>
+        /// 汇川 PLC 服务端，使用 Modbus TCP 从站模拟（功能码 01/03/05/06/0F/10）
+        /// </summary>
+        /// <returns></returns>
+        public PlcServerBuilder UseInovanceModbusTcp()
+        {
+            _modbusProtocol = new InovanceModbusTcpServerProtocol();
+            _modbusServerFactory = (comm, protocol) => new InovancePlcServer(comm, protocol);
+            _protocol = null;
+            _serverFactory = null;
+            return this;
+        }
+
+        /// <summary>
+        /// 汇川 PLC 服务端，使用 Modbus RTU 从站模拟（功能码 01/03/05/06/0F/10，带 CRC16）
+        /// </summary>
+        /// <returns></returns>
+        public PlcServerBuilder UseInovanceModbusRtu()
+        {
+            _modbusProtocol = new InovanceModbusRtuServerProtocol();
+            _modbusServerFactory = (comm, protocol) => new InovancePlcServer(comm, protocol);
+            _protocol = null;
+            _serverFactory = null;
+            return this;
+        }
+        #endregion
+
         /// <summary>
         /// 构建服务端实例
         /// </summary>
@@ -132,9 +170,13 @@ namespace PlcTest.Server
             {
                 throw new InvalidOperationException("未配置服务端通讯方式，请先调用 UseTcp 或 UseSerial");
             }
+            if (_modbusServerFactory != null)
+            {
+                return _modbusServerFactory(_communication, _modbusProtocol);
+            }
             if (_serverFactory == null)
             {
-                throw new InvalidOperationException("未配置服务端协议，请先调用 UseMelsecMc3E / UseMelsecMc3EAscii / UseMelsecMc4EBinary / UseMelsecMc4EAscii / UseMelsecMc1EBinary / UseMelsecMc1EAscii");
+                throw new InvalidOperationException("未配置服务端协议，请先调用 UseMelsecMc3E / UseMelsecMc3EAscii / UseMelsecMc4EBinary / UseMelsecMc4EAscii / UseMelsecMc1EBinary / UseMelsecMc1EAscii / UseInovanceModbusTcp / UseInovanceModbusRtu");
             }
             return _serverFactory(_communication, _protocol);
         }

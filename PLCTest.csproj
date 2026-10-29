@@ -49,8 +49,11 @@
   <ItemGroup>
     <Compile Include="Client\ClientCommunication\SerialPortClientCommunication.cs" />
     <Compile Include="Client\ClientCommunication\TcpClientCommunication.cs" />
+    <Compile Include="Client\ClientProtocolManagement\Inovance\InovanceDeviceCatalog.cs" />
     <Compile Include="Client\ClientProtocolManagement\Inovance\InovanceModbusRtuClientProtocol.cs" />
     <Compile Include="Client\ClientProtocolManagement\Inovance\InovanceModbusTCPClientProtocol.cs" />
+    <Compile Include="Client\ClientProtocolManagement\Melsec\Melsec1EDeviceCatalog.cs" />
+    <Compile Include="Client\ClientProtocolManagement\Melsec\Melsec3E4EDeviceCatalog.cs" />
     <Compile Include="Client\ClientProtocolManagement\Melsec\MelsecMc1EAsciiClientProtocol.cs" />
     <Compile Include="Client\ClientProtocolManagement\Melsec\MelsecMc1EBinaryClientProtocol.cs" />
     <Compile Include="Client\ClientProtocolManagement\Melsec\MelsecMc3EAsciiClientProtocol.cs" />
@@ -85,6 +88,12 @@
     <Compile Include="Server\ServerInterface\IPlcServer.cs" />
     <Compile Include="Server\ServerInterface\IServerCommunication.cs" />
     <Compile Include="Server\ServerInterface\IServerProtocol.cs" />
+    <Compile Include="Server\ServerInterface\IModbusServerProtocol.cs" />
+    <Compile Include="Server\ServerProtocolManagement\Inovance\InovanceModbusTcpServerProtocol.cs" />
+    <Compile Include="Server\ServerProtocolManagement\Inovance\InovanceModbusRtuServerProtocol.cs" />
+    <Compile Include="Server\PlcServer\Inovance\InovancePlcServer.cs" />
+    <Compile Include="Server\ServerProtocolManagement\MelsecServerDeviceMapper.cs" />
+    <Compile Include="Server\ServerProtocolManagement\AsciiFrameHelper.cs" />
     <Compile Include="Server\ServerProtocolManagement\Melsec\MelsecMc3EServerProtocol.cs" />
     <Compile Include="Server\ServerProtocolManagement\Melsec\MelsecMc1EBinaryServerProtocol.cs" />
     <Compile Include="Server\ServerProtocolManagement\Melsec\MelsecMc1EAsciiServerProtocol.cs" />

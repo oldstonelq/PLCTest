@@ -159,9 +159,10 @@ namespace PlcTest.Client.ClientCommunication
         /// 发送报文并同步读取返回数据
         /// </summary>
         /// <param name="sendData">下发指令字节数组</param>
+        /// <param name="responseLengthResolver">响应帧长度解析器，为 null 时回退到空闲判据</param>
         /// <returns>PLC返回响应报文</returns>
         /// <exception cref="Exception">未连接、读写超时、通讯中断抛出异常</exception>
-        public byte[] SendAndReceiveData(byte[] sendData)
+        public byte[] SendAndReceiveData(byte[] sendData, ResponseFrameLengthResolver responseLengthResolver)
         {
             if (sendData == null || sendData.Length == 0)
                 throw new ArgumentException("发送报文不能为空", nameof(sendData));
@@ -177,7 +178,7 @@ namespace PlcTest.Client.ClientCommunication
                 _stream.Write(sendData, 0, sendData.Length);
                 _stream.Flush();
 
-                return ReadCompleteResponse();
+                return ReadCompleteResponse(sendData, responseLengthResolver);
             }
             finally
             {
@@ -186,10 +187,11 @@ namespace PlcTest.Client.ClientCommunication
         }
 
         /// <summary>
-        /// 读取一帧完整响应
-        /// TCP 是字节流，一次 Read 拿到的可能只是半帧，需把紧随其后的分片拼齐
+        /// 读取一帧完整响应。
+        /// 优先按协议给出的帧长读满；协议判不出长度（返回 -1）时才回退到空闲判据。
+        /// TCP 是字节流，一次 Read 拿到的可能只是半帧。
         /// </summary>
-        private byte[] ReadCompleteResponse()
+        private byte[] ReadCompleteResponse(byte[] request, ResponseFrameLengthResolver resolver)
         {
             byte[] recvBuffer = new byte[_bufferMaxLength];
 
@@ -207,113 +209,76 @@ namespace PlcTest.Client.ClientCommunication
             if (total <= 0)
                 throw new Exception("无返回数据，连接已断开");
 
-            // 后续分片：连续 _maxIdleRounds 次没有新数据即认为一帧收全
-            int idleWait = 0;
-            while (total < recvBuffer.Length && idleWait < _maxIdleRounds)
+            int frameLength = -1;
+            if (resolver != null)
             {
-                if (_stream.DataAvailable)
+                try
                 {
-                    int recvLen = _stream.Read(recvBuffer, total, recvBuffer.Length - total);
-                    if (recvLen <= 0)
-                        break;
-                    total += recvLen;
-                    idleWait = 0;
-                    continue;
+                    frameLength = resolver(request, recvBuffer, total);
+                }
+                catch
+                {
+                    frameLength = -1;
+                }
+            }
+
+            // 协议给出的长度超出缓冲上限，视为判定不可信
+            if (frameLength > recvBuffer.Length)
+            {
+                frameLength = -1;
+            }
+
+            if (frameLength > 0)
+            {
+                // 按协议长度读满，不再靠"静默 60ms"猜
+                while (total < frameLength)
+                {
+                    int n;
+                    try
+                    {
+                        n = _stream.Read(recvBuffer, total, frameLength - total);
+                    }
+                    catch (IOException ex)
+                    {
+                        throw new Exception("读取PLC响应超时，帧未收全", ex);
+                    }
+
+                    if (n <= 0)
+                        throw new Exception("无返回数据，连接已断开");
+                    total += n;
                 }
 
-                Thread.Sleep(_idleWaitMs);
-                idleWait++;
+                // 一问一答模式下不应多收；多出来的一律截掉，避免污染解析
+                if (total > frameLength)
+                {
+                    total = frameLength;
+                }
+            }
+            else
+            {
+                // 回退：连续 _maxIdleRounds 次没有新数据即认为一帧收全
+                int idleWait = 0;
+                while (total < recvBuffer.Length && idleWait < _maxIdleRounds)
+                {
+                    if (_stream.DataAvailable)
+                    {
+                        int recvLen = _stream.Read(recvBuffer, total, recvBuffer.Length - total);
+                        if (recvLen <= 0)
+                            break;
+                        total += recvLen;
+                        idleWait = 0;
+                        continue;
+                    }
+
+                    Thread.Sleep(_idleWaitMs);
+                    idleWait++;
+                }
             }
 
             // 截取有效长度报文返回
             byte[] result = new byte[total];
             Array.Copy(recvBuffer, result, total);
             return result;
-        }
-        #endregion
-
-        #region 异步扩展（适配UI不卡死）
-        /// <summary>
-        /// 异步收发
-        /// </summary>
-        public async Task<byte[]> SendAndReceiveDataAsync(byte[] sendData)
-        {
-            if (sendData == null || sendData.Length == 0)
-                throw new ArgumentException("发送报文不能为空", nameof(sendData));
-
-            // 与同步收发共用同一把锁，保证同一连接上仍是串行的一问一答
-            await _ioLock.WaitAsync().ConfigureAwait(false);
-            try
-            {
-                if (!IsConnected || _stream == null)
-                    throw new Exception("TCP未建立连接");
-
-                await _stream.WriteAsync(sendData, 0, sendData.Length).ConfigureAwait(false);
-                await _stream.FlushAsync().ConfigureAwait(false);
-
-                byte[] buffer = new byte[_bufferMaxLength];
-                int len;
-                // 首包读取加超时，避免对端不回时永久挂起并长期占用 _ioLock
-                using (var readCts = new CancellationTokenSource(ReadWriteTimeout))
-                {
-                    try
-                    {
-                        len = await _stream.ReadAsync(buffer, 0, _bufferMaxLength, readCts.Token).ConfigureAwait(false);
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        throw new TimeoutException($"异步读取超时{ReadWriteTimeout}ms，设备无响应");
-                    }
-                }
-
-                if (len <= 0)
-                    throw new Exception("异步读取数据为空");
-
-                // 拼接后续分片
-                int idleWait = 0;
-                while (len < buffer.Length && idleWait < _maxIdleRounds)
-                {
-                    if (_stream.DataAvailable)
-                    {
-                        int recvLen = await _stream.ReadAsync(buffer, len, buffer.Length - len).ConfigureAwait(false);
-                        if (recvLen <= 0)
-                            break;
-                        len += recvLen;
-                        idleWait = 0;
-                        continue;
-                    }
-
-                    await Task.Delay(_idleWaitMs).ConfigureAwait(false);
-                    idleWait++;
-                }
-
-                byte[] res = new byte[len];
-                Array.Copy(buffer, res, len);
-                return res;
-            }
-            finally
-            {
-                _ioLock.Release();
-            }
-        }
-
-        /// <summary>
-        /// 异步连接
-        /// </summary>
-        public async Task ConnectServerAsync()
-        {
-            if (IsConnected) DisconnectServer();
-            _tcpClient = new TcpClient();
-            var connectTask = _tcpClient.ConnectAsync(IpAddress, Port);
-            if (await Task.WhenAny(connectTask, Task.Delay(ConnectTimeout)) != connectTask)
-            {
-                _tcpClient.Close();
-                throw new TimeoutException("异步连接PLC超时");
-            }
-            await connectTask;
-            _stream = _tcpClient.GetStream();
-            _stream.ReadTimeout = ReadWriteTimeout;
-            _stream.WriteTimeout = ReadWriteTimeout;
         }
         #endregion
     }
