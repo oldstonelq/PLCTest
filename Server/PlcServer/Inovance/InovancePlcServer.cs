@@ -421,11 +421,51 @@ namespace PlcTest.Server.PlcServer.Inovance
             }
         }
 
+        /// <summary>
+        /// 把指定区域的全部寄存器恢复初始值（保留地址）。
+        /// 必须**按地址段逐段清**：`CN` 的 C0–C199 在 0xF400、C200–C255 在 0xF700，
+        /// 只按基地址清前 N 个寄存器会漏掉 32 位那一段。
+        /// </summary>
         public void ResetAllRegisterValues(MemoryArea area)
         {
-            int count = GetRegisterCount(area);
-            if (count <= 0) return;
-            ResetRegisterValues(area, 0, count);
+            InovanceDeviceSpec spec;
+            try
+            {
+                spec = InovanceDeviceCatalog.Get(area, CpuModel);
+            }
+            catch
+            {
+                // 该区域在当前机型下不存在，没什么可清的
+                return;
+            }
+
+            lock (_memoryLock)
+            {
+                foreach (InovanceRegisterSegment segment in spec.Segments)
+                {
+                    int points = segment.EndIndex - segment.StartIndex + 1;
+                    int start = segment.BaseAddress;
+                    int count = points * segment.RegistersPerPoint;
+
+                    if (start < 0 || start >= AddressSpace || count <= 0)
+                    {
+                        continue;
+                    }
+                    if (start + count > AddressSpace)
+                    {
+                        count = AddressSpace - start;
+                    }
+
+                    if (spec.Space == InovanceAddressSpace.Coil)
+                    {
+                        Array.Clear(_coils, start, count);
+                    }
+                    else
+                    {
+                        Array.Clear(_registers, start, count);
+                    }
+                }
+            }
         }
 
         #endregion

@@ -60,6 +60,7 @@
     <Compile Include="Client\ClientProtocolManagement\Melsec\MelsecMc3EBinaryClientProtocol.cs" />
     <Compile Include="Client\ClientProtocolManagement\Melsec\MelsecMc4EAsciiClientProtocol.cs" />
     <Compile Include="Client\ClientProtocolManagement\Melsec\MelsecMc4EBinaryClientProtocol.cs" />
+    <Compile Include="Client\ClientProtocolManagement\Omron\OmronFinsDeviceCatalog.cs" />
     <Compile Include="Client\ClientProtocolManagement\Omron\OmronFinsTcpClientProtocol.cs" />
     <Compile Include="Client\ClientProtocolManagement\Siemens\SiemensS71200ClientProtocol.cs" />
     <Compile Include="Client\ClientProtocolManagement\Template\TemplateClientProtocol.cs" />
@@ -70,7 +71,9 @@
     <Compile Include="Client\ClientInterface\IClientCommunication.cs" />
     <Compile Include="Client\ClientInterface\IPlcClient.cs" />
     <Compile Include="Client\ClientInterface\IPlcClientProtocol.cs" />
+    <Compile Include="Client\ClientInterface\IDataFormatConfigurable.cs" />
     <Compile Include="Models\Enums.cs" />
+    <Compile Include="Models\DataFormat.cs" />
     <Compile Include="Models\PlcAddress.cs" />
     <Compile Include="Models\RequestInfo.cs" />
     <Compile Include="Models\Result.cs" />
@@ -79,7 +82,6 @@
     <Compile Include="Properties\Resources.Designer.cs" />
     <Compile Include="Properties\Settings.Designer.cs" />
     <Compile Include="Server\PlcServer\Melsec\MelsecPlcServer.cs" />
-    <Compile Include="Server\PlcServer\Melsec\MelsecMc3EPlcServer.cs" />
     <Compile Include="Server\PlcServerBuilder.cs" />
     <Compile Include="Server\ServerCommunication\SerialServerCommunication.cs" />
     <Compile Include="Server\ServerCommunication\TcpServerCommunication.cs" />
@@ -92,6 +94,9 @@
     <Compile Include="Server\ServerProtocolManagement\Inovance\InovanceModbusTcpServerProtocol.cs" />
     <Compile Include="Server\ServerProtocolManagement\Inovance\InovanceModbusRtuServerProtocol.cs" />
     <Compile Include="Server\PlcServer\Inovance\InovancePlcServer.cs" />
+    <Compile Include="Server\ServerInterface\IOmronFinsServerProtocol.cs" />
+    <Compile Include="Server\ServerProtocolManagement\Omron\OmronFinsTcpServerProtocol.cs" />
+    <Compile Include="Server\PlcServer\Omron\OmronFinsServer.cs" />
     <Compile Include="Server\ServerProtocolManagement\MelsecServerDeviceMapper.cs" />
     <Compile Include="Server\ServerProtocolManagement\AsciiFrameHelper.cs" />
     <Compile Include="Server\ServerProtocolManagement\Melsec\MelsecMc3EServerProtocol.cs" />
@@ -101,6 +106,7 @@
     <Compile Include="Server\ServerProtocolManagement\Melsec\MelsecMc4EAsciiServerProtocol.cs" />
     <Compile Include="Server\ServerProtocolManagement\Melsec\MelsecMc4EBinaryServerProtocol.cs" />
     <Compile Include="Tool\ConverterTool.cs" />
+    <Compile Include="Tool\DataFormatConverter.cs" />
     <Compile Include="Tool\OtherTool.cs" />
     <Compile Include="Tool\StructureHelp.cs" />
     <Compile Include="View\CustomControl\MGroupBox.cs">

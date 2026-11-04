@@ -497,30 +497,57 @@ namespace PlcTest.Server.PlcServer.Melsec
                 return;
             }
 
+            // 只改已存在的地址：用索引器直接赋值会把区间内的地址"顺手创建"出来，
+            // 地址集合一变，界面行数和 GetRegisterCount 都跟着漂
+            int end = start + length;
             ConcurrentDictionary<int, bool> bits;
             if (_bitTables.TryGetValue(area, out bits))
             {
-                for (int i = start; i < start + length; i++)
+                foreach (int key in bits.Keys)
                 {
-                    bits[i] = false;
+                    if (key >= start && key < end)
+                    {
+                        bits[key] = false;
+                    }
                 }
             }
             ConcurrentDictionary<int, short> words;
             if (_wordTables.TryGetValue(area, out words))
             {
-                for (int i = start; i < start + length; i++)
+                foreach (int key in words.Keys)
                 {
-                    words[i] = 0;
+                    if (key >= start && key < end)
+                    {
+                        words[key] = 0;
+                    }
                 }
             }
         }
 
         /// <summary>
-        /// 把指定区域的位表与字表全部恢复初始值
+        /// 把指定区域的位表与字表全部恢复初始值（**保留地址**）。
+        /// 与 <see cref="ClearRegisters"/> 的区别：那个是移除地址本身，这个只把值清零。
+        /// 若这里图省事调 ClearRegisters，地址会整片消失，界面表格随之清空，
+        /// 客户端也会读不到原本声明过的地址——这正是"ClearAll 把寄存器删掉"那个 bug。
         /// </summary>
         public void ResetAllRegisterValues(MemoryArea area)
         {
-            ClearRegisters(area);
+            ConcurrentDictionary<int, bool> bits;
+            if (_bitTables.TryGetValue(area, out bits))
+            {
+                foreach (int key in bits.Keys)
+                {
+                    bits[key] = false;
+                }
+            }
+            ConcurrentDictionary<int, short> words;
+            if (_wordTables.TryGetValue(area, out words))
+            {
+                foreach (int key in words.Keys)
+                {
+                    words[key] = 0;
+                }
+            }
         }
         #endregion
     }

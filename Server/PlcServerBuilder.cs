@@ -1,4 +1,6 @@
 using PlcTest.Server.PlcServer.Inovance;
+using PlcTest.Server.PlcServer.Omron;
+using PlcTest.Server.ServerProtocolManagement.Omron;
 using PlcTest.Server.PlcServer.Melsec;
 using PlcTest.Server.ServerCommunication;
 using PlcTest.Server.ServerInterface;
@@ -35,6 +37,10 @@ namespace PlcTest.Server
         /// Modbus 服务端工厂
         /// </summary>
         private Func<IServerCommunication, IModbusServerProtocol, IPlcServer> _modbusServerFactory;
+        /// <summary>欧姆龙 FINS 服务端协议实例</summary>
+        private IOmronFinsServerProtocol _omronProtocol;
+        /// <summary>欧姆龙 FINS 服务端工厂</summary>
+        private Func<IServerCommunication, IOmronFinsServerProtocol, IPlcServer> _omronServerFactory;
 
         #region 通讯方式
         /// <summary>
@@ -72,7 +78,7 @@ namespace PlcTest.Server
         public PlcServerBuilder UseMelsecMc3E()
         {
             _protocol = new MelsecMc3EServerProtocol();
-            _serverFactory = (comm, protocol) => new MelsecMc3EPlcServer(comm, protocol);
+            _serverFactory = (comm, protocol) => new MelsecPlcServer(comm, protocol);
             return this;
         }
 
@@ -164,11 +170,30 @@ namespace PlcTest.Server
         /// 构建服务端实例
         /// </summary>
         /// <returns>服务端实例</returns>
+        #region 欧姆龙 FINS 协议
+        /// <summary>
+        /// 欧姆龙 PLC 服务端，使用 FINS/TCP 从站模拟（含节点地址握手，支持 0101 读 / 0102 写）
+        /// </summary>
+        public PlcServerBuilder UseOmronFinsTcp()
+        {
+            _omronProtocol = new OmronFinsTcpServerProtocol();
+            _omronServerFactory = (comm, protocol) => new OmronFinsServer(comm, protocol);
+            _protocol = null;
+            _serverFactory = null;
+            _modbusProtocol = null;
+            _modbusServerFactory = null;
+            return this;
+        }
+        #endregion
         public IPlcServer Build()
         {
             if (_communication == null)
             {
                 throw new InvalidOperationException("未配置服务端通讯方式，请先调用 UseTcp 或 UseSerial");
+            }
+            if (_omronServerFactory != null)
+            {
+                return _omronServerFactory(_communication, _omronProtocol);
             }
             if (_modbusServerFactory != null)
             {

@@ -14,6 +14,11 @@ namespace PlcTest.Client.ClientInterface
         /// </summary>
         bool IsConnected { get; }
         /// <summary>
+        /// 当前使用的协议实例。调用方需要按厂商配置协议参数时用它，
+        /// 例如设置 32 位数据排列方式：<c>(client.Protocol as IDataFormatConfigurable).DataFormat = DataFormat.BADC;</c>
+        /// </summary>
+        IPlcClientProtocol Protocol { get; }
+        /// <summary>
         /// 当前协议支持的全部软元件区域。
         /// 界面用它填充选择框，避免让用户选到这台 PLC 上根本不存在的软元件。
         /// </summary>

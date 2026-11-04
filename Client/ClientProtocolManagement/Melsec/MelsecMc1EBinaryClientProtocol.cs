@@ -56,12 +56,22 @@ namespace PlcTest.Client.ClientProtocolManagement.Melsec
         {
             if (request == null || request.Length < 12) return -1;
             int points = request[10] | (request[11] << 8);
+            // 1E 二进制响应头 = 副头部(1) + 结束代码(1)，共 2 字节（手册 6.2 节：正常 80H 00H）
+            // 结束代码为 5BH（异常响应）时，后面还有 2 字节错误信息、且没有数据区：80H 5BH 12H 00H
+            if (buffer != null && available >= 2 && buffer[1] == 0x5B)
+            {
+                return 4;
+            }
+
             switch (request[0])
             {
-                case 0x00: return 3 + (points + 1) / 2;
-                case 0x01: return 3 + points * 2;
+                // 位读取：每字节 2 点
+                case 0x00: return 2 + (points + 1) / 2;
+                // 字读取：每点 2 字节
+                case 0x01: return 2 + points * 2;
+                // 写入：只有副头部 + 结束代码
                 case 0x02:
-                case 0x03: return 3;
+                case 0x03: return 2;
                 default: return -1;
             }
         }
@@ -194,16 +204,16 @@ namespace PlcTest.Client.ClientProtocolManagement.Melsec
         /// <returns>返回写入结果</returns>
         public Result<bool> ParseWriteResponse(byte[] data)
         {
-            // 响应格式：副标题(1) + 结束代码(2，小端)
-            if (data == null || data.Length < 3)
+            // 响应格式：副标题(1) + 结束代码(1)
+            if (data == null || data.Length < 2)
                 return Result<bool>.Fail("响应数据过短。");
 
-            // 检查完整 16 位结束代码，高字节非 0 的失败不能被漏判
-            ushort endCode = BitConverter.ToUInt16(data, 1);
+            // 1E 的结束代码只有 1 字节，读成 16 位会把相邻数据吞进来
+            byte endCode = data[1];
             if (endCode == 0)
                 return Result<bool>.Success(true);
             else
-                return Result<bool>.DeviceFail($"写入失败，结束代码: 0x{endCode:X4}", endCode);
+                return Result<bool>.DeviceFail($"写入失败，结束代码: 0x{endCode:X2}", endCode);
         }
         /// <summary>
         /// 解析读位数据返回
@@ -213,19 +223,19 @@ namespace PlcTest.Client.ClientProtocolManagement.Melsec
         /// <returns>位数据数组</returns>
         public Result<bool[]> ParseReadBitResponse(byte[] data, int size)
         {
-            // 响应格式：副标题(1) + 结束代码(2，小端) + 位数据（每字节 2 点：高 4 位=偶数位，低 4 位=奇数位）
+            // 响应格式：副标题(1) + 结束代码(1) + 位数据（每字节 2 点：高 4 位=偶数位，低 4 位=奇数位）
             int dataLen = (size + 1) / 2;
-            if (data == null || data.Length < 3 + dataLen)
+            if (data == null || data.Length < 2 + dataLen)
                 return Result<bool[]>.Fail("响应数据长度不足。");
 
-            ushort endCode = BitConverter.ToUInt16(data, 1);
+            byte endCode = data[1];
             if (endCode != 0)
-                return Result<bool[]>.DeviceFail($"读取失败，结束代码: 0x{endCode:X4}", endCode);
+                return Result<bool[]>.DeviceFail($"读取失败，结束代码: 0x{endCode:X2}", endCode);
 
             bool[] bits = new bool[size];
             for (int i = 0; i < size; i++)
             {
-                byte val = data[3 + i / 2];
+                byte val = data[2 + i / 2];
                 bits[i] = (i % 2 == 0) ? (val & 0x10) != 0 : (val & 0x01) != 0;
             }
 
@@ -239,20 +249,20 @@ namespace PlcTest.Client.ClientProtocolManagement.Melsec
         /// <returns>字数据数组</returns>
         public Result<short[]> ParseReadWordResponse(byte[] data, int size)
         {
-            // 响应格式：副标题(1) + 结束代码(2，小端) + 数据(size * 2字节)
+            // 响应格式：副标题(1) + 结束代码(1) + 数据(size * 2字节)
             int dataLen = size * 2;
-            if (data == null || data.Length < 3 + dataLen)
+            if (data == null || data.Length < 2 + dataLen)
                 return Result<short[]>.Fail("响应数据长度不足。");
 
-            ushort endCode = BitConverter.ToUInt16(data, 1);
+            byte endCode = data[1];
             if (endCode != 0)
-                return Result<short[]>.DeviceFail($"读取失败，结束代码: 0x{endCode:X4}", endCode);
+                return Result<short[]>.DeviceFail($"读取失败，结束代码: 0x{endCode:X2}", endCode);
 
             short[] values = new short[size];
             for (int i = 0; i < size; i++)
             {
                 byte[] wordBytes = new byte[2];
-                Array.Copy(data, 3 + i * 2, wordBytes, 0, 2);
+                Array.Copy(data, 2 + i * 2, wordBytes, 0, 2);
                 if (!BitConverter.IsLittleEndian)
                     Array.Reverse(wordBytes);
                 values[i] = BitConverter.ToInt16(wordBytes, 0);

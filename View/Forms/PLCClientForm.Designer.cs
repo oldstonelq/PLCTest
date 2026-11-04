@@ -877,7 +877,7 @@ namespace PlcTest.View.Forms
             this.MaximizeBox = false;
             this.MinimizeBox = false;
             this.Name = "PlcClientForm";
-            this.Text = "PLCClient";
+            this.Text = "PlcClientForm";
             this.Load += new System.EventHandler(this.Form1_Load);
             this.tableLayoutPanel1.ResumeLayout(false);
             this.gb_cleardata.ResumeLayout(false);

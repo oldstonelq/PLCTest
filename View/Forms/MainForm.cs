@@ -172,6 +172,10 @@ namespace PlcTest.View.Forms
                         builder.UseMelsecMc1EAscii();
                         plcControl = builder.BuildMelsecMcPlcClient();
                         break;
+                    case ProtocolType.OmronFinsTcp:
+                        builder.UseOmronFinsTcp();
+                        plcControl = builder.BuildOmronPlcClient();
+                        break;
                     case ProtocolType.SiemensS71200:
                         builder.UseSiemensS71200();
                         plcControl = builder.BuildSiemensPlcClient();
@@ -305,6 +309,7 @@ namespace PlcTest.View.Forms
                 case ProtocolType.MelsecMc1EAscii: builder.UseMelsecMc1EAscii(); break;
                 case ProtocolType.InovanceModbusTcp: builder.UseInovanceModbusTcp(); break;
                 case ProtocolType.InovanceModbusRtu: builder.UseInovanceModbusRtu(); break;
+                case ProtocolType.OmronFinsTcp: builder.UseOmronFinsTcp(); break;
                 default:
                     MessageBox.Show("不支持的协议");
                     return;

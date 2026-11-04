@@ -24,6 +24,13 @@ namespace PlcTest.Client.PlcClient.Template
         /// </summary>
         protected IPlcClientProtocol _communicationProtocol;
         /// <summary>
+        /// 当前使用的协议实例（只读），便于调用方按厂商配置协议参数。
+        /// </summary>
+        public IPlcClientProtocol Protocol
+        {
+            get { return _communicationProtocol; }
+        }
+        /// <summary>
         /// 连接状态:
         /// </summary>
         public bool IsConnected => _comm == null ? false : _comm.IsConnected;

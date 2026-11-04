@@ -11,7 +11,7 @@ namespace PlcTest.Client.ClientProtocolManagement.Inovance
     /// 将请求 PDU 构建为 Modbus PDU，并通过 BuildCompletePack 封装为 MBAP + PDU。
     /// 该实现支持读取/写入线圈（位）和保持寄存器（字）。
     /// </summary>
-    public class InovanceModbusTcpClientProtocol : IPlcClientProtocol
+    public class InovanceModbusTcpClientProtocol : IPlcClientProtocol, IDataFormatConfigurable
     {
         /// <summary>
         /// 事务标识符（Transaction Identifier），用于区分请求和响应。每次发送请求时递增。
@@ -30,6 +30,12 @@ namespace PlcTest.Client.ClientProtocolManagement.Inovance
         /// 适用机型，决定可用软元件与编号范围。默认 H3U。
         /// </summary>
         public InovanceCpuModel CpuModel { get; set; } = InovanceCpuModel.H3U;
+        /// <summary>
+        /// 32 位数据（占两个寄存器）的字节序与字序。
+        /// 汇川的 32 位计数器 C200–C255 与双字寄存器都是**低字在前**，即 <see cref="DataFormat.CDAB"/>。
+        /// 读写 32 位值：读回两个寄存器后用 ToInt32/ToFloat 解码，写之前用 FromInt32/FromFloat 拆成两个寄存器。
+        /// </summary>
+        public DataFormat DataFormat { get; set; } = DataFormat.CDAB;
 
         public int GetMemoryCode(MemoryArea memoryArea)
         {

@@ -41,6 +41,16 @@ namespace PlcTest.Models
         Z,
         R,
         ZR,
+
+        // ---- 以下为欧姆龙（FINS）专用区 ----
+        /// <summary>CIO 区（Core I/O，内继电器区）</summary>
+        CIO,
+        /// <summary>HR 区（Holding Relay，保持继电器）</summary>
+        HR,
+        /// <summary>AR 区（Auxiliary Relay，辅助继电器）</summary>
+        AR,
+        /// <summary>EM 区（Extended Memory，扩展存储区，按 bank 划分，bank 存于 DbNumber）</summary>
+        EM,
     }
     /// <summary>
     /// 软元件区域允许的访问方式。
@@ -147,6 +157,11 @@ namespace PlcTest.Models
         /// </summary>
         [ProtocolInfo("西门子 S7-1200")]
         SiemensS71200,
+        /// <summary>
+        /// 欧姆龙 FINS/TCP（客户端；服务端尚未实现）
+        /// </summary>
+        [ProtocolInfo("欧姆龙 FINS TCP", serverTcp: true)]
+        OmronFinsTcp,
     }
     /// <summary>
     /// 协议元信息：界面显示名与各场景（客户端/服务端、TCP/串口）下是否可用。

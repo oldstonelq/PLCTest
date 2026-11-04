@@ -3,6 +3,7 @@ using PlcTest.Client.ClientProtocolManagement.Melsec;
 using PlcTest.Client.ClientProtocolManagement.Omron;
 using PlcTest.Client.ClientProtocolManagement.Siemens;
 using PlcTest.Client.PlcClient;
+using PlcTest.Client.PlcClient.Omron;
 using PlcTest.Client.ClientCommunication;
 using PlcTest.Client.ClientInterface;
 using PlcTest.Models;
@@ -62,9 +63,9 @@ namespace PlcTest.Client
         /// 汇川PLC通讯协议，使用Modbus TCP协议进行数据交换
         /// </summary>
         /// <returns></returns>
-        public PlcClientBuilder UseInovanceModbusTcp()
+        public PlcClientBuilder UseInovanceModbusTcp(DataFormat format = DataFormat.CDAB)
         {
-            _protocol = new InovanceModbusTcpClientProtocol();
+            _protocol = new InovanceModbusTcpClientProtocol { DataFormat = format };
             _vendor = PlcType.Inovance;
 
             return this;
@@ -73,9 +74,9 @@ namespace PlcTest.Client
         /// 汇川PLC通讯协议，使用Modbus RTU协议进行数据交换
         /// </summary>
         /// <returns></returns>
-        public PlcClientBuilder UseInovanceModbusRtu()
+        public PlcClientBuilder UseInovanceModbusRtu(DataFormat format = DataFormat.CDAB)
         {
-            _protocol = new InovanceModbusRtuClientProtocol();
+            _protocol = new InovanceModbusRtuClientProtocol { DataFormat = format };
             _vendor = PlcType.Inovance;
 
             return this;
@@ -149,9 +150,12 @@ namespace PlcTest.Client
         /// 欧姆龙PLC通讯协议，使用FINS TCP协议进行数据交换。
         /// 注意：当前仅保留协议扩展位，协议实现尚未完成，调用即抛出 NotSupportedException。
         /// </summary>
-        public PlcClientBuilder UseOmronFinsTcp()
+        public PlcClientBuilder UseOmronFinsTcp(DataFormat format = DataFormat.CDAB)
         {
-            throw new NotSupportedException("欧姆龙 FINS TCP 协议尚未实现，请改用已实现的协议。");
+            _protocol = new OmronFinsTcpClientProtocol { DataFormat = format };
+            _vendor = PlcType.Omron;
+
+            return this;
         }
         /// <summary>
         /// 西门子PLC通讯协议，使用S7协议进行数据交换
@@ -190,7 +194,9 @@ namespace PlcTest.Client
         /// </summary>
         public IPlcClient BuildOmronPlcClient()
         {
-            throw new NotSupportedException("欧姆龙 PLC 客户端尚未实现。");
+            // FINS 需要在建连后做节点地址握手，用专门的客户端实现
+            return Build(PlcType.Omron, nameof(BuildOmronPlcClient),
+                (comm, protocol) => new OmronPlcClient(comm, protocol));
         }
         /// <summary>
         /// 构建西门子PLC客户端实例，使用指定的通讯方式和协议进行数据交换
@@ -207,7 +213,8 @@ namespace PlcTest.Client
         /// </summary>
         /// <param name="expectedVendor">调用方期望的厂商</param>
         /// <param name="buildMethod">调用方方法名，仅用于错误信息</param>
-        private IPlcClient Build(PlcType expectedVendor, string buildMethod)
+        private IPlcClient Build(PlcType expectedVendor, string buildMethod,
+            Func<IClientCommunication, IPlcClientProtocol, IPlcClient> factory = null)
         {
             if (_communication == null)
             {
@@ -223,7 +230,9 @@ namespace PlcTest.Client
                 throw new InvalidOperationException(
                     $"协议与厂商不匹配：{buildMethod} 需要 {expectedVendor} 协议，当前选中的是 {_vendor} 协议的 {_protocol.GetType().Name}。");
             }
-            return new CommunicationPlcClient(_communication, _protocol);
+            return factory != null
+                ? factory(_communication, _protocol)
+                : new CommunicationPlcClient(_communication, _protocol);
         }
         #endregion
     }

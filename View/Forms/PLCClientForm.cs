@@ -87,7 +87,9 @@ namespace PlcTest.View.Forms
         /// <param name="e"></param>
         private void Form1_Load(object sender, EventArgs e)
         {
+            InitViewModeSwitch();
             InitCombox();
+            RefreshViewModeSwitch();
         }
         /// <summary>
         /// 加载下拉控件
@@ -158,8 +160,7 @@ namespace PlcTest.View.Forms
         }
 
         /// <summary>
-        /// 该区域当前是否按位处理。由协议声明的访问方式决定，不再硬编码"是不是 D"。
-        /// 既能按位又能按字的区域（如三菱 M）按位处理，与界面原有的位表格展示方式一致。
+        /// 该区域当前是否按位读取（一位一行）。由协议能力 + 用户选择的视图共同决定。
         /// </summary>
         private bool IsBitArea(MemoryArea area)
         {
@@ -167,7 +168,111 @@ namespace PlcTest.View.Forms
             {
                 return area != MemoryArea.D;
             }
-            return (PLCControl.GetAreaAccess(area) & AreaAccess.Bit) != 0;
+            AreaAccess access = PLCControl.GetAreaAccess(area);
+            // 只能按字（如 D）：没有位视图可选
+            if ((access & AreaAccess.Bit) == 0)
+            {
+                return false;
+            }
+            // 只能按位（如三菱 TS/CS）：没有字视图可选
+            if ((access & AreaAccess.Word) == 0)
+            {
+                return true;
+            }
+            // 位字皆可（三菱 M/X/Y、欧姆龙 D、西门子 M…）：默认位视图，一行一个点位；
+            // 勾选"按字读取"后改为 16 点一行，能同时看到数值与 ASCII。
+            return chk_WordView == null || !chk_WordView.Checked;
+        }
+
+        /// <summary>
+        /// 位视图 / 字视图开关（仅对"位字皆可"的区域可选）
+        /// </summary>
+        private CheckBox chk_WordView;
+        /// <summary>
+        /// 用户对"位字皆可"区域的视图偏好，切换区域后保持
+        /// </summary>
+        private bool _preferWordView;
+        /// <summary>
+        /// 正在按代码刷新开关状态，忽略由此产生的 CheckedChanged
+        /// </summary>
+        private bool _syncViewMode;
+
+        /// <summary>
+        /// 创建视图切换开关，并给地址信息组腾出位置
+        /// </summary>
+        private void InitViewModeSwitch()
+        {
+            chk_WordView = new CheckBox();
+            chk_WordView.Text = "按字读取（16 点/行）";
+            chk_WordView.AutoSize = false;
+            chk_WordView.Location = new Point(24, 64);
+            chk_WordView.Size = new Size(200, 18);
+            chk_WordView.TextAlign = ContentAlignment.MiddleLeft;
+            chk_WordView.CheckedChanged += chk_WordView_CheckedChanged;
+
+            // 组内两个按钮原本从 y=73 起，下移 12px 让出开关的位置
+            btn_StartRead.Location = new Point(btn_StartRead.Left, 84);
+            btn_StartRead.Height = 38;
+            btn_EndRead.Location = new Point(btn_EndRead.Left, 84);
+            btn_EndRead.Height = 38;
+
+            gb_info.Controls.Add(chk_WordView);
+            cmb_Area.SelectedIndexChanged += cmb_Area_SelectedIndexChanged;
+        }
+
+        /// <summary>
+        /// 按当前选中区域的访问能力刷新开关：只能位/只能字时置灰并锁定，
+        /// 位字皆可时恢复用户上次的选择。
+        /// </summary>
+        private void RefreshViewModeSwitch()
+        {
+            if (chk_WordView == null || PLCControl == null || cmb_Area.SelectedItem == null)
+            {
+                return;
+            }
+
+            MemoryArea area;
+            if (!Enum.TryParse(cmb_Area.SelectedItem.ToString(), out area))
+            {
+                return;
+            }
+
+            AreaAccess access = PLCControl.GetAreaAccess(area);
+            bool canBit = (access & AreaAccess.Bit) != 0;
+            bool canWord = (access & AreaAccess.Word) != 0;
+
+            _syncViewMode = true;
+            if (canBit && canWord)
+            {
+                chk_WordView.Enabled = true;
+                chk_WordView.Checked = _preferWordView;
+            }
+            else
+            {
+                chk_WordView.Enabled = false;
+                chk_WordView.Checked = canWord;
+            }
+            _syncViewMode = false;
+        }
+
+        private void cmb_Area_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            RefreshViewModeSwitch();
+        }
+
+        private void chk_WordView_CheckedChanged(object sender, EventArgs e)
+        {
+            if (_syncViewMode)
+            {
+                return;
+            }
+
+            _preferWordView = chk_WordView.Checked;
+
+            // 视图切换后两套缓存都作废，避免用上一种视图的旧数据渲染出错误对应关系
+            CurrentReadshort = new short[0];
+            CurrentReadBit = new bool[0];
+            RefreshDgv();
         }
 
         #region Button
@@ -509,15 +614,16 @@ namespace PlcTest.View.Forms
                         int bitRows = Math.Min(DGV.Rows.Count, CurrentReadBit.Length);
                         for (int i = 0; i < bitRows; i++)
                         {
-                            DGV.Rows[i].Cells[16].Value = CurrentReadBit[i] ? 1 : 0;
-                            if (CurrentReadBit[i])
+                            // 位视图一行就是一个点位，16 个位格与高低字节都没有意义：
+                            // 先清掉（可能是上一个区/字视图留下的），再把 0/1 写到 All 列
+                            for (int j = 1; j <= 18; j++)
                             {
-                                DGV.Rows[i].Cells[16].Style.BackColor = Color.LightBlue;
+                                DGV.Rows[i].Cells[j].Value = null;
+                                DGV.Rows[i].Cells[j].Style.BackColor = Color.Empty;
                             }
-                            else
-                            {
-                                DGV.Rows[i].Cells[16].Style.BackColor = Color.Empty;
-                            }
+                            DGV.Rows[i].Cells[19].Value = CurrentReadBit[i] ? 1 : 0;
+                            DGV.Rows[i].Cells[19].Style.BackColor = CurrentReadBit[i] ? Color.LightBlue : Color.Empty;
+                            DGV.Rows[i].Cells[20].Value = null;
                         }
                     }
                 }
@@ -663,11 +769,12 @@ namespace PlcTest.View.Forms
                 }
                 else
                 {
-                    if (columnindex != 16)
+                    // 位视图下 0/1 显示在 All 列（一行一个点位），双击这里即翻转该点
+                    if (columnindex != 19)
                     {
                         return;
                     }
-                    if (!short.TryParse(DGV.Rows[rowindex].Cells[16].Value.ToString(), out var CurrentValue))
+                    if (!short.TryParse(DGV.Rows[rowindex].Cells[19].Value.ToString(), out var CurrentValue))
                     {
                         return;
                     }

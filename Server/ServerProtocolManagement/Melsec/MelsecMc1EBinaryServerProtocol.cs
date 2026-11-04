@@ -92,9 +92,9 @@ namespace PlcTest.Server.ServerProtocolManagement.Melsec
         /// </summary>
         public byte[] BuildResponseHeader(byte[] request, int responseDataLength)
         {
-            // 副标题：读响应 0x80，写响应 0x81
-            byte subHeader = (request != null && request.Length > 0 && request[0] <= 0x01) ? (byte)0x80 : (byte)0x81;
-            return new byte[1] { subHeader };
+            // 副标题 = 0x80 | 指令码：位读 0x80、字读 0x81、位写 0x82、字写 0x83
+            byte command = (request != null && request.Length > 0) ? request[0] : (byte)0x00;
+            return new byte[1] { (byte)(0x80 | (command & 0x7F)) };
         }
 
         /// <summary>
@@ -136,15 +136,11 @@ namespace PlcTest.Server.ServerProtocolManagement.Melsec
         }
 
         /// <summary>
-        /// 构建结束码响应数据区（2 字节小端）
+        /// 构建结束码响应数据区（1 字节；1E 的结束代码只有 8 位，与 3E/4E 的 2 字节不同）
         /// </summary>
         public byte[] BuildEndCodeResponse(ushort endCode)
         {
-            return new byte[2]
-            {
-                (byte)(endCode & 0xFF),
-                (byte)((endCode >> 8) & 0xFF)
-            };
+            return new byte[1] { (byte)(endCode & 0xFF) };
         }
 
         /// <summary>

@@ -25,6 +25,16 @@ namespace PlcTest.Client.PlcClient
         protected IPlcClientProtocol _communicationProtocol;
 
         /// <summary>
+        /// 当前使用的协议实例（只读）。
+        /// 调用方要按厂商配置协议参数时用它，例如：
+        /// <c>(client.Protocol as IDataFormatConfigurable).DataFormat = DataFormat.BADC;</c>
+        /// </summary>
+        public IPlcClientProtocol Protocol
+        {
+            get { return _communicationProtocol; }
+        }
+
+        /// <summary>
         /// 取消令牌
         /// </summary>
         private CancellationTokenSource _cts;
@@ -36,6 +46,16 @@ namespace PlcTest.Client.PlcClient
         /// 显示交互信息
         /// </summary>
         public event Action<string> ShowCommMessageEvent;
+        /// <summary>
+        /// 供子类在握手等额外流程中输出通讯日志（事件只能在声明类内触发）。
+        /// </summary>
+        protected void RaiseCommMessage(string message)
+        {
+            if (ShowCommMessageEvent != null)
+            {
+                ShowCommMessageEvent(message);
+            }
+        }
 
         /// <summary>
         /// 连接状态
@@ -112,7 +132,7 @@ namespace PlcTest.Client.PlcClient
         /// 连接方法：同步建立连接，成功后再启动后台心跳（断线自动重连）。
         /// </summary>
         /// <returns>连接结果；失败时 ErrorMsg 为具体原因（超时、IP 错误等）</returns>
-        public Result<bool> Connect()
+        public virtual Result<bool> Connect()
         {
             // 1. 心跳任务已在运行，说明已经连接或正在维持连接，直接返回
             if (_connectTask != null && !_connectTask.IsCompleted)
@@ -148,7 +168,7 @@ namespace PlcTest.Client.PlcClient
         /// 断开连接方法：停止心跳并关闭底层连接，保留通讯对象，之后仍可再次 Connect()。
         /// 不再阻塞等待心跳线程退出（最坏要等 1 s），而是让心跳线程自己看令牌收尾。
         /// </summary>
-        public void Disconnect()
+        public virtual void Disconnect()
         {
             try
             {
