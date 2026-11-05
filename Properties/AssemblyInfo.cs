@@ -29,5 +29,8 @@ using System.Runtime.InteropServices;
 //      生成号
 //      修订号
 //
+
+// 冒烟测试需要直接验证内部实现（帧组装器、软元件映射等），不为此把类型改成 public
+[assembly: InternalsVisibleTo("PlcTest.SmokeTest")]
 [assembly: AssemblyVersion("1.0.0.0")]
 [assembly: AssemblyFileVersion("1.0.0.0")]

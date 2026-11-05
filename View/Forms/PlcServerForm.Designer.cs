@@ -56,6 +56,13 @@ namespace PlcTest.View.Forms
             this.Column_bit3 = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.tableLayoutPanel1 = new System.Windows.Forms.TableLayoutPanel();
             this.panel1 = new System.Windows.Forms.Panel();
+            this.tab_DataInfo = new System.Windows.Forms.TabControl();
+            this.tp_DataView = new System.Windows.Forms.TabPage();
+            this.tp_DeviceView = new System.Windows.Forms.TabPage();
+            this.DGV_Device = new System.Windows.Forms.DataGridView();
+            this.tp_LogView = new System.Windows.Forms.TabPage();
+            this.panel2 = new System.Windows.Forms.Panel();
+            this.tb_Info = new System.Windows.Forms.TextBox();
             this.gb_cleardata = new PlcTest.View.CustomControl.MGroupBox(this.components);
             this.btn_ClearAll = new System.Windows.Forms.Button();
             this.btn_ClearLength = new System.Windows.Forms.Button();
@@ -96,8 +103,13 @@ namespace PlcTest.View.Forms
             this.btn_StartAddressAdd1 = new System.Windows.Forms.Button();
             this.btn_StartAddressDecrease1 = new System.Windows.Forms.Button();
             ((System.ComponentModel.ISupportInitialize)(this.DGV)).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)(this.DGV_Device)).BeginInit();
             this.tableLayoutPanel1.SuspendLayout();
             this.panel1.SuspendLayout();
+            this.tab_DataInfo.SuspendLayout();
+            this.tp_DataView.SuspendLayout();
+            this.tp_LogView.SuspendLayout();
+            this.panel2.SuspendLayout();
             this.gb_cleardata.SuspendLayout();
             this.gb_info.SuspendLayout();
             this.gb_WriteBit.SuspendLayout();
@@ -365,12 +377,94 @@ namespace PlcTest.View.Forms
             // panel1
             // 
             this.tableLayoutPanel1.SetColumnSpan(this.panel1, 5);
-            this.panel1.Controls.Add(this.DGV);
+            this.panel1.Controls.Add(this.tab_DataInfo);
             this.panel1.Dock = System.Windows.Forms.DockStyle.Fill;
             this.panel1.Location = new System.Drawing.Point(3, 138);
             this.panel1.Name = "panel1";
             this.panel1.Size = new System.Drawing.Size(928, 360);
             this.panel1.TabIndex = 3;
+            // 
+            // tab_DataInfo
+            // 
+            this.tab_DataInfo.Controls.Add(this.tp_DataView);
+            this.tab_DataInfo.Controls.Add(this.tp_DeviceView);
+            this.tab_DataInfo.Controls.Add(this.tp_LogView);
+            this.tab_DataInfo.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.tab_DataInfo.Location = new System.Drawing.Point(0, 0);
+            this.tab_DataInfo.Name = "tab_DataInfo";
+            this.tab_DataInfo.SelectedIndex = 0;
+            this.tab_DataInfo.Size = new System.Drawing.Size(928, 360);
+            this.tab_DataInfo.TabIndex = 0;
+            // 
+            // tp_DataView
+            // 
+            this.tp_DataView.Controls.Add(this.DGV);
+            this.tp_DataView.Location = new System.Drawing.Point(4, 22);
+            this.tp_DataView.Name = "tp_DataView";
+            this.tp_DataView.Padding = new System.Windows.Forms.Padding(3);
+            this.tp_DataView.Size = new System.Drawing.Size(920, 334);
+            this.tp_DataView.TabIndex = 0;
+            this.tp_DataView.Text = "DataView";
+            this.tp_DataView.UseVisualStyleBackColor = true;
+            // 
+            // tp_DeviceView
+            // 
+            this.tp_DeviceView.Controls.Add(this.DGV_Device);
+            this.tp_DeviceView.Location = new System.Drawing.Point(4, 22);
+            this.tp_DeviceView.Name = "tp_DeviceView";
+            this.tp_DeviceView.Padding = new System.Windows.Forms.Padding(3);
+            this.tp_DeviceView.Size = new System.Drawing.Size(920, 334);
+            this.tp_DeviceView.TabIndex = 2;
+            this.tp_DeviceView.Text = "DeviceView";
+            this.tp_DeviceView.UseVisualStyleBackColor = true;
+            // 
+            // DGV_Device
+            // 
+            this.DGV_Device.AllowUserToAddRows = false;
+            this.DGV_Device.AllowUserToDeleteRows = false;
+            this.DGV_Device.AllowUserToResizeRows = false;
+            this.DGV_Device.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+            this.DGV_Device.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.DGV_Device.Location = new System.Drawing.Point(3, 3);
+            this.DGV_Device.MultiSelect = false;
+            this.DGV_Device.Name = "DGV_Device";
+            this.DGV_Device.ReadOnly = true;
+            this.DGV_Device.RowHeadersVisible = false;
+            this.DGV_Device.RowTemplate.Height = 23;
+            this.DGV_Device.SelectionMode = System.Windows.Forms.DataGridViewSelectionMode.FullRowSelect;
+            this.DGV_Device.Size = new System.Drawing.Size(914, 328);
+            this.DGV_Device.TabIndex = 0;
+            // 
+            // tp_LogView
+            // 
+            this.tp_LogView.Controls.Add(this.panel2);
+            this.tp_LogView.Location = new System.Drawing.Point(4, 22);
+            this.tp_LogView.Name = "tp_LogView";
+            this.tp_LogView.Padding = new System.Windows.Forms.Padding(3);
+            this.tp_LogView.Size = new System.Drawing.Size(920, 334);
+            this.tp_LogView.TabIndex = 1;
+            this.tp_LogView.Text = "LogView";
+            this.tp_LogView.UseVisualStyleBackColor = true;
+            // 
+            // panel2
+            // 
+            this.panel2.Controls.Add(this.tb_Info);
+            this.panel2.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.panel2.Location = new System.Drawing.Point(3, 3);
+            this.panel2.Name = "panel2";
+            this.panel2.Size = new System.Drawing.Size(914, 328);
+            this.panel2.TabIndex = 0;
+            // 
+            // tb_Info
+            // 
+            this.tb_Info.BackColor = System.Drawing.SystemColors.Info;
+            this.tb_Info.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.tb_Info.Location = new System.Drawing.Point(0, 0);
+            this.tb_Info.Multiline = true;
+            this.tb_Info.Name = "tb_Info";
+            this.tb_Info.ScrollBars = System.Windows.Forms.ScrollBars.Vertical;
+            this.tb_Info.Size = new System.Drawing.Size(914, 328);
+            this.tb_Info.TabIndex = 0;
             // 
             // gb_cleardata
             // 
@@ -819,8 +913,15 @@ namespace PlcTest.View.Forms
             this.Text = "PlcServerForm";
             this.Load += new System.EventHandler(this.PlcServerForm_Load);
             ((System.ComponentModel.ISupportInitialize)(this.DGV)).EndInit();
+            ((System.ComponentModel.ISupportInitialize)(this.DGV_Device)).EndInit();
             this.tableLayoutPanel1.ResumeLayout(false);
             this.panel1.ResumeLayout(false);
+            this.tab_DataInfo.ResumeLayout(false);
+            this.tp_DataView.ResumeLayout(false);
+            this.tp_DeviceView.ResumeLayout(false);
+            this.tp_LogView.ResumeLayout(false);
+            this.panel2.ResumeLayout(false);
+            this.panel2.PerformLayout();
             this.gb_cleardata.ResumeLayout(false);
             this.gb_cleardata.PerformLayout();
             this.gb_info.ResumeLayout(false);
@@ -895,6 +996,13 @@ namespace PlcTest.View.Forms
         private System.Windows.Forms.Label lab_StartAddress;
         private System.Windows.Forms.Label lab_Area;
         private System.Windows.Forms.Panel panel1;
+        private System.Windows.Forms.TabControl tab_DataInfo;
+        private System.Windows.Forms.TabPage tp_DataView;
+        private System.Windows.Forms.TabPage tp_DeviceView;
+        private System.Windows.Forms.DataGridView DGV_Device;
+        private System.Windows.Forms.TabPage tp_LogView;
+        private System.Windows.Forms.Panel panel2;
+        private System.Windows.Forms.TextBox tb_Info;
         private MGroupBox gb_WriteBit;
         private MGroupBox gb_WriteWord;
         private MGroupBox groupBox3;

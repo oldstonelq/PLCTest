@@ -3,6 +3,7 @@ using PlcTest.Client.ClientInterface;
 using System;
 using System.Linq;
 using System.Text;
+using PlcTest.Protocols;
 
 namespace PlcTest.Client.ClientProtocolManagement.Melsec
 {

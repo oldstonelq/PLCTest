@@ -2,6 +2,9 @@ using PlcTest.Models;
 using PlcTest.Server.ServerProtocolManagement;
 using PlcTest.Server.ServerInterface;
 using System;
+using System.Linq;
+using System.Collections.Generic;
+using PlcTest.Protocols;
 
 namespace PlcTest.Server.ServerProtocolManagement.Melsec
 {
@@ -13,6 +16,11 @@ namespace PlcTest.Server.ServerProtocolManagement.Melsec
     /// </summary>
     public class MelsecMc4EBinaryServerProtocol : IServerProtocol
     {
+        /// <summary>本协议支持的软元件区域（来自 Melsec3E4EDeviceCatalog）</summary>
+        public IReadOnlyList<MemoryArea> GetSupportedAreas()
+        {
+            return Melsec3E4EDeviceCatalog.All.Select(spec => spec.Area).ToList();
+        }
         /// <summary>
         /// 验证请求报文头（副标题 0x54 0x00）
         /// </summary>

@@ -3,7 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace PlcTest.Client.ClientProtocolManagement.Omron
+namespace PlcTest.Protocols
 {
     /// <summary>
     /// 地址编址方式。欧姆龙的两类区在这一点上完全不同。

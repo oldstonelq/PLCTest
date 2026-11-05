@@ -49,18 +49,19 @@
   <ItemGroup>
     <Compile Include="Client\ClientCommunication\SerialPortClientCommunication.cs" />
     <Compile Include="Client\ClientCommunication\TcpClientCommunication.cs" />
-    <Compile Include="Client\ClientProtocolManagement\Inovance\InovanceDeviceCatalog.cs" />
+    <Compile Include="Client\ClientCommunication\ResponseFrameAssembler.cs" />
+    <Compile Include="Protocols\InovanceDeviceCatalog.cs" />
     <Compile Include="Client\ClientProtocolManagement\Inovance\InovanceModbusRtuClientProtocol.cs" />
     <Compile Include="Client\ClientProtocolManagement\Inovance\InovanceModbusTCPClientProtocol.cs" />
-    <Compile Include="Client\ClientProtocolManagement\Melsec\Melsec1EDeviceCatalog.cs" />
-    <Compile Include="Client\ClientProtocolManagement\Melsec\Melsec3E4EDeviceCatalog.cs" />
+    <Compile Include="Protocols\Melsec1EDeviceCatalog.cs" />
+    <Compile Include="Protocols\Melsec3E4EDeviceCatalog.cs" />
     <Compile Include="Client\ClientProtocolManagement\Melsec\MelsecMc1EAsciiClientProtocol.cs" />
     <Compile Include="Client\ClientProtocolManagement\Melsec\MelsecMc1EBinaryClientProtocol.cs" />
     <Compile Include="Client\ClientProtocolManagement\Melsec\MelsecMc3EAsciiClientProtocol.cs" />
     <Compile Include="Client\ClientProtocolManagement\Melsec\MelsecMc3EBinaryClientProtocol.cs" />
     <Compile Include="Client\ClientProtocolManagement\Melsec\MelsecMc4EAsciiClientProtocol.cs" />
     <Compile Include="Client\ClientProtocolManagement\Melsec\MelsecMc4EBinaryClientProtocol.cs" />
-    <Compile Include="Client\ClientProtocolManagement\Omron\OmronFinsDeviceCatalog.cs" />
+    <Compile Include="Protocols\OmronFinsDeviceCatalog.cs" />
     <Compile Include="Client\ClientProtocolManagement\Omron\OmronFinsTcpClientProtocol.cs" />
     <Compile Include="Client\ClientProtocolManagement\Siemens\SiemensS71200ClientProtocol.cs" />
     <Compile Include="Client\ClientProtocolManagement\Template\TemplateClientProtocol.cs" />
@@ -68,12 +69,14 @@
     <Compile Include="Client\PlcClient\Omron\OmronPlcClient.cs" />
     <Compile Include="Client\PlcClient\Template\TemplatePlcClient.cs" />
     <Compile Include="Client\PlcClientBuilder.cs" />
+    <Compile Include="Protocols\DeviceAreaInfoProvider.cs" />
     <Compile Include="Client\ClientInterface\IClientCommunication.cs" />
     <Compile Include="Client\ClientInterface\IPlcClient.cs" />
     <Compile Include="Client\ClientInterface\IPlcClientProtocol.cs" />
     <Compile Include="Client\ClientInterface\IDataFormatConfigurable.cs" />
     <Compile Include="Models\Enums.cs" />
     <Compile Include="Models\DataFormat.cs" />
+    <Compile Include="Models\DeviceAreaInfo.cs" />
     <Compile Include="Models\PlcAddress.cs" />
     <Compile Include="Models\RequestInfo.cs" />
     <Compile Include="Models\Result.cs" />
@@ -106,6 +109,8 @@
     <Compile Include="Server\ServerProtocolManagement\Melsec\MelsecMc4EAsciiServerProtocol.cs" />
     <Compile Include="Server\ServerProtocolManagement\Melsec\MelsecMc4EBinaryServerProtocol.cs" />
     <Compile Include="Tool\ConverterTool.cs" />
+    <Compile Include="View\DeviceViewHelper.cs" />
+    <Compile Include="View\LogViewHelper.cs" />
     <Compile Include="Tool\DataFormatConverter.cs" />
     <Compile Include="Tool\OtherTool.cs" />
     <Compile Include="Tool\StructureHelp.cs" />
@@ -169,11 +174,7 @@
     <None Include="README.md" />
   </ItemGroup>
   <ItemGroup>
-    <Folder Include="Server\PlcServer\Inovance\" />
-    <Folder Include="Server\PlcServer\Omron\" />
     <Folder Include="Server\PlcServer\Siemens\" />
-    <Folder Include="Server\ServerProtocolManagement\Inovance\" />
-    <Folder Include="Server\ServerProtocolManagement\Omron\" />
     <Folder Include="Server\ServerProtocolManagement\Siemens\" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

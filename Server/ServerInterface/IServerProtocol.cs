@@ -1,5 +1,6 @@
 using PlcTest.Models;
 using System;
+using System.Collections.Generic;
 
 namespace PlcTest.Server.ServerInterface
 {
@@ -9,6 +10,12 @@ namespace PlcTest.Server.ServerInterface
     /// </summary>
     public interface IServerProtocol
     {
+        /// <summary>
+        /// 本协议支持的软元件区域（来自对应的软元件表）。
+        /// 服务端的「软元件视图」用它列行，与客户端 `GetSupportedAreas()` 对称，
+        /// 避免服务端窗体自己按协议类型猜。
+        /// </summary>
+        IReadOnlyList<MemoryArea> GetSupportedAreas();
         /// <summary>
         /// 校验请求报文头是否属于本协议
         /// </summary>

@@ -3,7 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace PlcTest.Client.ClientProtocolManagement.Inovance
+namespace PlcTest.Protocols
 {
     /// <summary>
     /// 汇川 PLC 机型。不同机型的 Modbus 基地址相同，差别只在编号范围与"有没有该软元件区"。

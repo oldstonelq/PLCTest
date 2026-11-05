@@ -1,4 +1,3 @@
-using PlcTest.Client.ClientProtocolManagement.Inovance;
 using PlcTest.Models;
 using PlcTest.Client.ClientInterface;
 using System;
@@ -108,7 +107,7 @@ namespace PlcTest.Client.PlcClient.Template
         /// 构造函数
         /// </summary>
         /// <param name="comm">通讯方式</param>
-        /// <param name="protocol">协议实现（可选），若为 null 则使用默认的 InovanceModbusTcpClientProtocol</param>
+        /// <param name="protocol">协议实现，必须注入；模板本身不含任何默认协议，为 null 时读写会抛 NullReferenceException</param>
         public TemplatePlcClient(IClientCommunication comm, IPlcClientProtocol protocol = null)
         {
             _comm = comm ?? throw new ArgumentNullException(nameof(comm));

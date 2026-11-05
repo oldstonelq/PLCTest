@@ -1,20 +1,15 @@
 using PlcTest.Client.ClientInterface;
 using System;
-using System.Collections.Generic;
 using System.IO;
-using System.IO.Ports;
-using System.Linq;
 using System.Net.Sockets;
-using System.Text;
 using System.Threading;
-using System.Threading.Tasks;
 
 namespace PlcTest.Client.ClientCommunication
 {
     /// <summary>
     /// TCP通讯类 实现基础PLC通讯接口
     /// </summary>
-    public class TcpClientCommunication : IClientCommunication
+    public class TcpClientCommunication : IClientCommunication, IFrameTransport
     {
         #region 私有对象
         /// <summary>
@@ -48,18 +43,6 @@ namespace PlcTest.Client.ClientCommunication
         /// 读写超时 ms
         /// </summary>
         public int ReadWriteTimeout { get; set; } = 1000;
-        /// <summary>
-        /// 接收缓冲区最大长度(PLC报文通用4096足够)
-        /// </summary>
-        private const int _bufferMaxLength = 4096;
-        /// <summary>
-        /// 拼接后续分片时的轮询间隔 ms
-        /// </summary>
-        private const int _idleWaitMs = 20;
-        /// <summary>
-        /// 连续多少次无新数据即认为一帧已收全（20ms * 3 = 60ms 兜底）
-        /// </summary>
-        private const int _maxIdleRounds = 3;
         #endregion
 
         #region 构造函数
@@ -187,98 +170,45 @@ namespace PlcTest.Client.ClientCommunication
         }
 
         /// <summary>
-        /// 读取一帧完整响应。
-        /// 优先按协议给出的帧长读满；协议判不出长度（返回 -1）时才回退到空闲判据。
-        /// TCP 是字节流，一次 Read 拿到的可能只是半帧。
+        /// 读取一帧完整响应：帧长读满与空闲判据都在 <see cref="ResponseFrameAssembler"/>，
+        /// 这里只负责把 TCP 的「读一段 / 还有没有数据 / 读不到时的提示」交出去。
         /// </summary>
         private byte[] ReadCompleteResponse(byte[] request, ResponseFrameLengthResolver resolver)
         {
-            byte[] recvBuffer = new byte[_bufferMaxLength];
+            return ResponseFrameAssembler.ReadFrame(request, resolver, this);
+        }
+        #endregion
 
-            // 首段阻塞读取，ReadTimeout 到期会抛 IOException
-            int total;
+        #region IFrameTransport（供 ResponseFrameAssembler 使用）
+        /// <summary>
+        /// 读一段：TCP 是字节流，一次 Read 可能只拿到半帧，ReadTimeout 到期会抛 IOException。
+        /// </summary>
+        int IFrameTransport.Read(byte[] buffer, int offset, int count, bool firstRead)
+        {
             try
             {
-                total = _stream.Read(recvBuffer, 0, recvBuffer.Length);
+                return _stream.Read(buffer, offset, count);
             }
             catch (IOException ex)
             {
-                throw new Exception("读取PLC响应超时或被对端断开", ex);
+                throw new Exception(firstRead ? "读取PLC响应超时或被对端断开" : "读取PLC响应超时，帧未收全", ex);
             }
+        }
 
-            if (total <= 0)
-                throw new Exception("无返回数据，连接已断开");
+        /// <summary>
+        /// 已到达但还没读走的字节数是否为 0（空闲判据用）
+        /// </summary>
+        bool IFrameTransport.HasPendingData
+        {
+            get { return _stream != null && _stream.DataAvailable; }
+        }
 
-            int frameLength = -1;
-            if (resolver != null)
-            {
-                try
-                {
-                    frameLength = resolver(request, recvBuffer, total);
-                }
-                catch
-                {
-                    frameLength = -1;
-                }
-            }
-
-            // 协议给出的长度超出缓冲上限，视为判定不可信
-            if (frameLength > recvBuffer.Length)
-            {
-                frameLength = -1;
-            }
-
-            if (frameLength > 0)
-            {
-                // 按协议长度读满，不再靠"静默 60ms"猜
-                while (total < frameLength)
-                {
-                    int n;
-                    try
-                    {
-                        n = _stream.Read(recvBuffer, total, frameLength - total);
-                    }
-                    catch (IOException ex)
-                    {
-                        throw new Exception("读取PLC响应超时，帧未收全", ex);
-                    }
-
-                    if (n <= 0)
-                        throw new Exception("无返回数据，连接已断开");
-                    total += n;
-                }
-
-                // 一问一答模式下不应多收；多出来的一律截掉，避免污染解析
-                if (total > frameLength)
-                {
-                    total = frameLength;
-                }
-            }
-            else
-            {
-                // 回退：连续 _maxIdleRounds 次没有新数据即认为一帧收全
-                int idleWait = 0;
-                while (total < recvBuffer.Length && idleWait < _maxIdleRounds)
-                {
-                    if (_stream.DataAvailable)
-                    {
-                        int recvLen = _stream.Read(recvBuffer, total, recvBuffer.Length - total);
-                        if (recvLen <= 0)
-                            break;
-                        total += recvLen;
-                        idleWait = 0;
-                        continue;
-                    }
-
-                    Thread.Sleep(_idleWaitMs);
-                    idleWait++;
-                }
-            }
-
-            // 截取有效长度报文返回
-            byte[] result = new byte[total];
-            Array.Copy(recvBuffer, result, total);
-            return result;
+        /// <summary>
+        /// 首段或续读时读不到数据的提示
+        /// </summary>
+        string IFrameTransport.EmptyResponseMessage
+        {
+            get { return "无返回数据，连接已断开"; }
         }
         #endregion
     }

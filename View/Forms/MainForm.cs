@@ -1,10 +1,7 @@
-using PlcTest.Client.ClientProtocolManagement.Inovance;
-using PlcTest.Client.ClientCommunication;
 using PlcTest.Client;
 using PlcTest.Models;
 using PlcTest.Client.ClientInterface;
 using PlcTest.Server;
-using PlcTest.Server.PlcServer;
 using PlcTest.Server.ServerInterface;
 using PlcTest.Tool;
 using System;
@@ -32,6 +29,14 @@ namespace PlcTest.View.Forms
         /// PLC窗体实例
         /// </summary>
         PlcClientForm plcClientForm=null;
+        /// <summary>最近一次成功连接使用的协议（窗体标题与软元件视图要用）</summary>
+        private ProtocolType? _clientProtocol;
+        /// <summary>连接参数，如 192.168.1.10:5000 或 COM3 9600</summary>
+        private string _clientEndpoint;
+        /// <summary>最近一次成功启动的服务端协议</summary>
+        private ProtocolType? _serverProtocol;
+        /// <summary>服务端监听参数</summary>
+        private string _serverEndpoint;
         /// <summary>
         /// PLC服务实例
         /// </summary>
@@ -192,6 +197,14 @@ namespace PlcTest.View.Forms
                     plcControl = null;
                     MessageBox.Show(connectResult.ErrorMsg, "连接失败");
                 }
+                else
+                {
+                    // 记下协议与连接参数，供子窗体标题与软元件视图使用
+                    _clientProtocol = protocol;
+                    _clientEndpoint = useSerial
+                        ? tb_PLCInformationIP.Text.Trim() + " " + number
+                        : tb_PLCInformationIP.Text.Trim() + ":" + number;
+                }
             }
             catch (Exception ex)
             {
@@ -224,6 +237,9 @@ namespace PlcTest.View.Forms
             {
                 plcControl = null;
             }
+
+            _clientProtocol = null;
+            _clientEndpoint = null;
         }
         /// <summary>
         /// PLC寄存器操作视图
@@ -236,7 +252,9 @@ namespace PlcTest.View.Forms
             {
                 if (plcClientForm==null|| plcClientForm.IsDisposed)
                 {
-                    plcClientForm = new PlcClientForm(plcControl);
+                    // 协议在连接时就记下来了：窗体创建点与选协议的方法不是同一个
+                    ProtocolType protocol = _clientProtocol ?? ProtocolType.MelsecMc3EBinary;
+                    plcClientForm = new PlcClientForm(plcControl, protocol, _clientEndpoint);
                     plcClientForm.Show();
                 }
                 else
@@ -319,6 +337,12 @@ namespace PlcTest.View.Forms
             {
                 PlcServer = builder.Build();
                 PlcServer.OpenServer();
+
+                // 记下协议与监听参数，供服务端子窗体使用
+                _serverProtocol = settings.Protocol;
+                _serverEndpoint = settings.Communication == CommunicationType.Serial
+                    ? tb_ServiceInformationIP.Text.Trim() + " " + tb_ServiceInformationPort.Text.Trim()
+                    : tb_ServiceInformationIP.Text.Trim() + ":" + tb_ServiceInformationPort.Text.Trim();
             }
             catch (Exception ex)
             {
@@ -338,6 +362,9 @@ namespace PlcTest.View.Forms
                 PlcServer.CloseServer();
                 PlcServer = null;
             }
+
+            _serverProtocol = null;
+            _serverEndpoint = null;
         }
         /// <summary>
         /// PLC服务端寄存器视图
@@ -350,7 +377,8 @@ namespace PlcTest.View.Forms
             {
                 if (pLCServerForm == null || pLCServerForm.IsDisposed)
                 {
-                    pLCServerForm = new PlcServerForm(PlcServer);
+                    ProtocolType protocol = _serverProtocol ?? ProtocolType.MelsecMc3EBinary;
+                    pLCServerForm = new PlcServerForm(PlcServer, protocol, _serverEndpoint);
                     pLCServerForm.Show();
                 }
                 else

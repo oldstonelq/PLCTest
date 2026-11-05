@@ -67,6 +67,37 @@ namespace PlcTest.Server.PlcServer.Melsec
         /// 连接客户端数量
         /// </summary>
         public int ClientCount => _comm != null ? _comm.ClientCount : 0;
+        /// <summary>
+        /// 本服务端支持的软元件区域：直接问协议（1E 用 1E 的表、3E/4E 用 3E4E 的表）。
+        /// </summary>
+        public IReadOnlyList<MemoryArea> GetSupportedAreas()
+        {
+            return _protocol.GetSupportedAreas();
+        }
+
+        /// <summary>
+        /// 通讯日志事件（与客户端 <c>IPlcClient.ShowCommMessageEvent</c> 对称）
+        /// </summary>
+        public event Action<string> ShowCommMessageEvent;
+
+        /// <summary>
+        /// 触发通讯日志。事件由协议线程触发，订阅方自己负责切回 UI 线程。
+        /// </summary>
+        private void LogComm(string message)
+        {
+            Action<string> handler = ShowCommMessageEvent;
+            if (handler != null)
+            {
+                try
+                {
+                    handler(message);
+                }
+                catch
+                {
+                    // 日志订阅方的异常不能影响报文处理
+                }
+            }
+        }
 
         /// <summary>
         /// 构造函数
@@ -90,6 +121,7 @@ namespace PlcTest.Server.PlcServer.Melsec
             if (_comm.IsRunning) return;
             _comm.OnDataReceived += OnDataReceived;
             _comm.Start();
+            LogComm("服务端已启动，等待客户端连接");
         }
 
         /// <summary>
@@ -100,6 +132,7 @@ namespace PlcTest.Server.PlcServer.Melsec
             if (!_comm.IsRunning) return;
             _comm.OnDataReceived -= OnDataReceived;
             _comm.Stop();
+            LogComm("服务端已停止");
         }
 
         /// <summary>
@@ -109,11 +142,18 @@ namespace PlcTest.Server.PlcServer.Melsec
         {
             try
             {
-                if (!_protocol.ValidateRequestHeader(byt)) return;
+                if (!_protocol.ValidateRequestHeader(byt))
+                {
+                    LogComm("报文头不属于本协议，已丢弃: " + BitConverter.ToString(byt));
+                    return;
+                }
+
+                LogComm("接收报文: " + BitConverter.ToString(byt));
 
                 var request = _protocol.ParseRequest(byt);
                 if (request.Command == 0)
                 {
+                    LogComm("请求解析失败，回结束码 0x0001");
                     // 解析失败也要回结束码，避免客户端一直等到超时
                     byte[] errData = _protocol.BuildEndCodeResponse(0x0001);
                     byte[] errHeader = _protocol.BuildResponseHeader(byt, errData.Length);
@@ -121,6 +161,7 @@ namespace PlcTest.Server.PlcServer.Melsec
                     Array.Copy(errHeader, 0, errResp, 0, errHeader.Length);
                     Array.Copy(errData, 0, errResp, errHeader.Length, errData.Length);
                     _comm.SendToClient(errResp, client);
+                    LogComm("发送报文: " + BitConverter.ToString(errResp));
                     return;
                 }
 
@@ -139,10 +180,11 @@ namespace PlcTest.Server.PlcServer.Melsec
                 Array.Copy(respHeader, 0, resp, 0, respHeader.Length);
                 Array.Copy(responseData, 0, resp, respHeader.Length, responseData.Length);
                 _comm.SendToClient(resp, client);
+                LogComm("发送报文: " + BitConverter.ToString(resp));
             }
-            catch
+            catch (Exception ex)
             {
-                // 忽略解析异常，避免影响接收循环
+                LogComm("请求处理异常: " + ex.Message);
             }
         }
 

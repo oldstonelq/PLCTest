@@ -3,7 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace PlcTest.Client.ClientProtocolManagement.Melsec
+namespace PlcTest.Protocols
 {
     /// <summary>
     /// A 兼容 1E 帧适用的 CPU 机型。机型只影响软元件编号上限，不影响软元件代码。

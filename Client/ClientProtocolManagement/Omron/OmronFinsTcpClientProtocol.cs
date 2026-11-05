@@ -2,6 +2,7 @@ using PlcTest.Client.ClientInterface;
 using PlcTest.Models;
 using System;
 using System.Text;
+using PlcTest.Protocols;
 
 namespace PlcTest.Client.ClientProtocolManagement.Omron
 {

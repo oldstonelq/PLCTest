@@ -1,4 +1,4 @@
-using PlcTest.Client.ClientProtocolManagement.Melsec;
+using PlcTest.Protocols;
 using PlcTest.Models;
 
 namespace PlcTest.Server.ServerProtocolManagement

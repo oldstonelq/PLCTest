@@ -1,4 +1,5 @@
 using PlcTest.Models;
+using PlcTest.Protocols;
 using PlcTest.Client.ClientInterface;
 using PlcTest.Tool;
 using System;
@@ -18,6 +19,10 @@ namespace PlcTest.View.Forms
         /// PLC实例
         /// </summary>
         IPlcClient PLCControl = null;
+        /// <summary>
+        /// 当前连接使用的协议，决定窗体标题与「软元件视图」的描述文本
+        /// </summary>
+        private readonly ProtocolType _protocol;
         /// <summary>
         /// 当前读取寄存器区域
         /// </summary>
@@ -74,11 +79,16 @@ namespace PlcTest.View.Forms
         /// 构造函数
         /// </summary>
         /// <param name="plcControl"></param>
-        public PlcClientForm(IPlcClient plcControl)
+        public PlcClientForm(IPlcClient plcControl, ProtocolType protocol, string endpoint = null)
         {
             InitializeComponent();
             this.PLCControl = plcControl;
+            _protocol = protocol;
             PLCControl.ShowCommMessageEvent += AddInfo;
+
+            // 标题带上协议与连接参数，开多个窗口时能一眼分清连的是哪台
+            this.Text = "PLC Client - " + protocol.GetDisplayName()
+                + (string.IsNullOrEmpty(endpoint) ? string.Empty : " · " + endpoint);
         }
         /// <summary>
         /// 窗体加载
@@ -90,6 +100,7 @@ namespace PlcTest.View.Forms
             InitViewModeSwitch();
             InitCombox();
             RefreshViewModeSwitch();
+            InitDeviceView();
         }
         /// <summary>
         /// 加载下拉控件
@@ -121,6 +132,35 @@ namespace PlcTest.View.Forms
             {
                 CurrentReadArea = initialArea;
             }
+        }
+        /// <summary>
+        /// 软元件视图：列出本协议真正支持的软元件，以及它能不能按位/按字访问。
+        /// 行集合取 <see cref="IPlcClient.GetSupportedAreas"/>，所以换机型（如汇川 Easy）会自动变少。
+        /// </summary>
+        private void InitDeviceView()
+        {
+            DeviceViewHelper.Initialize(DGV_Device);
+            DeviceViewHelper.Fill(DGV_Device, BuildDeviceAreaInfos());
+        }
+
+        /// <summary>
+        /// 组装软元件视图的数据：描述来自 catalog，位/字能力用客户端实际声明覆盖。
+        /// </summary>
+        private IReadOnlyList<DeviceAreaInfo> BuildDeviceAreaInfos()
+        {
+            var infos = new List<DeviceAreaInfo>();
+            if (PLCControl == null)
+            {
+                return infos;
+            }
+
+            foreach (MemoryArea area in PLCControl.GetSupportedAreas())
+            {
+                DeviceAreaInfo spec = DeviceAreaInfoProvider.Get(_protocol, area);
+                string name = spec != null ? spec.Name : area.ToString();
+                infos.Add(DeviceAreaInfo.FromAccess(area, name, PLCControl.GetAreaAccess(area)));
+            }
+            return infos;
         }
 
         /// <summary>
@@ -860,61 +900,12 @@ namespace PlcTest.View.Forms
             AddInfo(message);
         }
         /// <summary>
-        /// 增加日志打印到文本框。
-        /// 协议线程/读取线程都会调到这里，用 BeginInvoke 投递（Invoke 会阻塞等待 UI，
-        /// 而 UI 线程关窗时可能在等读取线程，两者互等会卡住）。
+        /// 追加一行日志。跨线程投递（BeginInvoke）与行数裁剪都在 LogViewHelper，两个窗体共用。
         /// </summary>
-        /// <param name="info"></param>
+        /// <param name="info">日志内容</param>
         private void AddInfo(string info)
         {
-            if (tb_Info == null || tb_Info.IsDisposed)
-            {
-                return;
-            }
-            if (tb_Info.InvokeRequired)
-            {
-                try
-                {
-                    tb_Info.BeginInvoke(new Action<string>(AddInfo), info);
-                }
-                catch (ObjectDisposedException)
-                {
-                    // 控件已销毁，丢弃这条日志即可
-                }
-                catch (InvalidOperationException)
-                {
-                    // 窗体句柄已销毁，丢弃这条日志即可
-                }
-            }
-            else
-            {
-                tb_Info.AppendText(info + "\r\n");
-                TrimLogIfTooLong();
-            }
-        }
-        /// <summary>
-        /// 日志超过上限后从头部裁掉，避免长时间轮询把文本框撑爆
-        /// </summary>
-        private void TrimLogIfTooLong()
-        {
-            try
-            {
-                if (tb_Info.Lines.Length <= MaxLogLines)
-                {
-                    return;
-                }
-
-                string[] lines = tb_Info.Lines;
-                string[] kept = new string[MaxLogLines];
-                Array.Copy(lines, lines.Length - MaxLogLines, kept, 0, MaxLogLines);
-                tb_Info.Lines = kept;
-                tb_Info.SelectionStart = tb_Info.TextLength;
-                tb_Info.ScrollToCaret();
-            }
-            catch
-            {
-                // 裁剪失败不影响日志展示
-            }
+            LogViewHelper.Append(tb_Info, info, MaxLogLines);
         }
     }
 }

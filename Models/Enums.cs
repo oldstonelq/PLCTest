@@ -110,58 +110,72 @@ namespace PlcTest.Models
     /// 新增协议时只需在此枚举增加一项并标注 <see cref="ProtocolInfoAttribute"/>，
     /// 连接设置对话框的下拉框会自动出现，无需再改界面代码。
     /// </summary>
+    /// <remarks>
+    /// 枚举值显式赋值：避免将来在中间插入协议时，已经写进配置或日志的数值跟着错位。
+    /// <para>
+    /// 串口能力（<c>clientSerial</c> / <c>serverSerial</c>）当前全部关闭——串口链路尚未实测，
+    /// 界面只提供 TCP。原本只跑串口的 1E 与 Modbus RTU 因此改成「帧直接跑在 TCP 上」：
+    /// 帧格式与串口完全一致（1E 无外层头、RTU 带 CRC16），**不是** Modbus TCP 的 MBAP 头。
+    /// 恢复串口时把对应端的串口参数补回 <c>true</c> 即可，两者可以并存。
+    /// </para>
+    /// <para>
+    /// 西门子的四个开关全是 <c>false</c>，属于**主动下架**：实现已写完，但还没拿到官方手册逐条核对
+    /// 帧格式，先不让它出现在下拉框里，避免用未验证的协议去连真机。手册到位后把
+    /// <c>clientTcp</c> 改回 <c>true</c> 即可恢复。
+    /// </para>
+    /// </remarks>
     public enum ProtocolType
     {
         /// <summary>
         /// 三菱 MC 3E Binary（TCP，客户端/服务端）
         /// </summary>
-        [ProtocolInfo("三菱 MC 3E Binary", serverTcp: true)]
-        MelsecMc3EBinary,
+        [ProtocolInfo("三菱 MC 3E Binary", clientTcp: true, serverTcp: true, clientSerial: false, serverSerial: false)]
+        MelsecMc3EBinary = 0,
         /// <summary>
         /// 三菱 MC 3E ASCII（TCP，客户端/服务端）
         /// </summary>
-        [ProtocolInfo("三菱 MC 3E ASCII", serverTcp: true)]
-        MelsecMc3EAscii,
+        [ProtocolInfo("三菱 MC 3E ASCII", clientTcp: true, serverTcp: true, clientSerial: false, serverSerial: false)]
+        MelsecMc3EAscii = 1,
         /// <summary>
         /// 三菱 MC 4E Binary（TCP，客户端/服务端）
         /// </summary>
-        [ProtocolInfo("三菱 MC 4E Binary", serverTcp: true)]
-        MelsecMc4EBinary,
+        [ProtocolInfo("三菱 MC 4E Binary", clientTcp: true, serverTcp: true, clientSerial: false, serverSerial: false)]
+        MelsecMc4EBinary = 2,
         /// <summary>
         /// 三菱 MC 4E ASCII（TCP，客户端/服务端）
         /// </summary>
-        [ProtocolInfo("三菱 MC 4E ASCII", serverTcp: true)]
-        MelsecMc4EAscii,
+        [ProtocolInfo("三菱 MC 4E ASCII", clientTcp: true, serverTcp: true, clientSerial: false, serverSerial: false)]
+        MelsecMc4EAscii = 3,
         /// <summary>
-        /// 三菱 MC 1E Binary（TCP/串口，客户端/服务端仅串口）
+        /// 三菱 MC 1E Binary（TCP，客户端/服务端；帧格式与串口一致，无外层头）
         /// </summary>
-        [ProtocolInfo("三菱 MC 1E Binary", clientSerial: true, serverSerial: true)]
-        MelsecMc1EBinary,
+        [ProtocolInfo("三菱 MC 1E Binary", clientTcp: true, serverTcp: true, clientSerial: false, serverSerial: false)]
+        MelsecMc1EBinary = 4,
         /// <summary>
-        /// 三菱 MC 1E ASCII（TCP/串口，客户端/服务端仅串口）
+        /// 三菱 MC 1E ASCII（TCP，客户端/服务端；帧格式与串口一致，无外层头）
         /// </summary>
-        [ProtocolInfo("三菱 MC 1E ASCII", clientSerial: true, serverSerial: true)]
-        MelsecMc1EAscii,
+        [ProtocolInfo("三菱 MC 1E ASCII", clientTcp: true, serverTcp: true, clientSerial: false, serverSerial: false)]
+        MelsecMc1EAscii = 5,
         /// <summary>
-        /// 汇川 Modbus TCP
+        /// 汇川 Modbus TCP（TCP，客户端/服务端）
         /// </summary>
-        [ProtocolInfo("汇川 Modbus TCP", serverTcp: true)]
-        InovanceModbusTcp,
+        [ProtocolInfo("汇川 Modbus TCP", clientTcp: true, serverTcp: true, clientSerial: false, serverSerial: false)]
+        InovanceModbusTcp = 6,
         /// <summary>
-        /// 汇川 Modbus RTU（仅串口）
+        /// 汇川 Modbus RTU（RTU 帧带 CRC16，直接跑在 TCP 上；标准 Modbus TCP 请用上面的汇川 Modbus TCP）
         /// </summary>
-        [ProtocolInfo("汇川 Modbus RTU", clientTcp: false, clientSerial: true, serverSerial: true)]
-        InovanceModbusRtu,
+        [ProtocolInfo("汇川 Modbus RTU", clientTcp: true, serverTcp: true, clientSerial: false, serverSerial: false)]
+        InovanceModbusRtu = 7,
         /// <summary>
-        /// 西门子 S7-1200
+        /// 西门子 S7-1200（TCP，仅客户端；**暂不开放**——实现已写完，官方手册未到位，尚未逐条核对帧格式）
         /// </summary>
-        [ProtocolInfo("西门子 S7-1200")]
-        SiemensS71200,
+        [ProtocolInfo("西门子 S7-1200", clientTcp: false, serverTcp: false, clientSerial: false, serverSerial: false)]
+        SiemensS71200 = 8,
         /// <summary>
-        /// 欧姆龙 FINS/TCP（客户端；服务端尚未实现）
+        /// 欧姆龙 FINS/TCP（TCP，客户端/服务端）
         /// </summary>
-        [ProtocolInfo("欧姆龙 FINS TCP", serverTcp: true)]
-        OmronFinsTcp,
+        [ProtocolInfo("欧姆龙 FINS TCP", clientTcp: true, serverTcp: true, clientSerial: false, serverSerial: false)]
+        OmronFinsTcp = 9,
     }
     /// <summary>
     /// 协议元信息：界面显示名与各场景（客户端/服务端、TCP/串口）下是否可用。
@@ -194,11 +208,7 @@ namespace PlcTest.Models
         /// </summary>
         public bool ServerSerial { get; }
 
-        public ProtocolInfoAttribute(string displayName,
-            bool clientTcp = true,
-            bool clientSerial = false,
-            bool serverTcp = false,
-            bool serverSerial = false)
+        public ProtocolInfoAttribute(string displayName, bool clientTcp,bool clientSerial, bool serverTcp ,bool serverSerial)
         {
             DisplayName = displayName;
             ClientTcp = clientTcp;

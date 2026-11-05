@@ -1,6 +1,7 @@
 using PlcTest.Models;
 using PlcTest.Client.ClientInterface;
 using System;
+using PlcTest.Protocols;
 
 namespace PlcTest.Client.ClientProtocolManagement.Melsec
 {

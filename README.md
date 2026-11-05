@@ -14,7 +14,11 @@
 
 ![项目架构总览](./Document/md/项目架构总览.png)
 
-整体分三层：**模型层（`Models`）→ 通讯层（`Client` / `Server`）→ 界面层（`View`）**，依赖单向，`Models` 为叶节点。
+整体分四层：**`Models`（模型）→ `Protocols` / `Tool`（协议知识与工具）→ `Client` / `Server`（通讯层）→ `View`（界面）**，依赖严格单向，`Models` 为叶节点。
+
+- `Models` 只 `using System.*`；`Protocols`、`Tool` 只向下依赖 `Models`
+- `Client` 与 `Server` **互不依赖**（服务端模拟软元件时查的是 `Protocols` 里的软元件表，不再反向引用客户端）
+- 只有 `View` 同时依赖 `Client` / `Server`
 
 通讯层把「怎么发数据」和「数据怎么编解码」拆成两条互不依赖的抽象，任一侧换实现都不影响另一侧：
 
@@ -24,8 +28,9 @@
 | 客户端 · 通讯协议 | `IPlcClientProtocol` | `ClientProtocolManagement\` 下各厂商协议 | 组装请求报文、解析响应报文、声明区域访问能力与应答帧长 |
 | 客户端 · 设备 | `IPlcClient` | `CommunicationPlcClient`（单一实现，构造注入通讯、协议与位/字规则） | 连接、心跳与 8 个读写 |
 | 服务端 · 通讯方式 | `IServerCommunication` | `TcpServerCommunication`、`SerialServerCommunication` | 监听端口、收发字节，每个连接用 `IClientSession` 标识 |
-| 服务端 · 通讯协议 | `IServerProtocol` / `IModbusServerProtocol` | 三菱 6 个（1E/3E/4E × Binary/ASCII）+ 汇川 2 个（Modbus TCP/RTU 从站） | **帧定界**、解析请求、构建响应（含结束码 / 异常码与写数据解码） |
-| 服务端 · 设备 | `IPlcServer` | `MelsecPlcServer`、`InovancePlcServer`、`OmronFinsServer` | 回应客户端的读写请求 |
+| 服务端 · 通讯协议 | `IServerProtocol` / `IModbusServerProtocol` / `IOmronFinsServerProtocol` | 三菱 6 个（1E/3E/4E × Binary/ASCII）+ 汇川 2 个（Modbus TCP/RTU 从站）+ 欧姆龙 FINS | **帧定界**、解析请求、构建响应（含结束码 / 异常码与写数据解码）、声明本协议支持的软元件区域 |
+| 服务端 · 设备 | `IPlcServer` | `MelsecPlcServer`、`InovancePlcServer`、`OmronFinsServer` | 回应客户端的读写请求，并通过 `ShowCommMessageEvent` 抛出收发报文日志 |
+| 共享 · 软元件表 | — | `Protocols/` 下 4 份 catalog（三菱 3E4E / 三菱 1E / 汇川 / 欧姆龙）+ `DeviceAreaInfoProvider` | 软元件代码、编号范围、位/字能力、名称与 Modbus/FINS 编址的**唯一真相**，Client 与 Server 都向下查 |
 | 服务端 · 寄存器表 | `IRegisterTable` | `MelsecPlcServer`、`InovancePlcServer`、`OmronFinsServer` | 模拟寄存器的增删查改与清零 |
 
 贯穿全项目的几套惯用写法：
@@ -36,6 +41,15 @@
 - **欧姆龙 FINS 是两层套娃**：`OmronFinsTcpClientProtocol` 负责外层 FINS/TCP 外壳（16 字节 `FINS` + 长度 + 命令 2 + 错误码）与内层 FINS 帧（10 字节头 + 指令代码 + 结束代码）。**建连后必须先做节点地址握手**（20 字节请求 → 24 字节响应，取 `[19]`/`[23]` 作为 SA1/DA1）；`OmronPlcClient` 因此不重复实现 8 个读写，而是继承 `CommunicationPlcClient`、只重写 `Connect()` 插入握手，否则 PLC 会静默丢弃后续命令，表现为"连上了但读不到数据"。区码/编号范围集中在 `OmronFinsDeviceCatalog`，位码与字码分开（如 DM 位 `02` / 字 `82`）。
 - **位/字只有一处真相**：能不能按位/按字访问由协议声明（`IPlcClientProtocol.GetAreaAccess`），客户端按方法语义（`ReadBit`/`ReadWord`）归一化地址标志，不再维护「D 为字、其余为位」这类客户端侧规则。
 - **界面跟着协议走**：`IPlcClient.GetSupportedAreas()` 返回当前协议真正支持的软元件区域，`PlcClientForm` 用它填充三个下拉框（读区 / 写位 / 写字），**PLC 上不存在的软元件不会出现在选项里**；位/字分支也改成 `GetAreaAccess` 判断，不再硬编码"是不是 D"。断开连接时会关闭绑定了旧协议的窗体，重连后列表不会残留。
+- **软元件视图（DeviceView）**：两个窗体的第三个页签，列出「区域 / 描述 / 位 / 字 / 备注」。描述与位/字能力不在界面里硬编码，统一走 `DeviceAreaInfoProvider`：
+  | 协议 | 描述来源 |
+  | --- | --- |
+  | 三菱 3E/4E | `Protocols/Melsec3E4EDeviceCatalog`（28 种，如 M=内部继电器） |
+  | 三菱 1E | `Protocols/Melsec1EDeviceCatalog`（12 种，如 M=辅助继电器，叫法与 3E 不同） |
+  | 汇川 Modbus | `Protocols/InovanceDeviceCatalog`（按服务端/客户端的机型取；Easy 独有的 B 区在 `Get` 里兜底取名） |
+  | 欧姆龙 FINS | `Protocols/OmronFinsDeviceCatalog` |
+  | 西门子 S7 | 没有 catalog，只有 X/Y/M 三项，直接写死 |
+  **两端行集合都问自己**：客户端 `IPlcClient.GetSupportedAreas()`、服务端 `IPlcServer.GetSupportedAreas()`（三菱由 `IServerProtocol` 转发到对应软元件表，汇川按机型、欧姆龙查 FINS 表）。换机型会自动变少，如汇川 Easy 只有 7 项。**备注列暂时留空**，字段已就位，后续要写编号范围/机型差异直接填。
 - **读视图按能力 + 用户选择**：`IsBitArea()` 决定一行是「一个点位」还是「16 点」。仅支持位的区域（三菱 TS/TC/CS/CC、汇川线圈区）恒为位视图；仅支持字的区域（D、汇川寄存器区）恒为字视图；**位字皆可**的区域（三菱 M / X / Y / SM / S、欧姆龙 D / CIO / W / HR / AR / EM、西门子 M / X / Y）默认为**位视图（一行一个点位）**，勾选组内的「按字读取（16 点/行）」后切到字视图。位视图的 0/1 显示在 `All` 列，双击该列即翻转该点；字视图双击 16 位列之一翻转对应位。
 - **三菱软元件表集中**：`Melsec3E4EDeviceCatalog` 是 **QnA 兼容 3E / 4E 帧共用**的软元件表（两者只有帧头不同，软元件代码与编号规则一致），是三菱软元件代码、位/字能力、**编号进制**与默认编号范围的唯一来源（依据《基本型 QCPU 软元件一览》）。3E / 4E × ASCII / Binary 四个协议全部改为查表，不再各写一份 28 个 `case` 的 switch；ASCII 地址按「X/Y/B/W/SB/SW/DX/DY/ZR 十六进制，其余十进制」格式化。
 - **1E 单独一张表**：A 兼容 1E 帧（FX 系列）与 3E 规则不同——单字符代码补**空格**(0x20) 而非 `*`、编号统一十六进制、只支持 12 种软元件（D / R / X / Y / M / S / TN / TS / TC / CN / CS / CC），故单列 `Melsec1EDeviceCatalog`（依据 `Document/Melsec/1E寄存器地址.png` 与 Q/L 系列 MC 协议手册 442–444 页）。该表带机型概念（`Melsec1ECpuModel`，默认 **FX3G/FX3GC**）。报文顺序已按手册 436 页示例核实：**起始编号 → 软元件名 → 点数**，与实现一致。
@@ -55,6 +69,7 @@
 - **Modbus 数量上限前置校验**：`InovanceModbusLimits` 记录单帧上限（读线圈 2000 / 读寄存器 125 / 写线圈 1968 / 写寄存器 123，见 H3U 手册 9.4.2），协议在拼包前按**换算后的寄存器数**校验，超限直接报「一次最多读 125 个寄存器，当前请求 200 个」，不用等 PLC 回一个看不懂的异常码。注意写比读少 2，且 32 位段的点数要先乘 2 再判。
 - **编号上限归协议、越界判断归客户端**：`IPlcClientProtocol.GetMaxIndex` 只声明"这个区域最大编号多少"（-1 表示不限制，范围由从站或 PLC 组态决定），起始点与连续访问末点的越界计算统一在 `CommunicationPlcClient.CheckAddress` 里做，越界返回 `ErrorKind.Validation`，不发给 PLC。协议不必各写一遍同样的校验逻辑。
 - **帧定界归协议**：`IPlcClientProtocol.GetResponseFrameLength` 告诉通讯层「这一帧多长」，通讯层按长度读满；协议判不出长度（如 MC 1E 无长度字段、4E ASCII 头长存在歧义）时返回 -1，才回退到「空闲 60 ms 判据」。
+  这套「凑齐一帧」的逻辑只有一份：`Client/ClientCommunication/ResponseFrameAssembler.cs`。TCP 与串口各自只实现 `IFrameTransport` 三个成员（阻塞读一段、有没有待读数据、读不到时的提示），帧长解析、读满、截断、空闲回退都由组装器负责——两端各写一遍时，改一处漏一处就会变成「TCP 正常、串口卡住」。
 - **错误可分类**：`Result<T>` 带 `ErrorKind`（Validation / Transport / Protocol / DeviceEndCode）与 `EndCode`，调用方不必解析 `ErrorMsg` 字符串。
 - **模板方法**：`TemplateClientProtocol` / `TemplatePlcClient` 是留白的骨架，新增厂商时复制这两个文件往里填就行。
 - **依赖注入**：客户端与服务端的构造函数都接收通讯接口与协议接口，传 `null` 时内部 `new` 默认实现，方便替换和测试。
@@ -81,7 +96,7 @@ PlcAddress.Word(MemoryArea.D, 0, dbNumber: 1, length: 10);
 ```
 
 - `PlcAddress` 只携带 `Area` / `Address` / `Length` / `IsBit` / `DbNumber` 五个字段，位与字的区别由 `IsBit` 表达。
-- `MemoryArea` 覆盖三菱软元件：`SM` `SD` `X` `Y` `M` `L` `F` `V` `B` `D` `W` `TS` `TC` `TN` `SS` `SC` `SN` `CS` `CC` `CN` `SB` `SW` `S` `DX` `DY` `Z` `R` `ZR`。
+- `MemoryArea` 共 32 项：三菱的 `SM` `SD` `X` `Y` `M` `L` `F` `V` `B` `D` `W` `TS` `TC` `TN` `SS` `SC` `SN` `CS` `CC` `CN` `SB` `SW` `S` `DX` `DY` `Z` `R` `ZR`，加上欧姆龙专用的 `CIO` `HR` `AR` `EM`（EM 的存储体走 `PlcAddress.DbNumber`）。
 - 读写统一返回 `Result<T>`（`IsSuccess` / `Data` / `ErrorMsg`），失败不抛异常。
 
 ## 协议支持进度
@@ -96,16 +111,17 @@ PlcAddress.Word(MemoryArea.D, 0, dbNumber: 1, length: 10);
 | 三菱 | MC 3E Binary | `UseMelsecMc3EBinary()` | ✅ | ✅ | ✅ |
 | 三菱 | MC 4E ASCII | `UseMelsecMc4EAscii()` | ✅ | ✅ | ✅ |
 | 三菱 | MC 4E Binary | `UseMelsecMc4EBinary()` | ✅ | ✅ | ✅ |
-| 西门子 | S7-1200（S7comm） | `UseSiemensS71200()` | ✅ | ✅ | — |
+| 西门子 | S7-1200（S7comm） | `UseSiemensS71200()` | ⏸ 暂不开放 | ✅ | — |
 | 欧姆龙 | FINS TCP | `UseOmronFinsTcp()` | ✅ | ✅ | ✅ |
 | 汇川 | Modbus TCP | `UseInovanceModbusTcp()` | ✅ | ✅ | ✅ `UseInovanceModbusTcp()` |
 | 汇川 | Modbus RTU | `UseInovanceModbusRtu()` | ✅ | ✅ | ✅ `UseInovanceModbusRtu()` |
 
-> 表中「协议实现 ✅」指报文编解码已写完。
->
-> 欧姆龙 FINS/TCP 已可用，但**服务端**尚未实现（`PlcServerBuilder` 里没有对应入口），所以上表服务端一列为「—」。
+> 表中「协议实现 ✅」指报文编解码已写完。**西门子**：客户端已写完但**暂时下架**（官方手册还没拿到，帧格式未逐条核对，先不让它出现在下拉框里；手册到位后把 `ProtocolType.SiemensS71200` 的 `clientTcp` 改回 `true` 即可）；服务端尚未实现（S7 需要 COTP 两次握手 + S7comm 的 Setup Communication，工作量约为其他协议的两倍）。
 
-服务端已覆盖 **9 种协议**：三菱 MC 六种（**1E / 3E / 4E × ASCII / Binary**）+ 汇川 Modbus 两种（**TCP / RTU 从站**）+ 欧姆龙 FINS/TCP。
+服务端已实现 **9 种协议**：三菱 MC 六种（**1E / 3E / 4E × ASCII / Binary**）+ 汇川 Modbus 两种（**TCP / RTU 从站**）+ 欧姆龙 FINS/TCP。
+
+> **界面当前客户端可选 9 种、服务端 9 种**：串口能力全部关闭后，原本只跑串口的 1E 两种与 Modbus RTU 改成「帧直接跑在 TCP 上」（帧格式与串口一致，不是 Modbus TCP 的 MBAP），因此仍然可选；共同缺席的是西门子——客户端因手册未到位主动下架，服务端本就未实现。
+> 重新打开串口，只需在 `ProtocolType` 里给对应标签补回 `clientSerial` / `serverSerial`，下拉框与串口选项会自动回来，TCP 与串口可以并存。
 
 - 三菱六者共用 `MelsecPlcServer`（`0x0401` 批量读、`0x1401` 批量写），帧格式差异全部由注入的 `IServerProtocol` 承担，**六种协议共用一个 `MelsecPlcServer`，没有按协议派生子类**。
 - **服务端的软元件范围跟着 catalog 走**：设备码 → 区域的解码统一走 `MelsecServerDeviceMapper`，直接查客户端同一份 `Melsec3E4EDeviceCatalog`（28 种）/ `Melsec1EDeviceCatalog`（12 种），不再只认 `D`/`M`/`X`/`Y`。**客户端认得的软元件，服务端就模拟**，不会出现"客户端能发、服务端装不认识"的错位。
@@ -168,6 +184,8 @@ client.Disconnect();
 
 串口通讯把 `UseTcp(...)` 换成 `UseSerial("COM3", 9600, Parity.None, 8, StopBits.One)` 即可，协议那一行不动。
 
+> 注意：**串口链路尚未实测**，因此 `ProtocolType` 里所有标签的 `clientSerial` / `serverSerial` 目前都是 `false`，界面不会给出串口入口。1E 与 Modbus RTU 暂以「同样的帧 + TCP 传输」提供（1E 读命令按 12 字节定长，写命令回退 60 ms 空闲判据），不是 Modbus TCP 的 MBAP。API 层（`UseSerial` + 串口协议）不受影响，改标志位即可恢复。
+
 服务端用对称的 `PlcServerBuilder` 起步：
 
 ```csharp
@@ -193,9 +211,9 @@ modbusServer.OpenServer();
 | 窗体 | 功能 |
 | --- | --- |
 | `MainForm` | 客户端 / 服务端连接参数配置、连接状态指示灯、打开寄存器视图；连接客户端与开启服务端时都会弹出「通讯方式 + 协议」选择框 |
-| `ConnectSettingsForm` | 连接设置对话框：选 TCP / 串口与协议；串口模式下 IP 框填串口名（如 COM3）、端口框填波特率。客户端模式列出全部客户端协议，服务端模式列出支持的 8 种（三菱 6 种 + 汇川 Modbus TCP/RTU） |
-| `PlcClientForm` | 选区域 + 起始地址 + 长度后周期读取（1 s），表格展示：D 区展开 16 个位并附高字节 / 低字节 / short / ASCII，其他区按点位显示；双击位格反写回 PLC；单点写位 / 写字；区间清零与全区清零；通讯报文日志框 |
-| `PlcServerForm` | 初始化服务端模拟寄存器的区域与范围、单点改写模拟值、清零 |
+| `ConnectSettingsForm` | 连接设置对话框：选通信方式与协议。**当前只提供 TCP**（串口标志全为 false，串口选项连出现都不出现）。客户端与服务端各列出 9 种（西门子两端都不可选），列表由 `ProtocolInfo` 能力位自动生成，不硬编码 |
+| `PlcClientForm` | 选区域 + 起始地址 + 长度后周期读取（1 s），表格展示：D 区展开 16 个位并附高字节 / 低字节 / short / ASCII，其他区按点位显示；双击位格反写回 PLC；单点写位 / 写字；区间清零与全区清零；下方分 **DataView / DeviceView / LogView** 三个页签，标题带「协议 + 连接参数」 |
+| `PlcServerForm` | 初始化服务端模拟寄存器的区域与范围、单点改写模拟值、清零；下方分 **DataView / DeviceView / LogView** 三个页签，日志页显示收发的原始报文与界面操作记录，标题带「协议 + 监听参数」 |
 
 界面文案目前是英文（`Please Check ...`），控件命名沿用 `btn_` / `tb_` / `lab_` / `cmb_` / `DGV` 前缀，Designer 生成的代码不动。
 
@@ -203,33 +221,43 @@ modbusServer.OpenServer();
 
 ```
 PLCClient/
-├─ Models/                         统一模型
+├─ Protocols/                      软元件表 + 协议元数据（只依赖 Models）
+│  ├─ Melsec3E4EDeviceCatalog.cs   3E/4E 共用：28 种软元件、进制、编号范围
+│  ├─ Melsec1EDeviceCatalog.cs     1E（FX 系列）：12 种，含 FX3G/FX3U 两套上限
+│  ├─ InovanceDeviceCatalog.cs     汇川：起始地址、地址分段、H3U/Easy 范围
+│  ├─ OmronFinsDeviceCatalog.cs    欧姆龙：位码/字码、EM bank、TIM/CNT 偏移
+│  └─ DeviceAreaInfoProvider.cs    协议 + 区域 → 描述/位字能力（界面软元件视图用）
+├─ Models/                         统一模型（叶节点，不引用任何上层）
 │  ├─ PlcAddress.cs                统一 PLC 地址模型
-│  ├─ Result.cs                    统一返回结果
-│  ├─ RequestInfo.cs               服务端解析出的请求结构（含强类型 DeviceArea）
-│  └─ Enums.cs                     MemoryArea / PlcType / CommunicationType
+│  ├─ Result.cs                    统一返回结果（含 ErrorKind / EndCode）
+│  ├─ RequestInfo.cs               服务端解析出的请求结构（含强类型 DeviceArea / IsBit）
+│  ├─ DeviceAreaInfo.cs            软元件视图的一行：区域 / 描述 / 位 / 字 / 备注
+│  ├─ DataFormat.cs                32 位数据的 ABCD / BADC / CDAB / DCBA
+│  └─ Enums.cs                     MemoryArea / PlcType / CommunicationType / ProtocolType(+ProtocolInfo)
 ├─ Client/
-│  ├─ ClientInterface/             IClientCommunication / IPlcClient / IPlcClientProtocol
-│  ├─ ClientCommunication/         TCP、串口通讯实现（内部串行化 + 读全帧）
+│  ├─ ClientInterface/             IClientCommunication / IPlcClient / IPlcClientProtocol / IDataFormatConfigurable
+│  ├─ ClientCommunication/         TCP、串口通讯实现（内部串行化）+ ResponseFrameAssembler（共用的帧组装）
 │  ├─ ClientProtocolManagement/    各厂商协议实现
 │  │  ├─ Melsec/                   1E/3E/4E × ASCII/Binary
 │  │  ├─ Siemens/                  S7-1200
-│  │  ├─ Omron/                    FINS TCP（含 OmronFinsDeviceCatalog 软元件表）
-│  │  ├─ Inovance/                 Modbus RTU / TCP
+│  │  ├─ Omron/                    FINS TCP（含节点地址握手）
+│  │  ├─ Inovance/                 Modbus RTU / TCP（含 32 位段与数量上限）
 │  │  └─ Template/                 新协议模板
 │  ├─ PlcClient/                   CommunicationPlcClient（组合式客户端）+ OmronPlcClient（带握手）+ Template 骨架
-│  └─ PlcClientBuilder.cs          客户端建造者
+│  └─ PlcClientBuilder.cs          客户端建造者（通讯方式 + 10 种协议实现，界面当前可选 9 种）
 ├─ Server/
-│  ├─ ServerInterface/             IPlcServer / IRegisterTable / IServerCommunication / IServerProtocol / IClientSession
-│  ├─ ServerCommunication/         TCP 监听、串口
-│  ├─ ServerProtocolManagement/Melsec/   1E/3E/4E × ASCII/Binary 协议解析与响应构建
-│  ├─ PlcServer/Melsec/            MelsecPlcServer 通用模拟服务（六种协议共用）
-│  └─ PlcServerBuilder.cs          服务端建造者
+│  ├─ ServerInterface/             IPlcServer / IRegisterTable / IServerCommunication / IServerProtocol / IModbusServerProtocol / IOmronFinsServerProtocol / IClientSession
+│  ├─ ServerCommunication/         TCP 监听、串口（按协议帧长收帧）
+│  ├─ ServerProtocolManagement/    Melsec / Inovance / Omron 三族协议 + AsciiFrameHelper + MelsecServerDeviceMapper
+│  ├─ PlcServer/                   MelsecPlcServer / InovancePlcServer / OmronFinsServer 三套模拟服务
+│  └─ PlcServerBuilder.cs          服务端建造者（通讯方式 + 9 种协议）
 ├─ View/
-│  ├─ Forms/                       MainForm / PlcClientForm / PlcServerForm / ConnectSettingsForm（命名空间 PlcTest.View.Forms）
-│  └─ CustomControl/               MGroupBox 自绘分组框
-├─ Tool/                           ConverterTool（位 / 字节 / ASCII 转换）、OtherTool（校验）、StructureHelp
-├─ Document/                       协议报文与架构资料
+│  ├─ Forms/                       MainForm / PlcClientForm / PlcServerForm / ConnectSettingsForm
+│  ├─ CustomControl/               MGroupBox 自绘分组框
+│  ├─ DeviceViewHelper.cs          软元件视图的列定义与填充（两个窗体共用）
+│  └─ LogViewHelper.cs             日志文本框写入（跨线程投递 + 500 行裁剪，两个窗体共用）
+├─ Tool/                           ConverterTool（位/字节/ASCII）、DataFormatConverter（32 位排列）、OtherTool（校验）、StructureHelp
+├─ Document/                       协议报文、厂商手册与架构资料
 └─ Program.cs                      程序入口
 ```
 
@@ -279,7 +307,7 @@ bin/Debug/net472/PlcTest.SmokeTest.exe
 
 ## 待办
 
-- [ ] 西门子 S7：DB 区读写与 M0.3 这类位偏移（`PlcAddress` 目前没有位序号字段）
+- [ ] 西门子 S7：**拿到官方手册核对帧格式后重新上架**（`ProtocolType.SiemensS71200` 的 `clientTcp` 改回 `true`）；另外 DB 区读写与 M0.3 这类位偏移尚未支持（`PlcAddress` 目前没有位序号字段）
 - [ ] 汇川 32 位计数器的界面展示：协议层已返回每点两个 16 位寄存器，但表格仍按「一行一个寄存器」渲染，`C200` 以上会显示成两行（低 16 位 / 高 16 位），尚未合并成 32 位值；清零按钮也需按 2 倍长度生成数据。**解码能力已就绪**（`DataFormatConverter` + 协议上的 `DataFormat`），差的只是表格这一层
 - [ ] 汇川 T256–T511 只支持触点：官方手册（9.4.3 串行 Modbus、9.7 以太网 Modbus 两处口径一致）的寄存器编址只到 `T0~T255`，`T256~T511`（1ms 定时器）只有线圈地址、没有当前值地址。当前 `TN` 上限设 255、`TS` 上限设 511 与手册一致，属于官方限制而非实现缺陷
 - [ ] 汇川 M 区分段：H3U 的 M 是 `M0–M7679` + `M8000–M8511`，中间 7680–7999 是空洞；`GetMaxIndex` 只能表达单一下限，目前按 8511 放行，空洞内地址不拦

@@ -1,7 +1,9 @@
-using PlcTest.Client.ClientProtocolManagement.Inovance;
+using PlcTest.Protocols;
 using PlcTest.Models;
 using PlcTest.Server.ServerInterface;
 using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace PlcTest.Server.PlcServer.Inovance
 {
@@ -38,6 +40,35 @@ namespace PlcTest.Server.PlcServer.Inovance
         {
             get { return _comm != null ? _comm.ClientCount : 0; }
         }
+        /// <summary>
+        /// 本服务端支持的软元件区域：按当前机型从软元件表取（Easy 比 H3U 少一半）。
+        /// </summary>
+        public IReadOnlyList<MemoryArea> GetSupportedAreas()
+        {
+            return InovanceDeviceCatalog.All
+                .Where(spec => InovanceDeviceCatalog.Contains(spec.Area, CpuModel))
+                .Select(spec => spec.Area)
+                .ToList();
+        }
+        /// <summary>通讯日志事件（与客户端 <c>IPlcClient.ShowCommMessageEvent</c> 对称）</summary>
+        public event Action<string> ShowCommMessageEvent;
+
+        /// <summary>触发通讯日志；事件在协议线程上触发，订阅方自己切回 UI 线程。</summary>
+        private void LogComm(string message)
+        {
+            Action<string> handler = ShowCommMessageEvent;
+            if (handler != null)
+            {
+                try
+                {
+                    handler(message);
+                }
+                catch
+                {
+                    // 日志订阅方的异常不能影响报文处理
+                }
+            }
+        }
 
         public InovancePlcServer(IServerCommunication comm, IModbusServerProtocol protocol, InovanceCpuModel cpuModel = InovanceCpuModel.H3U)
         {
@@ -55,6 +86,7 @@ namespace PlcTest.Server.PlcServer.Inovance
             if (_comm.IsRunning) return;
             _comm.OnDataReceived += OnDataReceived;
             _comm.Start();
+            LogComm("服务端已启动，等待客户端连接");
         }
 
         /// <summary>关闭服务端</summary>
@@ -63,6 +95,7 @@ namespace PlcTest.Server.PlcServer.Inovance
             if (!_comm.IsRunning) return;
             _comm.OnDataReceived -= OnDataReceived;
             _comm.Stop();
+            LogComm("服务端已停止");
         }
 
         #region 请求处理
@@ -75,8 +108,11 @@ namespace PlcTest.Server.PlcServer.Inovance
                 if (request == null)
                 {
                     // 报文非法（长度不足 / CRC 不符）：Modbus 从站应当静默丢弃，不回包
+                    LogComm("报文非法（长度不足或 CRC 不符），已丢弃: " + BitConverter.ToString(data));
                     return;
                 }
+
+                LogComm("接收报文: " + BitConverter.ToString(data));
 
                 byte[] response;
                 try
@@ -89,10 +125,11 @@ namespace PlcTest.Server.PlcServer.Inovance
                 }
 
                 _comm.SendToClient(response, client);
+                LogComm("发送报文: " + BitConverter.ToString(response));
             }
-            catch
+            catch (Exception ex)
             {
-                // 忽略解析异常，避免影响接收循环
+                LogComm("请求处理异常: " + ex.Message);
             }
         }
 

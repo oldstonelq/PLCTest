@@ -1,9 +1,10 @@
 
+using PlcTest.Protocols;
 using PlcTest.Models;
-using PlcTest.Server.PlcServer;
 using PlcTest.Server.ServerInterface;
 using PlcTest.Tool;
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Drawing;
 using System.Windows.Forms;
@@ -21,6 +22,10 @@ namespace PlcTest.View.Forms
         /// </summary>
         IRegisterTable RegisterTable = null;
         /// <summary>
+        /// 当前服务端使用的协议，决定窗体标题与「软元件视图」的内容
+        /// </summary>
+        private readonly ProtocolType _protocol;
+        /// <summary>
         /// 当前读写寄存器
         /// </summary>
         MemoryArea CurrentReadArea = MemoryArea.D;
@@ -32,6 +37,10 @@ namespace PlcTest.View.Forms
         /// 当前读取长度
         /// </summary>
         int CurrentReadLength = 0;
+        /// <summary>
+        /// 日志框最多保留的行数，超出后从头部裁掉，避免长时间联调把界面拖死
+        /// </summary>
+        private const int MaxLogLines = 500;
         /// <summary>
         ///  这个属性可以增加界面动态加载的流畅性
         /// </summary>
@@ -48,11 +57,22 @@ namespace PlcTest.View.Forms
         /// 构造函数
         /// </summary>
         /// <param name="plcServer"></param>
-        public PlcServerForm(IPlcServer plcServer)
+        public PlcServerForm(IPlcServer plcServer, ProtocolType protocol, string endpoint = null)
         {
             InitializeComponent();
             this.PlcServer = plcServer;
             this.RegisterTable = plcServer as IRegisterTable;
+            _protocol = protocol;
+
+            // 服务端在协议线程上抛日志，AddInfo 内部会 BeginInvoke 切回 UI 线程
+            if (this.PlcServer != null)
+            {
+                this.PlcServer.ShowCommMessageEvent += AddInfo;
+            }
+
+            // 标题带上协议与监听地址
+            this.Text = "PLC Server - " + protocol.GetDisplayName()
+                + (string.IsNullOrEmpty(endpoint) ? string.Empty : " · " + endpoint);
         }
         /// <summary>
         /// 窗体加载
@@ -62,6 +82,8 @@ namespace PlcTest.View.Forms
         private void PlcServerForm_Load(object sender, EventArgs e)
         {
             InitCombox();
+            InitDeviceView();
+            AddInfo("就绪：选好区域 / 起始地址 / 长度后点 StartRead 初始化模拟寄存器");
         }
         /// <summary>
         /// 初始化下拉控件
@@ -78,6 +100,35 @@ namespace PlcTest.View.Forms
             cmb_WriteWordArea.Items.AddRange(Enum.GetNames(typeof(MemoryArea)));
         }
         /// <summary>
+        /// 软元件视图：服务端没有客户端实例，行集合按协议从 catalog 取，
+        /// 与客户端看到的表保持一致（同一份 catalog、同一套描述）。
+        /// </summary>
+        private void InitDeviceView()
+        {
+            DeviceViewHelper.Initialize(DGV_Device);
+            DeviceViewHelper.Fill(DGV_Device, BuildDeviceAreaInfos());
+        }
+
+        /// <summary>
+        /// 组装软元件视图的数据：行集合取服务端自己声明的区域（与客户端对称），
+        /// 描述与位/字能力仍查同一份 catalog，保证两边看到的是同一张表。
+        /// </summary>
+        private IReadOnlyList<DeviceAreaInfo> BuildDeviceAreaInfos()
+        {
+            var infos = new List<DeviceAreaInfo>();
+            if (PlcServer == null)
+            {
+                return infos;
+            }
+
+            foreach (MemoryArea area in PlcServer.GetSupportedAreas())
+            {
+                DeviceAreaInfo spec = DeviceAreaInfoProvider.Get(_protocol, area);
+                infos.Add(spec ?? new DeviceAreaInfo(area, area.ToString(), false, false));
+            }
+            return infos;
+        }
+        /// <summary>
         /// 初始化当前区域的模拟寄存器范围
         /// </summary>
         /// <param name="sender">事件源</param>
@@ -92,6 +143,7 @@ namespace PlcTest.View.Forms
                 {
                     RegisterTable?.TryAddRegister(CurrentReadArea, i);
                 }
+                AddInfo($"已初始化 {CurrentReadArea}{CurrentReadAddress} 起 {CurrentReadLength} 个地址");
             }
             else
             {
@@ -107,6 +159,7 @@ namespace PlcTest.View.Forms
         private void btn_EndRead_Click(object sender, EventArgs e)
         {
             RegisterTable?.ClearRegisters(CurrentReadArea);
+            AddInfo($"已移除 {CurrentReadArea} 区域的全部地址");
         }
         /// <summary>
         /// 写入单个位到模拟寄存器
@@ -134,6 +187,7 @@ namespace PlcTest.View.Forms
             if (WriteArea == MemoryArea.D) return;
 
             PlcServer.WriteBit(PlcAddress.Bit(WriteArea, WriteAddress), WriteValue == 1);
+            AddInfo($"{WriteArea}{WriteAddress} = {WriteValue}（界面写入）");
         }
         /// <summary>
         /// 写入单个字到模拟寄存器
@@ -160,6 +214,7 @@ namespace PlcTest.View.Forms
             }
             if (WriteArea != MemoryArea.D) return;
             PlcServer.WriteWord(PlcAddress.Word(WriteArea, WriteAddress), WriteValue);
+            AddInfo($"{WriteArea}{WriteAddress} = {WriteValue}（界面写入）");
         }
         /// <summary>
         /// 将当前区域指定长度的寄存器重置为默认值
@@ -179,6 +234,7 @@ namespace PlcTest.View.Forms
                 return;
             }
             RegisterTable?.ResetRegisterValues(CurrentReadArea, CurrentReadAddress, length);
+            AddInfo($"{CurrentReadArea}{CurrentReadAddress} 起 {length} 个地址已清零");
         }
         /// <summary>
         /// 将当前区域全部寄存器重置为默认值
@@ -188,6 +244,7 @@ namespace PlcTest.View.Forms
         private void btn_ClearAll_Click(object sender, EventArgs e)
         {
             RegisterTable?.ResetAllRegisterValues(CurrentReadArea);
+            AddInfo($"{CurrentReadArea} 区域全部地址已清零（地址保留）");
         }
         /// <summary>
         /// 定时刷新服务端状态和表格显示。
@@ -411,6 +468,34 @@ namespace PlcTest.View.Forms
             CurrentReadAddress = StartAddress;
             CurrentReadLength = ReadLength;
             return true;
+        }
+
+        /// <summary>
+        /// 关闭窗体：退订通讯日志，否则窗体释放后协议线程仍会回调，日志写不进已销毁的控件
+        /// </summary>
+        protected override void OnFormClosing(FormClosingEventArgs e)
+        {
+            try
+            {
+                if (this.PlcServer != null)
+                {
+                    this.PlcServer.ShowCommMessageEvent -= AddInfo;
+                }
+            }
+            catch
+            {
+                // 退订失败不影响关闭
+            }
+            base.OnFormClosing(e);
+        }
+
+        /// <summary>
+        /// 追加一行日志。跨线程投递（BeginInvoke）与行数裁剪都在 LogViewHelper，两个窗体共用。
+        /// </summary>
+        /// <param name="info">日志内容</param>
+        private void AddInfo(string info)
+        {
+            LogViewHelper.Append(tb_Info, info, MaxLogLines);
         }
     }
 }

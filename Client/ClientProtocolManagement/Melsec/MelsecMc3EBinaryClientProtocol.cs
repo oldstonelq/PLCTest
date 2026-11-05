@@ -4,6 +4,7 @@ using System;
 using System.Drawing;
 using System.Runtime.Remoting.Messaging;
 using System.Security.Policy;
+using PlcTest.Protocols;
 
 namespace PlcTest.Client.ClientProtocolManagement.Melsec
 {

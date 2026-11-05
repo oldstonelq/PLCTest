@@ -9,7 +9,7 @@ namespace PlcTest.Client.ClientCommunication
     /// <summary>
     /// 串口RS232/RS485通讯类，实现基础通讯接口
     /// </summary>
-    public class SerialPortClientCommunication : IClientCommunication
+    public class SerialPortClientCommunication : IClientCommunication, IFrameTransport
     {
         #region 私有对象
         /// <summary>
@@ -47,18 +47,6 @@ namespace PlcTest.Client.ClientCommunication
         /// 读写超时 ms
         /// </summary>
         public int ReadWriteTimeout { get; set; } = 1000;
-        /// <summary>
-        /// 接收缓冲区最大长度
-        /// </summary>
-        private const int _bufferMaxLength = 4096;
-        /// <summary>
-        /// 拼接后续字节时的轮询间隔 ms
-        /// </summary>
-        private const int _idleWaitMs = 20;
-        /// <summary>
-        /// 连续多少次无新数据即认为一帧已收全（20ms * 3 = 60ms 兜底）
-        /// </summary>
-        private const int _maxIdleRounds = 3;
         #endregion
         /// <summary>
         /// 沟站函数
@@ -116,8 +104,8 @@ namespace PlcTest.Client.ClientCommunication
                 ReadTimeout = ReadWriteTimeout,
                 WriteTimeout = ReadWriteTimeout,
                 // 缓冲区大小
-                ReadBufferSize = _bufferMaxLength,
-                WriteBufferSize = _bufferMaxLength
+                ReadBufferSize = ResponseFrameAssembler.MaxBufferLength,
+                WriteBufferSize = ResponseFrameAssembler.MaxBufferLength
             };
 
             _serialPort.Open();
@@ -179,106 +167,60 @@ namespace PlcTest.Client.ClientCommunication
         }
 
         /// <summary>
-        /// 读取一帧完整响应
-        /// 优先按协议给出的帧长读满；协议判不出长度（返回 -1）时才回退到空闲判据。
+        /// 读取一帧完整响应：帧长读满与空闲判据都在 <see cref="ResponseFrameAssembler"/>，
+        /// 这里只负责把串口的「读一段 / 还有没有数据 / 读不到时的提示」交出去。
         /// </summary>
         private byte[] ReadCompleteResponse(byte[] request, ResponseFrameLengthResolver resolver)
         {
-            byte[] recvBuffer = new byte[_bufferMaxLength];
+            return ResponseFrameAssembler.ReadFrame(request, resolver, this);
+        }
+        #endregion
 
-            int total;
+        #region IFrameTransport（供 ResponseFrameAssembler 使用）
+        /// <summary>
+        /// 读一段：串口 Read 在 ReadTimeout 到期时抛 TimeoutException，端口被关时抛 InvalidOperationException。
+        /// </summary>
+        int IFrameTransport.Read(byte[] buffer, int offset, int count, bool firstRead)
+        {
             try
             {
-                total = _serialPort.Read(recvBuffer, 0, recvBuffer.Length);
+                return _serialPort.Read(buffer, offset, count);
             }
             catch (TimeoutException ex)
             {
-                throw new Exception("串口读取超时，设备无响应", ex);
+                throw new Exception(firstRead ? "串口读取超时，设备无响应" : "串口读取超时，帧未收全", ex);
             }
             catch (InvalidOperationException ex)
             {
                 throw new Exception("串口已关闭", ex);
             }
+        }
 
-            if (total <= 0)
-                throw new Exception("串口无返回数据，读取超时或设备离线");
-
-            int frameLength = -1;
-            if (resolver != null)
+        /// <summary>
+        /// 串口接收缓冲区里是否已有待读字节（端口关闭时视作没有）
+        /// </summary>
+        bool IFrameTransport.HasPendingData
+        {
+            get
             {
                 try
                 {
-                    frameLength = resolver(request, recvBuffer, total);
+                    return _serialPort != null && _serialPort.IsOpen && _serialPort.BytesToRead > 0;
                 }
-                catch
+                catch (InvalidOperationException)
                 {
-                    frameLength = -1;
+                    // 端口在探询与读取之间被关闭，按「没有待读数据」处理，交给下一次 Read 报错
+                    return false;
                 }
             }
+        }
 
-            // 协议给出的长度超出缓冲上限，视为判定不可信
-            if (frameLength > recvBuffer.Length)
-            {
-                frameLength = -1;
-            }
-
-            if (frameLength > 0)
-            {
-                // 按协议长度读满
-                while (total < frameLength)
-                {
-                    int available = _serialPort.BytesToRead;
-                    if (available <= 0)
-                    {
-                        try
-                        {
-                            total += _serialPort.Read(recvBuffer, total, frameLength - total);
-                        }
-                        catch (TimeoutException ex)
-                        {
-                            throw new Exception("串口读取超时，帧未收全", ex);
-                        }
-                        continue;
-                    }
-
-                    int recvLen = _serialPort.Read(recvBuffer, total, Math.Min(available, frameLength - total));
-                    if (recvLen <= 0)
-                        break;
-                    total += recvLen;
-                }
-
-                // 一问一答模式下不应多收；多出来的一律截掉，避免污染解析
-                if (total > frameLength)
-                {
-                    total = frameLength;
-                }
-            }
-            else
-            {
-                // 回退：连续 _maxIdleRounds 次没有新数据即认为一帧收全
-                int idleWait = 0;
-                while (total < recvBuffer.Length && idleWait < _maxIdleRounds)
-                {
-                    int available = _serialPort.BytesToRead;
-                    if (available > 0)
-                    {
-                        int recvLen = _serialPort.Read(recvBuffer, total, Math.Min(available, recvBuffer.Length - total));
-                        if (recvLen <= 0)
-                            break;
-                        total += recvLen;
-                        idleWait = 0;
-                        continue;
-                    }
-
-                    Thread.Sleep(_idleWaitMs);
-                    idleWait++;
-                }
-            }
-
-            // 截取有效数据返回
-            byte[] result = new byte[total];
-            Array.Copy(recvBuffer, result, total);
-            return result;
+        /// <summary>
+        /// 首段或续读时读不到数据的提示
+        /// </summary>
+        string IFrameTransport.EmptyResponseMessage
+        {
+            get { return "串口无返回数据，读取超时或设备离线"; }
         }
         #endregion
 

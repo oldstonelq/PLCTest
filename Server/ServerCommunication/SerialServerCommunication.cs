@@ -57,7 +57,8 @@ namespace PlcTest.Server.ServerCommunication
                 ReadTimeout = 500,
                 WriteTimeout = 500
             };
-            _serialPort.DataReceived += SerialPort_DataReceived;
+            // 注意：接收委托不在这里挂，统一由 Start() 挂 / Stop() 摘。
+            // 早先构造时挂一次、Stop 里摘掉，同一实例再 Start 就再也收不到数据了。
         }
         /// <summary>
         /// 开始服务
@@ -67,15 +68,26 @@ namespace PlcTest.Server.ServerCommunication
             lock (_sync)
             {
                 if (IsRunning) return;
+
+                // 每次启动都重新挂接收委托：Stop() 会退订，不重挂的话 Stop→Start 之后串口静默收不到任何数据。
+                // 先摘再挂保证幂等，不会因为重复 Start 挂出两份。
+                _serialPort.DataReceived -= SerialPort_DataReceived;
+                _serialPort.DataReceived += SerialPort_DataReceived;
+
+                // 先置运行标志：Open 成功后可能立刻有数据进来，
+                // 处理线程的 while (IsRunning) 要能通过，否则首帧会被丢掉。
+                IsRunning = true;
                 try
                 {
                     _serialPort.Open();
                 }
                 catch (Exception ex)
                 {
+                    // 打开失败要把状态复原，别留下"标志位是 true、委托还挂着、端口却没开"的残局
+                    IsRunning = false;
+                    _serialPort.DataReceived -= SerialPort_DataReceived;
                     throw new InvalidOperationException($"串口打开失败: {ex.Message}", ex);
                 }
-                IsRunning = true;
             }
         }
         /// <summary>
@@ -99,14 +111,11 @@ namespace PlcTest.Server.ServerCommunication
         {
             if (data == null || data.Length == 0) return;
             if (!IsRunning) return;
-            try
+            // 写失败（端口已关）要让服务端记日志，不静默丢包
+            lock (_sync)
             {
-                lock (_sync)
-                {
-                    _serialPort.Write(data, 0, data.Length);
-                }
+                _serialPort.Write(data, 0, data.Length);
             }
-            catch { }
         }
         /// <summary>
         /// 串口委托实际方法

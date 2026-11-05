@@ -3,6 +3,7 @@ using PlcTest.Client.ClientInterface;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using PlcTest.Protocols;
 
 namespace PlcTest.Client.ClientProtocolManagement.Inovance
 {

@@ -485,12 +485,12 @@ namespace PlcTest.Server.ServerCommunication
         public void Send(byte[] data)
         {
             if (data == null || data.Length == 0 || _socket == null) return;
-            try
+            // 不吞异常：发送失败（对端已断）要让服务端的请求处理 catch 到并写进日志，
+            // 否则会出现"服务端日志说发了、客户端根本没收到"的假象。
+            if (_socket.Connected)
             {
-                if (_socket.Connected)
-                    _socket.Send(data);
+                _socket.Send(data);
             }
-            catch { }
         }
 
         /// <summary>

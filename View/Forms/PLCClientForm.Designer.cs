@@ -49,6 +49,8 @@ namespace PlcTest.View.Forms
             this.panel1 = new System.Windows.Forms.Panel();
             this.tab_DataInfo = new System.Windows.Forms.TabControl();
             this.tp_DataView = new System.Windows.Forms.TabPage();
+            this.tp_DeviceView = new System.Windows.Forms.TabPage();
+            this.DGV_Device = new System.Windows.Forms.DataGridView();
             this.DGV = new System.Windows.Forms.DataGridView();
             this.Column_Address = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.Column_bit15 = new System.Windows.Forms.DataGridViewTextBoxColumn();
@@ -107,6 +109,7 @@ namespace PlcTest.View.Forms
             this.tab_DataInfo.SuspendLayout();
             this.tp_DataView.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.DGV)).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)(this.DGV_Device)).BeginInit();
             this.tp_LogView.SuspendLayout();
             this.panel2.SuspendLayout();
             this.gb_WriteBit.SuspendLayout();
@@ -307,6 +310,7 @@ namespace PlcTest.View.Forms
             // tab_DataInfo
             // 
             this.tab_DataInfo.Controls.Add(this.tp_DataView);
+            this.tab_DataInfo.Controls.Add(this.tp_DeviceView);
             this.tab_DataInfo.Controls.Add(this.tp_LogView);
             this.tab_DataInfo.Dock = System.Windows.Forms.DockStyle.Fill;
             this.tab_DataInfo.Location = new System.Drawing.Point(0, 0);
@@ -553,6 +557,34 @@ namespace PlcTest.View.Forms
             this.Column_ascII.Name = "Column_ascII";
             this.Column_ascII.ReadOnly = true;
             this.Column_ascII.SortMode = System.Windows.Forms.DataGridViewColumnSortMode.NotSortable;
+            // 
+            // tp_DeviceView
+            // 
+            this.tp_DeviceView.Controls.Add(this.DGV_Device);
+            this.tp_DeviceView.Location = new System.Drawing.Point(4, 22);
+            this.tp_DeviceView.Name = "tp_DeviceView";
+            this.tp_DeviceView.Padding = new System.Windows.Forms.Padding(3);
+            this.tp_DeviceView.Size = new System.Drawing.Size(920, 334);
+            this.tp_DeviceView.TabIndex = 2;
+            this.tp_DeviceView.Text = "DeviceView";
+            this.tp_DeviceView.UseVisualStyleBackColor = true;
+            // 
+            // DGV_Device
+            // 
+            this.DGV_Device.AllowUserToAddRows = false;
+            this.DGV_Device.AllowUserToDeleteRows = false;
+            this.DGV_Device.AllowUserToResizeRows = false;
+            this.DGV_Device.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+            this.DGV_Device.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.DGV_Device.Location = new System.Drawing.Point(3, 3);
+            this.DGV_Device.MultiSelect = false;
+            this.DGV_Device.Name = "DGV_Device";
+            this.DGV_Device.ReadOnly = true;
+            this.DGV_Device.RowHeadersVisible = false;
+            this.DGV_Device.RowTemplate.Height = 23;
+            this.DGV_Device.SelectionMode = System.Windows.Forms.DataGridViewSelectionMode.FullRowSelect;
+            this.DGV_Device.Size = new System.Drawing.Size(914, 328);
+            this.DGV_Device.TabIndex = 0;
             // 
             // tp_LogView
             // 
@@ -887,7 +919,9 @@ namespace PlcTest.View.Forms
             this.panel1.ResumeLayout(false);
             this.tab_DataInfo.ResumeLayout(false);
             this.tp_DataView.ResumeLayout(false);
+            this.tp_DeviceView.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)(this.DGV)).EndInit();
+            ((System.ComponentModel.ISupportInitialize)(this.DGV_Device)).EndInit();
             this.tp_LogView.ResumeLayout(false);
             this.panel2.ResumeLayout(false);
             this.panel2.PerformLayout();
@@ -968,6 +1002,8 @@ namespace PlcTest.View.Forms
         private System.Windows.Forms.DataGridViewTextBoxColumn Column_Low;
         private System.Windows.Forms.DataGridViewTextBoxColumn Column_All;
         private System.Windows.Forms.DataGridViewTextBoxColumn Column_ascII;
+        private System.Windows.Forms.TabPage tp_DeviceView;
+        private System.Windows.Forms.DataGridView DGV_Device;
         private System.Windows.Forms.TabPage tp_LogView;
         private System.Windows.Forms.Panel panel2;
         private System.Windows.Forms.TextBox tb_Info;

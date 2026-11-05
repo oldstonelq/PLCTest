@@ -3,7 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace PlcTest.Client.ClientProtocolManagement.Melsec
+namespace PlcTest.Protocols
 {
     // 三菱 MC 协议里有两套软元件体系，不要混用：
     //   · QnA 兼容 3E / 4E 帧（Q/L/iQ-R 系列）—— 见本文件 Melsec3E4EDeviceCatalog，28 种软元件，

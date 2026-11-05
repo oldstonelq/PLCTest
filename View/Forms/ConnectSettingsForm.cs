@@ -1,5 +1,6 @@
 using System;
 using System.Drawing;
+using System.Linq;
 using System.Windows.Forms;
 using PlcTest.Models;
 
@@ -76,7 +77,13 @@ namespace PlcTest.View.Forms
 
             // 通讯方式同样用枚举，显示名由 ToString 决定
             _cmbCommunicationKind.Items.Add(new ComboOption(CommunicationType.Tcp, "TCP"));
-            _cmbCommunicationKind.Items.Add(new ComboOption(CommunicationType.Serial, "串口"));
+
+            // 串口只在真的有协议支持时才列出：当前所有协议的串口标志都是 false，
+            // 留着这一项只会让用户点进去看到空列表。以后打开某个协议的串口，它会自动回来。
+            if (ProtocolTypeExtensions.GetProtocols(CommunicationType.Serial, _isServer).Any())
+            {
+                _cmbCommunicationKind.Items.Add(new ComboOption(CommunicationType.Serial, "串口"));
+            }
             _cmbCommunicationKind.SelectedIndexChanged += (s, e) => RefreshProtocols();
 
             var btnOk = new Button
@@ -95,16 +102,21 @@ namespace PlcTest.View.Forms
             };
             btnOk.Click += (s, e) =>
             {
+                if (!(_cmbProtocol.SelectedItem is ComboOption protocol) ||
+                    !(protocol.Value is ProtocolType protocolType))
+                {
+                    // 没有可选项时不能让对话框带着默认值 0 关掉，否则会用错协议去连
+                    MessageBox.Show("请选择通讯协议", "提示");
+                    DialogResult = DialogResult.None;
+                    return;
+                }
+
                 if (_cmbCommunicationKind.SelectedItem is ComboOption communication &&
                     communication.Value is CommunicationType communicationType)
                 {
                     Communication = communicationType;
                 }
-                if (_cmbProtocol.SelectedItem is ComboOption protocol &&
-                    protocol.Value is ProtocolType protocolType)
-                {
-                    Protocol = protocolType;
-                }
+                Protocol = protocolType;
             };
 
             AcceptButton = btnOk;
