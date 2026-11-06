@@ -143,51 +143,16 @@ namespace PlcTest.View.Forms
                     builder.UseTcp(tb_PLCInformationIP.Text.Trim(), number);
                 }
 
-                switch (protocol)
+                // 协议分派收敛在 Builder 里：新增协议只需在 UseProtocol 补一个 case，
+                // 界面这里不再需要知道「哪个厂商对应哪个 Build 方法」
+                try
                 {
-                    case ProtocolType.InovanceModbusTcp:
-                        builder.UseInovanceModbusTcp();
-                        plcControl = builder.BuildInovancePlcClient();
-                        break;
-                    case ProtocolType.InovanceModbusRtu:
-                        builder.UseInovanceModbusRtu();
-                        plcControl = builder.BuildInovancePlcClient();
-                        break;
-                    case ProtocolType.MelsecMc3EBinary:
-                        builder.UseMelsecMc3EBinary();
-                        plcControl = builder.BuildMelsecMcPlcClient();
-                        break;
-                    case ProtocolType.MelsecMc3EAscii:
-                        builder.UseMelsecMc3EAscii();
-                        plcControl = builder.BuildMelsecMcPlcClient();
-                        break;
-                    case ProtocolType.MelsecMc4EBinary:
-                        builder.UseMelsecMc4EBinary();
-                        plcControl = builder.BuildMelsecMcPlcClient();
-                        break;
-                    case ProtocolType.MelsecMc4EAscii:
-                        builder.UseMelsecMc4EAscii();
-                        plcControl = builder.BuildMelsecMcPlcClient();
-                        break;
-                    case ProtocolType.MelsecMc1EBinary:
-                        builder.UseMelsecMc1EBinary();
-                        plcControl = builder.BuildMelsecMcPlcClient();
-                        break;
-                    case ProtocolType.MelsecMc1EAscii:
-                        builder.UseMelsecMc1EAscii();
-                        plcControl = builder.BuildMelsecMcPlcClient();
-                        break;
-                    case ProtocolType.OmronFinsTcp:
-                        builder.UseOmronFinsTcp();
-                        plcControl = builder.BuildOmronPlcClient();
-                        break;
-                    case ProtocolType.SiemensS71200:
-                        builder.UseSiemensS71200();
-                        plcControl = builder.BuildSiemensPlcClient();
-                        break;
-                    default:
-                        MessageBox.Show("不支持的协议");
-                        return;
+                    plcControl = builder.UseProtocol(protocol).Build();
+                }
+                catch (ArgumentOutOfRangeException)
+                {
+                    MessageBox.Show("不支持的协议：" + protocol.GetDisplayName());
+                    return;
                 }
 
                 // 连接结果同步返回：失败原因能直接显示，不再出现"点了连接却没反应"
@@ -317,20 +282,15 @@ namespace PlcTest.View.Forms
                 builder = new PlcServerBuilder().UseTcp(tb_ServiceInformationIP.Text.Trim(), port);
             }
 
-            switch (settings.Protocol)
+            // 协议分派收敛在 Builder 里，界面不再逐个 case 地挑 UseXxx
+            try
             {
-                case ProtocolType.MelsecMc3EBinary: builder.UseMelsecMc3E(); break;
-                case ProtocolType.MelsecMc3EAscii: builder.UseMelsecMc3EAscii(); break;
-                case ProtocolType.MelsecMc4EBinary: builder.UseMelsecMc4EBinary(); break;
-                case ProtocolType.MelsecMc4EAscii: builder.UseMelsecMc4EAscii(); break;
-                case ProtocolType.MelsecMc1EBinary: builder.UseMelsecMc1EBinary(); break;
-                case ProtocolType.MelsecMc1EAscii: builder.UseMelsecMc1EAscii(); break;
-                case ProtocolType.InovanceModbusTcp: builder.UseInovanceModbusTcp(); break;
-                case ProtocolType.InovanceModbusRtu: builder.UseInovanceModbusRtu(); break;
-                case ProtocolType.OmronFinsTcp: builder.UseOmronFinsTcp(); break;
-                default:
-                    MessageBox.Show("不支持的协议");
-                    return;
+                builder.UseProtocol(settings.Protocol);
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+                MessageBox.Show("不支持的协议：" + settings.Protocol.GetDisplayName(), "开启服务失败");
+                return;
             }
 
             try

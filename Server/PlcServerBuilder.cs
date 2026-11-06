@@ -1,19 +1,28 @@
+using PlcTest.Models;
+using PlcTest.Protocols;
 using PlcTest.Server.PlcServer.Inovance;
-using PlcTest.Server.PlcServer.Omron;
-using PlcTest.Server.ServerProtocolManagement.Omron;
 using PlcTest.Server.PlcServer.Melsec;
+using PlcTest.Server.PlcServer.Omron;
 using PlcTest.Server.ServerCommunication;
 using PlcTest.Server.ServerInterface;
 using PlcTest.Server.ServerProtocolManagement.Inovance;
 using PlcTest.Server.ServerProtocolManagement.Melsec;
+using PlcTest.Server.ServerProtocolManagement.Omron;
 using System;
 using System.IO.Ports;
 
 namespace PlcTest.Server
 {
     /// <summary>
-    /// PLC服务端构建器，与客户端 <see cref="PlcTest.Client.PlcClientBuilder"/> 对称：
-    /// 逐项配置通讯方式与服务端协议，最后由 <see cref="Build"/> 创建服务端实例。
+    /// PLC服务端构建器，结构与客户端 <see cref="PlcTest.Client.PlcClientBuilder"/> 一致：
+    /// 只保存「通讯方式 + 已选协议」两个字段，每个 UseXxx 只做一次赋值，
+    /// 由 <see cref="Build"/> 按协议实现的接口决定用哪个服务端。
+    /// <para>
+    /// 三族服务端协议没有公共基接口（MC 是 <see cref="IServerProtocol"/>、
+    /// Modbus 是 <see cref="IModbusServerProtocol"/>、FINS 是 <see cref="IOmronFinsServerProtocol"/>），
+    /// 所以协议字段用 object 持有、在 Build 里用 <c>is</c> 分派——这与客户端
+    /// 「<c>_protocol is IOmronFinsClientProtocol</c> 就用带握手的客户端」是同一套写法。
+    /// </para>
     /// </summary>
     public class PlcServerBuilder
     {
@@ -22,25 +31,13 @@ namespace PlcTest.Server
         /// </summary>
         private IServerCommunication _communication;
         /// <summary>
-        /// 服务端协议实例（可选，为 null 时由具体服务端使用默认协议）
+        /// 已选的服务端协议实例（三族接口互不继承，见类注释）
         /// </summary>
-        private IServerProtocol _protocol;
+        private object _protocol;
         /// <summary>
-        /// 服务端工厂：通讯方式与协议确定后，按协议类型创建对应的服务端
+        /// 汇川机型：只在使用汇川协议时有意义，Build 分派到 <see cref="InovancePlcServer"/> 时传入
         /// </summary>
-        private Func<IServerCommunication, IServerProtocol, IPlcServer> _serverFactory;
-        /// <summary>
-        /// Modbus 服务端协议实例（与 MC 协议二选一）
-        /// </summary>
-        private IModbusServerProtocol _modbusProtocol;
-        /// <summary>
-        /// Modbus 服务端工厂
-        /// </summary>
-        private Func<IServerCommunication, IModbusServerProtocol, IPlcServer> _modbusServerFactory;
-        /// <summary>欧姆龙 FINS 服务端协议实例</summary>
-        private IOmronFinsServerProtocol _omronProtocol;
-        /// <summary>欧姆龙 FINS 服务端工厂</summary>
-        private Func<IServerCommunication, IOmronFinsServerProtocol, IPlcServer> _omronServerFactory;
+        private InovanceCpuModel _inovanceCpuModel = InovanceCpuModel.H3U;
 
         #region 通讯方式
         /// <summary>
@@ -70,18 +67,47 @@ namespace PlcTest.Server
         }
         #endregion
 
-        #region 通讯协议
+        #region 按枚举选协议
+        /// <summary>
+        /// 按协议枚举选择服务端协议：界面只调一次，不必自己 switch 九个 case。
+        /// <para>
+        /// 只覆盖「有服务端实现」的协议；西门子 S7 目前没有从站实现，传进来会直接抛异常，
+        /// 而不是构造出一个不会应答的服务端。
+        /// </para>
+        /// </summary>
+        /// <param name="protocol">协议类型</param>
+        /// <returns>构建器本身，便于链式调用</returns>
+        /// <exception cref="ArgumentOutOfRangeException">该协议没有服务端实现</exception>
+        public PlcServerBuilder UseProtocol(ProtocolType protocol)
+        {
+            switch (protocol)
+            {
+                case ProtocolType.MelsecMc3EBinary: return UseMelsecMc3EBinary();
+                case ProtocolType.MelsecMc3EAscii: return UseMelsecMc3EAscii();
+                case ProtocolType.MelsecMc4EBinary: return UseMelsecMc4EBinary();
+                case ProtocolType.MelsecMc4EAscii: return UseMelsecMc4EAscii();
+                case ProtocolType.MelsecMc1EBinary: return UseMelsecMc1EBinary();
+                case ProtocolType.MelsecMc1EAscii: return UseMelsecMc1EAscii();
+                case ProtocolType.InovanceModbusTcp: return UseInovanceModbusTcp();
+                case ProtocolType.InovanceModbusRtu: return UseInovanceModbusRtu();
+                case ProtocolType.OmronFinsTcp: return UseOmronFinsTcp();
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(protocol), protocol,
+                        "该协议还没有服务端实现（当前缺西门子 S7）");
+            }
+        }
+        #endregion
+
+        #region 通讯协议（三菱 MC）
         /// <summary>
         /// 三菱PLC服务端协议，使用MC协议的3E帧Binary模式模拟PLC
         /// </summary>
         /// <returns></returns>
-        public PlcServerBuilder UseMelsecMc3E()
+        public PlcServerBuilder UseMelsecMc3EBinary()
         {
-            _protocol = new MelsecMc3EServerProtocol();
-            _serverFactory = (comm, protocol) => new MelsecPlcServer(comm, protocol);
+            _protocol = new MelsecMc3EBinaryServerProtocol();
             return this;
         }
-
         /// <summary>
         /// 三菱PLC服务端协议，使用MC协议的3E帧ASCII模式模拟PLC
         /// </summary>
@@ -89,10 +115,8 @@ namespace PlcTest.Server
         public PlcServerBuilder UseMelsecMc3EAscii()
         {
             _protocol = new MelsecMc3EAsciiServerProtocol();
-            _serverFactory = (comm, protocol) => new MelsecPlcServer(comm, protocol);
             return this;
         }
-
         /// <summary>
         /// 三菱PLC服务端协议，使用MC协议的4E帧Binary模式模拟PLC
         /// </summary>
@@ -100,10 +124,8 @@ namespace PlcTest.Server
         public PlcServerBuilder UseMelsecMc4EBinary()
         {
             _protocol = new MelsecMc4EBinaryServerProtocol();
-            _serverFactory = (comm, protocol) => new MelsecPlcServer(comm, protocol);
             return this;
         }
-
         /// <summary>
         /// 三菱PLC服务端协议，使用MC协议的4E帧ASCII模式模拟PLC
         /// </summary>
@@ -111,10 +133,8 @@ namespace PlcTest.Server
         public PlcServerBuilder UseMelsecMc4EAscii()
         {
             _protocol = new MelsecMc4EAsciiServerProtocol();
-            _serverFactory = (comm, protocol) => new MelsecPlcServer(comm, protocol);
             return this;
         }
-
         /// <summary>
         /// 三菱PLC服务端协议，使用MC协议的1E帧Binary模式模拟PLC（无外层头，适合串口/直接帧）
         /// </summary>
@@ -122,10 +142,8 @@ namespace PlcTest.Server
         public PlcServerBuilder UseMelsecMc1EBinary()
         {
             _protocol = new MelsecMc1EBinaryServerProtocol();
-            _serverFactory = (comm, protocol) => new MelsecPlcServer(comm, protocol);
             return this;
         }
-
         /// <summary>
         /// 三菱PLC服务端协议，使用MC协议的1E帧ASCII模式模拟PLC（无外层头，适合串口/直接帧）
         /// </summary>
@@ -133,77 +151,90 @@ namespace PlcTest.Server
         public PlcServerBuilder UseMelsecMc1EAscii()
         {
             _protocol = new MelsecMc1EAsciiServerProtocol();
-            _serverFactory = (comm, protocol) => new MelsecPlcServer(comm, protocol);
             return this;
         }
         #endregion
 
-        #region Modbus 协议（汇川）
+        #region 通讯协议（汇川 Modbus）
         /// <summary>
         /// 汇川 PLC 服务端，使用 Modbus TCP 从站模拟（功能码 01/03/05/06/0F/10）
         /// </summary>
+        /// <param name="cpuModel">机型：影响支持的软元件区域（Easy 比 H3U 少一半）</param>
         /// <returns></returns>
-        public PlcServerBuilder UseInovanceModbusTcp()
+        public PlcServerBuilder UseInovanceModbusTcp(InovanceCpuModel cpuModel = InovanceCpuModel.H3U)
         {
-            _modbusProtocol = new InovanceModbusTcpServerProtocol();
-            _modbusServerFactory = (comm, protocol) => new InovancePlcServer(comm, protocol);
-            _protocol = null;
-            _serverFactory = null;
+            _protocol = new InovanceModbusTcpServerProtocol();
+            _inovanceCpuModel = cpuModel;
             return this;
         }
-
         /// <summary>
         /// 汇川 PLC 服务端，使用 Modbus RTU 从站模拟（功能码 01/03/05/06/0F/10，带 CRC16）
         /// </summary>
+        /// <param name="cpuModel">机型：影响支持的软元件区域（Easy 比 H3U 少一半）</param>
         /// <returns></returns>
-        public PlcServerBuilder UseInovanceModbusRtu()
+        public PlcServerBuilder UseInovanceModbusRtu(InovanceCpuModel cpuModel = InovanceCpuModel.H3U)
         {
-            _modbusProtocol = new InovanceModbusRtuServerProtocol();
-            _modbusServerFactory = (comm, protocol) => new InovancePlcServer(comm, protocol);
-            _protocol = null;
-            _serverFactory = null;
+            _protocol = new InovanceModbusRtuServerProtocol();
+            _inovanceCpuModel = cpuModel;
             return this;
         }
         #endregion
 
-        /// <summary>
-        /// 构建服务端实例
-        /// </summary>
-        /// <returns>服务端实例</returns>
-        #region 欧姆龙 FINS 协议
+        #region 通讯协议（欧姆龙 FINS）
         /// <summary>
         /// 欧姆龙 PLC 服务端，使用 FINS/TCP 从站模拟（含节点地址握手，支持 0101 读 / 0102 写）
         /// </summary>
+        /// <returns></returns>
         public PlcServerBuilder UseOmronFinsTcp()
         {
-            _omronProtocol = new OmronFinsTcpServerProtocol();
-            _omronServerFactory = (comm, protocol) => new OmronFinsServer(comm, protocol);
-            _protocol = null;
-            _serverFactory = null;
-            _modbusProtocol = null;
-            _modbusServerFactory = null;
+            _protocol = new OmronFinsTcpServerProtocol();
             return this;
         }
         #endregion
+
+        #region 构建服务端
+        /// <summary>
+        /// 构建服务端实例：按协议实现的接口选服务端类型。
+        /// <para>
+        /// 六个三菱协议共用 <see cref="MelsecPlcServer"/>、两个汇川协议共用 <see cref="InovancePlcServer"/>、
+        /// 欧姆龙用 <see cref="OmronFinsServer"/>，差异都只在协议对象上，所以这里是**能力判断**而不是厂商判断。
+        /// </para>
+        /// </summary>
+        /// <returns>服务端实例</returns>
+        /// <exception cref="InvalidOperationException">通讯方式或协议未配置</exception>
         public IPlcServer Build()
         {
             if (_communication == null)
             {
                 throw new InvalidOperationException("未配置服务端通讯方式，请先调用 UseTcp 或 UseSerial");
             }
-            if (_omronServerFactory != null)
+            if (_protocol == null)
             {
-                return _omronServerFactory(_communication, _omronProtocol);
+                throw new InvalidOperationException(
+                    "未配置服务端协议，请先调用 UseProtocol(...) 或 UseMelsecMc3EBinary / UseInovanceModbusTcp / UseOmronFinsTcp 等");
             }
-            if (_modbusServerFactory != null)
+
+            // FINS 有节点地址握手，需要专门的服务端
+            if (_protocol is IOmronFinsServerProtocol omron)
             {
-                return _modbusServerFactory(_communication, _modbusProtocol);
+                return new OmronFinsServer(_communication, omron);
             }
-            if (_serverFactory == null)
+
+            // 汇川按机型过滤软元件表，机型也要传进去
+            if (_protocol is IModbusServerProtocol modbus)
             {
-                throw new InvalidOperationException("未配置服务端协议，请先调用 UseMelsecMc3E / UseMelsecMc3EAscii / UseMelsecMc4EBinary / UseMelsecMc4EAscii / UseMelsecMc1EBinary / UseMelsecMc1EAscii / UseInovanceModbusTcp / UseInovanceModbusRtu");
+                return new InovancePlcServer(_communication, modbus, _inovanceCpuModel);
             }
-            return _serverFactory(_communication, _protocol);
+
+            // 剩下的按 MC 语义处理（三菱 1E / 3E / 4E，含 ASCII 与 Binary）
+            if (_protocol is IServerProtocol melsec)
+            {
+                return new MelsecPlcServer(_communication, melsec);
+            }
+
+            throw new InvalidOperationException(
+                "无法识别的服务端协议：" + _protocol.GetType().Name + "，它既不是 MC、Modbus 也不是 FINS 协议");
         }
+        #endregion
     }
 }

@@ -11,7 +11,7 @@ namespace PlcTest.Server.ServerProtocolManagement.Melsec
     /// <summary>
     /// 三菱 MC 3E 二进制服务端协议实现——负责请求解析和响应构建
     /// </summary>
-    public class MelsecMc3EServerProtocol : IServerProtocol
+    public class MelsecMc3EBinaryServerProtocol : IServerProtocol
     {
         /// <summary>本协议支持的软元件区域（来自 Melsec3E4EDeviceCatalog）</summary>
         public IReadOnlyList<MemoryArea> GetSupportedAreas()

@@ -12,12 +12,11 @@ namespace PlcTest.Server.PlcServer.Inovance
     /// 内部维护两张按 Modbus 地址索引的表：线圈（位）与保持寄存器（16 位），
     /// 地址映射与客户端共用 <see cref="InovanceDeviceCatalog"/>。
     /// </summary>
-    public class InovancePlcServer : IPlcServer, IRegisterTable
+    public class InovancePlcServer : PlcServerBase
     {
         /// <summary>Modbus 地址空间大小（0 ~ 65535）</summary>
         private const int AddressSpace = 65536;
 
-        private readonly IServerCommunication _comm;
         private readonly IModbusServerProtocol _protocol;
         private readonly object _memoryLock = new object();
 
@@ -29,108 +28,52 @@ namespace PlcTest.Server.PlcServer.Inovance
         /// <summary>软元件地址映射所用的机型</summary>
         public InovanceCpuModel CpuModel { get; set; }
 
-        /// <summary>服务是否正在运行</summary>
-        public bool ServerIsOpen
-        {
-            get { return _comm != null && _comm.IsRunning; }
-        }
-
-        /// <summary>已连接客户端数量</summary>
-        public int ClientCount
-        {
-            get { return _comm != null ? _comm.ClientCount : 0; }
-        }
         /// <summary>
         /// 本服务端支持的软元件区域：按当前机型从软元件表取（Easy 比 H3U 少一半）。
         /// </summary>
-        public IReadOnlyList<MemoryArea> GetSupportedAreas()
+        public override IReadOnlyList<MemoryArea> GetSupportedAreas()
         {
             return InovanceDeviceCatalog.All
                 .Where(spec => InovanceDeviceCatalog.Contains(spec.Area, CpuModel))
                 .Select(spec => spec.Area)
                 .ToList();
         }
-        /// <summary>通讯日志事件（与客户端 <c>IPlcClient.ShowCommMessageEvent</c> 对称）</summary>
-        public event Action<string> ShowCommMessageEvent;
-
-        /// <summary>触发通讯日志；事件在协议线程上触发，订阅方自己切回 UI 线程。</summary>
-        private void LogComm(string message)
-        {
-            Action<string> handler = ShowCommMessageEvent;
-            if (handler != null)
-            {
-                try
-                {
-                    handler(message);
-                }
-                catch
-                {
-                    // 日志订阅方的异常不能影响报文处理
-                }
-            }
-        }
-
         public InovancePlcServer(IServerCommunication comm, IModbusServerProtocol protocol, InovanceCpuModel cpuModel = InovanceCpuModel.H3U)
+            : base(comm)
         {
-            _comm = comm ?? throw new ArgumentNullException(nameof(comm));
             _protocol = protocol ?? throw new ArgumentNullException(nameof(protocol));
             CpuModel = cpuModel;
 
             // 把"这一帧有多长"的判断交给协议：TCP 看 MBAP 长度，RTU 按功能码推算
-            _comm.FrameLengthResolver = _protocol.GetRequestFrameLength;
-        }
-
-        /// <summary>开启服务端</summary>
-        public void OpenServer()
-        {
-            if (_comm.IsRunning) return;
-            _comm.OnDataReceived += OnDataReceived;
-            _comm.Start();
-            LogComm("服务端已启动，等待客户端连接");
-        }
-
-        /// <summary>关闭服务端</summary>
-        public void CloseServer()
-        {
-            if (!_comm.IsRunning) return;
-            _comm.OnDataReceived -= OnDataReceived;
-            _comm.Stop();
-            LogComm("服务端已停止");
+            Communication.FrameLengthResolver = _protocol.GetRequestFrameLength;
         }
 
         #region 请求处理
 
-        private void OnDataReceived(byte[] data, IClientSession client)
+        protected override void HandleFrame(byte[] data, IClientSession client)
         {
+            ModbusRequestInfo request = _protocol.ParseRequest(data);
+            if (request == null)
+            {
+                // 报文非法（长度不足 / CRC 不符）：Modbus 从站应当静默丢弃，不回包
+                LogComm("报文非法（长度不足或 CRC 不符），已丢弃: " + BitConverter.ToString(data));
+                return;
+            }
+
+            LogComm("接收报文: " + BitConverter.ToString(data));
+
+            byte[] response;
             try
             {
-                ModbusRequestInfo request = _protocol.ParseRequest(data);
-                if (request == null)
-                {
-                    // 报文非法（长度不足 / CRC 不符）：Modbus 从站应当静默丢弃，不回包
-                    LogComm("报文非法（长度不足或 CRC 不符），已丢弃: " + BitConverter.ToString(data));
-                    return;
-                }
-
-                LogComm("接收报文: " + BitConverter.ToString(data));
-
-                byte[] response;
-                try
-                {
-                    response = ProcessRequest(request);
-                }
-                catch
-                {
-                    response = _protocol.BuildExceptionResponse(request, 0x04);
-                }
-
-                _comm.SendToClient(response, client);
-                LogComm("发送报文: " + BitConverter.ToString(response));
+                response = ProcessRequest(request);
             }
-            catch (Exception ex)
+            catch
             {
-                LogComm("请求处理异常: " + ex.Message);
+                response = _protocol.BuildExceptionResponse(request, 0x04);
             }
+
+            Communication.SendToClient(response, client);
+            LogComm("发送报文: " + BitConverter.ToString(response));
         }
 
         /// <summary>
@@ -268,7 +211,7 @@ namespace PlcTest.Server.PlcServer.Inovance
             }
         }
 
-        public Result<bool> ReadBit(PlcAddress address)
+        public override Result<bool> ReadBit(PlcAddress address)
         {
             int modbusAddress;
             bool isBit;
@@ -281,7 +224,7 @@ namespace PlcTest.Server.PlcServer.Inovance
             lock (_memoryLock) { return Result<bool>.Success(_coils[modbusAddress]); }
         }
 
-        public Result<bool[]> ReadBitArray(PlcAddress address)
+        public override Result<bool[]> ReadBitArray(PlcAddress address)
         {
             int modbusAddress;
             bool isBit;
@@ -303,7 +246,7 @@ namespace PlcTest.Server.PlcServer.Inovance
             }
         }
 
-        public Result<bool> WriteBit(PlcAddress address, bool value)
+        public override Result<bool> WriteBit(PlcAddress address, bool value)
         {
             int modbusAddress;
             bool isBit;
@@ -317,7 +260,7 @@ namespace PlcTest.Server.PlcServer.Inovance
             return Result<bool>.Success(true);
         }
 
-        public Result<bool> WriteBitArray(PlcAddress address, bool[] values)
+        public override Result<bool> WriteBitArray(PlcAddress address, bool[] values)
         {
             int modbusAddress;
             bool isBit;
@@ -335,7 +278,7 @@ namespace PlcTest.Server.PlcServer.Inovance
             return Result<bool>.Success(true);
         }
 
-        public Result<short> ReadWord(PlcAddress address)
+        public override Result<short> ReadWord(PlcAddress address)
         {
             int modbusAddress;
             bool isBit;
@@ -348,7 +291,7 @@ namespace PlcTest.Server.PlcServer.Inovance
             lock (_memoryLock) { return Result<short>.Success(_registers[modbusAddress]); }
         }
 
-        public Result<short[]> ReadWordArray(PlcAddress address)
+        public override Result<short[]> ReadWordArray(PlcAddress address)
         {
             int modbusAddress;
             bool isBit;
@@ -370,7 +313,7 @@ namespace PlcTest.Server.PlcServer.Inovance
             }
         }
 
-        public Result<bool> WriteWord(PlcAddress address, short value)
+        public override Result<bool> WriteWord(PlcAddress address, short value)
         {
             int modbusAddress;
             bool isBit;
@@ -384,7 +327,7 @@ namespace PlcTest.Server.PlcServer.Inovance
             return Result<bool>.Success(true);
         }
 
-        public Result<bool> WriteWordArray(PlcAddress address, short[] values)
+        public override Result<bool> WriteWordArray(PlcAddress address, short[] values)
         {
             int modbusAddress;
             bool isBit;
@@ -418,29 +361,29 @@ namespace PlcTest.Server.PlcServer.Inovance
             return spec.GetMaxIndex(CpuModel);
         }
 
-        public int GetRegisterCount(MemoryArea area)
+        public override int GetRegisterCount(MemoryArea area)
         {
             int maxIndex = GetMaxIndex(area);
             return maxIndex >= 0 ? maxIndex + 1 : 0;
         }
 
-        public bool ContainsRegister(MemoryArea area, int address)
+        public override bool ContainsRegister(MemoryArea area, int address)
         {
             int maxIndex = GetMaxIndex(area);
             return maxIndex >= 0 && address >= 0 && address <= maxIndex;
         }
 
-        public bool TryAddRegister(MemoryArea area, int address)
+        public override bool TryAddRegister(MemoryArea area, int address)
         {
             return ContainsRegister(area, address);
         }
 
-        public void ClearRegisters(MemoryArea area)
+        public override void ClearRegisters(MemoryArea area)
         {
             ResetAllRegisterValues(area);
         }
 
-        public void ResetRegisterValues(MemoryArea area, int start, int length)
+        public override void ResetRegisterValues(MemoryArea area, int start, int length)
         {
             if (length <= 0) return;
 
@@ -463,7 +406,7 @@ namespace PlcTest.Server.PlcServer.Inovance
         /// 必须**按地址段逐段清**：`CN` 的 C0–C199 在 0xF400、C200–C255 在 0xF700，
         /// 只按基地址清前 N 个寄存器会漏掉 32 位那一段。
         /// </summary>
-        public void ResetAllRegisterValues(MemoryArea area)
+        public override void ResetAllRegisterValues(MemoryArea area)
         {
             InovanceDeviceSpec spec;
             try

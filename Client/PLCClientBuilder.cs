@@ -13,7 +13,9 @@ using System.IO.Ports;
 namespace PlcTest.Client
 {
     /// <summary>
-    /// PLC客户端构建器，用于创建和配置 PLC 客户端实例
+    /// PLC客户端构建器，结构与服务端 <see cref="PlcTest.Server.PlcServerBuilder"/> 一致：
+    /// 只保存「通讯方式 + 已选协议」两个字段，每个 UseXxx 只做一次赋值，
+    /// 由 <see cref="Build"/> 按协议实现的接口决定用哪个客户端。
     /// </summary>
     public class PlcClientBuilder
     {
@@ -25,10 +27,6 @@ namespace PlcTest.Client
         /// 通讯协议实例，用于处理 PLC 通讯协议的具体实现
         /// </summary>
         private IPlcClientProtocol _protocol;
-        /// <summary>
-        /// 当前已选协议所属厂商，用于在 Build 阶段拦住"协议与厂商不匹配"的组合
-        /// </summary>
-        private PlcType? _vendor;
 
         #region 通讯方式
         /// <summary>
@@ -58,163 +56,158 @@ namespace PlcTest.Client
         }
         #endregion
 
-        #region 通讯协议
+        #region 按枚举选协议
         /// <summary>
-        /// 汇川PLC通讯协议，使用Modbus TCP协议进行数据交换
+        /// 按协议枚举选择协议：界面（以及任何按 <see cref="ProtocolType"/> 取协议的地方）都从这里走，
+        /// 新增协议只需要在本方法补一个 case，不必再改窗体里的 switch。
+        /// <para>
+        /// 这里只负责「选得出协议」，界面上是否显示该协议由 <see cref="ProtocolInfoAttribute"/> 的能力位决定
+        /// （例如西门子当前四个开关全关，界面上不可选，但 API 仍可按需构建）。
+        /// </para>
         /// </summary>
-        /// <returns></returns>
-        public PlcClientBuilder UseInovanceModbusTcp(DataFormat format = DataFormat.CDAB)
+        /// <param name="protocol">协议类型</param>
+        /// <returns>构建器本身，便于链式调用</returns>
+        /// <exception cref="ArgumentOutOfRangeException">枚举值没有对应的协议实现</exception>
+        public PlcClientBuilder UseProtocol(ProtocolType protocol)
         {
-            _protocol = new InovanceModbusTcpClientProtocol { DataFormat = format };
-            _vendor = PlcType.Inovance;
-
-            return this;
+            switch (protocol)
+            {
+                case ProtocolType.MelsecMc3EBinary: return UseMelsecMc3EBinary();
+                case ProtocolType.MelsecMc3EAscii: return UseMelsecMc3EAscii();
+                case ProtocolType.MelsecMc4EBinary: return UseMelsecMc4EBinary();
+                case ProtocolType.MelsecMc4EAscii: return UseMelsecMc4EAscii();
+                case ProtocolType.MelsecMc1EBinary: return UseMelsecMc1EBinary();
+                case ProtocolType.MelsecMc1EAscii: return UseMelsecMc1EAscii();
+                case ProtocolType.InovanceModbusTcp: return UseInovanceModbusTcp();
+                case ProtocolType.InovanceModbusRtu: return UseInovanceModbusRtu();
+                case ProtocolType.OmronFinsTcp: return UseOmronFinsTcp();
+                case ProtocolType.SiemensS71200: return UseSiemensS71200();
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(protocol), protocol,
+                        "PlcClientBuilder.UseProtocol 未登记的协议，请补一个 case");
+            }
         }
-        /// <summary>
-        /// 汇川PLC通讯协议，使用Modbus RTU协议进行数据交换
-        /// </summary>
-        /// <returns></returns>
-        public PlcClientBuilder UseInovanceModbusRtu(DataFormat format = DataFormat.CDAB)
-        {
-            _protocol = new InovanceModbusRtuClientProtocol { DataFormat = format };
-            _vendor = PlcType.Inovance;
+        #endregion
 
-            return this;
-        }
+        #region 通讯协议（三菱 MC）
         /// <summary>
-        /// 三菱PLC通讯协议，使用MC协议的1E帧进行数据交换
+        /// 三菱PLC通讯协议，使用MC协议的1E帧 Binary 模式进行数据交换
         /// </summary>
         /// <returns></returns>
         public PlcClientBuilder UseMelsecMc1EBinary()
         {
             _protocol = new MelsecMc1EBinaryClientProtocol();
-            _vendor = PlcType.Melsec;
-
             return this;
         }
         /// <summary>
-        /// 三菱PLC通讯协议，使用MC协议的1E帧进行数据交换
+        /// 三菱PLC通讯协议，使用MC协议的1E帧 ASCII 模式进行数据交换
         /// </summary>
         /// <returns></returns>
         public PlcClientBuilder UseMelsecMc1EAscii()
         {
             _protocol = new MelsecMc1EAsciiClientProtocol();
-            _vendor = PlcType.Melsec;
-
             return this;
         }
         /// <summary>
-        /// 三菱PLC通讯协议，使用MC协议的3E ASCII模式进行数据交换
-        /// </summary>
-        /// <returns></returns>
-        public PlcClientBuilder UseMelsecMc3EAscii()
-        {
-            _protocol = new MelsecMc3EAsciiClientProtocol();
-            _vendor = PlcType.Melsec;
-
-            return this;
-        }
-        /// <summary>
-        /// 三菱PLC通讯协议，使用MC协议的3E Binary模式进行数据交换
+        /// 三菱PLC通讯协议，使用MC协议的3E帧 Binary 模式进行数据交换
         /// </summary>
         /// <returns></returns>
         public PlcClientBuilder UseMelsecMc3EBinary()
         {
             _protocol = new MelsecMc3EBinaryClientProtocol();
-            _vendor = PlcType.Melsec;
-
             return this;
         }
         /// <summary>
-        /// 三菱PLC通讯协议，使用MC协议的4E ASCII模式进行数据交换。
+        /// 三菱PLC通讯协议，使用MC协议的3E帧 ASCII 模式进行数据交换
         /// </summary>
-        public PlcClientBuilder UseMelsecMc4EAscii()
+        /// <returns></returns>
+        public PlcClientBuilder UseMelsecMc3EAscii()
         {
-            _protocol = new MelsecMc4EAsciiClientProtocol();
-            _vendor = PlcType.Melsec;
-
+            _protocol = new MelsecMc3EAsciiClientProtocol();
             return this;
         }
         /// <summary>
-        /// 三菱PLC通讯协议，使用MC协议的3E Binary模式进行数据交换
+        /// 三菱PLC通讯协议，使用MC协议的4E帧 Binary 模式进行数据交换
         /// </summary>
         /// <returns></returns>
         public PlcClientBuilder UseMelsecMc4EBinary()
         {
             _protocol = new MelsecMc4EBinaryClientProtocol();
-            _vendor = PlcType.Melsec;
-
             return this;
         }
         /// <summary>
-        /// 欧姆龙PLC通讯协议，使用FINS TCP协议进行数据交换。
-        /// 注意：当前仅保留协议扩展位，协议实现尚未完成，调用即抛出 NotSupportedException。
+        /// 三菱PLC通讯协议，使用MC协议的4E帧 ASCII 模式进行数据交换
         /// </summary>
+        /// <returns></returns>
+        public PlcClientBuilder UseMelsecMc4EAscii()
+        {
+            _protocol = new MelsecMc4EAsciiClientProtocol();
+            return this;
+        }
+        #endregion
+
+        #region 通讯协议（汇川 Modbus）
+        /// <summary>
+        /// 汇川PLC通讯协议，使用Modbus TCP协议进行数据交换
+        /// </summary>
+        /// <param name="format">32 位数据的排列方式，默认低字在前（CDAB）</param>
+        /// <returns></returns>
+        public PlcClientBuilder UseInovanceModbusTcp(DataFormat format = DataFormat.CDAB)
+        {
+            _protocol = new InovanceModbusTcpClientProtocol { DataFormat = format };
+            return this;
+        }
+        /// <summary>
+        /// 汇川PLC通讯协议，使用Modbus RTU协议进行数据交换
+        /// </summary>
+        /// <param name="format">32 位数据的排列方式，默认低字在前（CDAB）</param>
+        /// <returns></returns>
+        public PlcClientBuilder UseInovanceModbusRtu(DataFormat format = DataFormat.CDAB)
+        {
+            _protocol = new InovanceModbusRtuClientProtocol { DataFormat = format };
+            return this;
+        }
+        #endregion
+
+        #region 通讯协议（欧姆龙 FINS）
+        /// <summary>
+        /// 欧姆龙PLC通讯协议，使用 FINS/TCP 进行数据交换。
+        /// 建连后需做节点地址握手，<see cref="Build()"/> 会自动换成 OmronPlcClient。
+        /// </summary>
+        /// <param name="format">32 位数据的排列方式，默认低字在前（CDAB）</param>
+        /// <returns></returns>
         public PlcClientBuilder UseOmronFinsTcp(DataFormat format = DataFormat.CDAB)
         {
             _protocol = new OmronFinsTcpClientProtocol { DataFormat = format };
-            _vendor = PlcType.Omron;
-
             return this;
         }
+        #endregion
+
+        #region 通讯协议（西门子 S7）
         /// <summary>
-        /// 西门子PLC通讯协议，使用S7协议进行数据交换
+        /// 西门子PLC通讯协议，使用S7协议进行数据交换。
+        /// 当前界面未开放（官方手册未到位，帧格式未逐条核对），API 仍可按需构建。
         /// </summary>
         /// <returns></returns>
         public PlcClientBuilder UseSiemensS71200()
         {
             _protocol = new SiemensS71200ClientProtocol();
-            _vendor = PlcType.Siemens;
-
             return this;
         }
         #endregion
 
         #region 构建客户端
         /// <summary>
-        /// 构建汇川PLC客户端实例，使用指定的通讯方式和协议进行数据交换
+        /// 构建客户端实例。协议是欧姆龙 FINS 时自动用 <see cref="OmronPlcClient"/>（建连后要握手），
+        /// 其余厂商共用 <see cref="CommunicationPlcClient"/>。
+        /// <para>
+        /// 判断依据是协议实现的接口，不是厂商枚举：新增一个需要特殊客户端的厂商时，
+        /// 只要它的协议实现对应接口即可，不必再各个 BuildXxx 里配对。
+        /// </para>
         /// </summary>
-        /// <returns></returns>
-        public IPlcClient BuildInovancePlcClient()
-        {
-            return Build(PlcType.Inovance, nameof(BuildInovancePlcClient));
-        }
-        /// <summary>
-        /// 构建三菱PLC客户端实例，使用指定的通讯方式和协议进行数据交换
-        /// </summary>
-        /// <returns></returns>
-        public IPlcClient BuildMelsecMcPlcClient()
-        {
-            return Build(PlcType.Melsec, nameof(BuildMelsecMcPlcClient));
-        }
-
-        /// <summary>
-        /// 构建欧姆龙PLC客户端实例。
-        /// 注意：客户端 8 个读写方法尚未实现，调用即抛出 NotSupportedException。
-        /// </summary>
-        public IPlcClient BuildOmronPlcClient()
-        {
-            // FINS 需要在建连后做节点地址握手，用专门的客户端实现
-            return Build(PlcType.Omron, nameof(BuildOmronPlcClient),
-                (comm, protocol) => new OmronPlcClient(comm, protocol));
-        }
-        /// <summary>
-        /// 构建西门子PLC客户端实例，使用指定的通讯方式和协议进行数据交换
-        /// </summary>
-        public IPlcClient BuildSiemensPlcClient()
-        {
-            return Build(PlcType.Siemens, nameof(BuildSiemensPlcClient));
-        }
-
-        /// <summary>
-        /// 统一构建入口：校验通讯方式、协议是否已选，以及协议与厂商是否匹配。
-        /// 拼错组合（如 UseInovanceModbusTcp + BuildMelsecMcPlcClient）在这里直接失败，
-        /// 而不是构造出一个报文格式不对、现场表现为"读到的数据是垃圾"的客户端。
-        /// </summary>
-        /// <param name="expectedVendor">调用方期望的厂商</param>
-        /// <param name="buildMethod">调用方方法名，仅用于错误信息</param>
-        private IPlcClient Build(PlcType expectedVendor, string buildMethod,
-            Func<IClientCommunication, IPlcClientProtocol, IPlcClient> factory = null)
+        /// <returns>已配置好的客户端</returns>
+        /// <exception cref="InvalidOperationException">通讯方式或协议未配置</exception>
+        public IPlcClient Build()
         {
             if (_communication == null)
             {
@@ -222,17 +215,16 @@ namespace PlcTest.Client
             }
             if (_protocol == null)
             {
-                throw new InvalidOperationException(
-                    $"{buildMethod} 之前必须先选择协议，例如 UseMelsecMc3EBinary()、UseMelsecMc3EAscii() 等。");
+                throw new InvalidOperationException("请先选择协议（UseProtocol 或 UseMelsecMc3EBinary 等）。");
             }
-            if (_vendor != expectedVendor)
+
+            // FINS 必须在建连后做节点地址握手，用专门的客户端
+            if (_protocol is IOmronFinsClientProtocol)
             {
-                throw new InvalidOperationException(
-                    $"协议与厂商不匹配：{buildMethod} 需要 {expectedVendor} 协议，当前选中的是 {_vendor} 协议的 {_protocol.GetType().Name}。");
+                return new OmronPlcClient(_communication, _protocol);
             }
-            return factory != null
-                ? factory(_communication, _protocol)
-                : new CommunicationPlcClient(_communication, _protocol);
+
+            return new CommunicationPlcClient(_communication, _protocol);
         }
         #endregion
     }

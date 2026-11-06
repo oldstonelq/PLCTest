@@ -1,5 +1,4 @@
 using PlcTest.Client.ClientInterface;
-using PlcTest.Client.ClientProtocolManagement.Omron;
 using PlcTest.Models;
 using System;
 
@@ -16,10 +15,15 @@ namespace PlcTest.Client.PlcClient.Omron
         /// 构造函数
         /// </summary>
         /// <param name="comm">通讯方式</param>
-        /// <param name="protocol">协议实现（可选），为 null 时使用 <see cref="OmronFinsTcpClientProtocol"/></param>
-        public OmronPlcClient(IClientCommunication comm, IPlcClientProtocol protocol = null)
-            : base(comm, protocol ?? new OmronFinsTcpClientProtocol())
+        /// <param name="protocol">FINS 协议实现；必须实现 <see cref="IOmronFinsClientProtocol"/> 才能握手</param>
+        public OmronPlcClient(IClientCommunication comm, IPlcClientProtocol protocol)
+            : base(comm, protocol)
         {
+            if (!(protocol is IOmronFinsClientProtocol))
+            {
+                // 传错了协议就别等到 Connect 才发现「连上了但读不到」
+                throw new ArgumentException("OmronPlcClient 需要实现了 IOmronFinsClientProtocol 的协议实现", nameof(protocol));
+            }
         }
 
         /// <summary>
@@ -49,7 +53,8 @@ namespace PlcTest.Client.PlcClient.Omron
         /// </summary>
         private Result<bool> PerformHandshake()
         {
-            OmronFinsTcpClientProtocol fins = _communicationProtocol as OmronFinsTcpClientProtocol;
+            // 只认接口：换 FINS 变体时不必改这里（与服务端的 IOmronFinsServerProtocol 对称）
+            IOmronFinsClientProtocol fins = _communicationProtocol as IOmronFinsClientProtocol;
             if (fins == null)
             {
                 // 非 FINS 实现不做握手
@@ -63,7 +68,8 @@ namespace PlcTest.Client.PlcClient.Omron
             try
             {
                 byte[] request = fins.BuildHandshakeFrame();
-                byte[] response = _comm.SendAndReceiveData(request, fins.GetResponseFrameLength);
+                // 帧长判定仍走通用协议接口，握手接口只管握手那三件事
+                byte[] response = _comm.SendAndReceiveData(request, _communicationProtocol.GetResponseFrameLength);
 
                 string error;
                 byte sa1;

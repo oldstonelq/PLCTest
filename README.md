@@ -29,7 +29,7 @@
 | 客户端 · 设备 | `IPlcClient` | `CommunicationPlcClient`（单一实现，构造注入通讯、协议与位/字规则） | 连接、心跳与 8 个读写 |
 | 服务端 · 通讯方式 | `IServerCommunication` | `TcpServerCommunication`、`SerialServerCommunication` | 监听端口、收发字节，每个连接用 `IClientSession` 标识 |
 | 服务端 · 通讯协议 | `IServerProtocol` / `IModbusServerProtocol` / `IOmronFinsServerProtocol` | 三菱 6 个（1E/3E/4E × Binary/ASCII）+ 汇川 2 个（Modbus TCP/RTU 从站）+ 欧姆龙 FINS | **帧定界**、解析请求、构建响应（含结束码 / 异常码与写数据解码）、声明本协议支持的软元件区域 |
-| 服务端 · 设备 | `IPlcServer` | `MelsecPlcServer`、`InovancePlcServer`、`OmronFinsServer` | 回应客户端的读写请求，并通过 `ShowCommMessageEvent` 抛出收发报文日志 |
+| 服务端 · 设备 | `IPlcServer` + `PlcServerBase` | `MelsecPlcServer`、`InovancePlcServer`、`OmronFinsServer` | 回应客户端的读写请求。**启停、客户端计数、通讯日志、收帧异常兜底都在 `PlcServerBase`**，三家只实现 `HandleFrame`（怎么应答）与寄存器存储 |
 | 共享 · 软元件表 | — | `Protocols/` 下 4 份 catalog（三菱 3E4E / 三菱 1E / 汇川 / 欧姆龙）+ `DeviceAreaInfoProvider` | 软元件代码、编号范围、位/字能力、名称与 Modbus/FINS 编址的**唯一真相**，Client 与 Server 都向下查 |
 | 服务端 · 寄存器表 | `IRegisterTable` | `MelsecPlcServer`、`InovancePlcServer`、`OmronFinsServer` | 模拟寄存器的增删查改与清零 |
 
@@ -40,7 +40,24 @@
 - **组合收敛**：`CommunicationPlcClient` 用同一个类承担连接、断开、心跳重连与 8 个读写的「拼包 → 发送 → 解析」骨架；通讯对象与协议实现由构造函数注入，不再为每个厂商派生空子类，异常统一收敛成失败 `Result`。
 - **欧姆龙 FINS 是两层套娃**：`OmronFinsTcpClientProtocol` 负责外层 FINS/TCP 外壳（16 字节 `FINS` + 长度 + 命令 2 + 错误码）与内层 FINS 帧（10 字节头 + 指令代码 + 结束代码）。**建连后必须先做节点地址握手**（20 字节请求 → 24 字节响应，取 `[19]`/`[23]` 作为 SA1/DA1）；`OmronPlcClient` 因此不重复实现 8 个读写，而是继承 `CommunicationPlcClient`、只重写 `Connect()` 插入握手，否则 PLC 会静默丢弃后续命令，表现为"连上了但读不到数据"。区码/编号范围集中在 `OmronFinsDeviceCatalog`，位码与字码分开（如 DM 位 `02` / 字 `82`）。
 - **位/字只有一处真相**：能不能按位/按字访问由协议声明（`IPlcClientProtocol.GetAreaAccess`），客户端按方法语义（`ReadBit`/`ReadWord`）归一化地址标志，不再维护「D 为字、其余为位」这类客户端侧规则。
-- **界面跟着协议走**：`IPlcClient.GetSupportedAreas()` 返回当前协议真正支持的软元件区域，`PlcClientForm` 用它填充三个下拉框（读区 / 写位 / 写字），**PLC 上不存在的软元件不会出现在选项里**；位/字分支也改成 `GetAreaAccess` 判断，不再硬编码"是不是 D"。断开连接时会关闭绑定了旧协议的窗体，重连后列表不会残留。
+- **界面跟着协议走**：`IPlcClient.GetSupportedAreas()`（客户端）/ `IPlcServer.GetSupportedAreas()`（服务端）返回当前协议真正支持的软元件区域，两个窗体都用它填充三个下拉框（读区 / 写位 / 写字），**PLC 上不存在的软元件不会出现在选项里**；
+  写位框只列支持位的区域、写字框只列支持字的区域，读区不限。位/字视图的分支也改成按区域能力判断，不再硬编码「是不是 D」。
+  断开连接时会关闭绑定了旧协议的窗体，重连后列表不会残留。
+- **服务端下拉框曾经把 `MemoryArea` 全部 32 个枚举名直接塞进去**（`Enum.GetNames`），于是三菱服务端也会列出欧姆龙专用的 `CIO` / `HR` / `AR` / `EM`，选中后只是造出一片协议永不应答的模拟地址；
+  写位 / 写字两个框同样列全，导致「选中 R 写字却没反应」这类静默失败（旧代码里还有 `if (WriteArea != MemoryArea.D) return;` 的硬编码）。
+  现在三处都从 `GetSupportedAreas()` + 区域能力生成，视图形态也按 `SupportsBit` 判定（只有 `SupportsBit` 为 true 才用位视图，与客户端默认一致）。
+- **两个 Builder 结构完全同构，协议分派只有一个入口**：`UseProtocol(ProtocolType)` + 无参 `Build()`。
+  两端都是「两个字段（通讯方式 + 已选协议）+ 一行赋值的 `UseXxx` + `Build` 里按**接口**分派」：
+  | | 字段 | `Build()` 的分派 |
+  | --- | --- | --- |
+  | `PlcClientBuilder` | `IClientCommunication` + `IPlcClientProtocol` | 实现 `IOmronFinsClientProtocol` → `OmronPlcClient`（带握手），其余 → `CommunicationPlcClient` |
+  | `PlcServerBuilder` | `IServerCommunication` + `object`（三族协议互不继承，见下） | `IOmronFinsServerProtocol` → `OmronFinsServer`；`IModbusServerProtocol` → `InovancePlcServer`（带机型）；`IServerProtocol` → `MelsecPlcServer` |
+  
+  判断依据是**接口/能力**，不是厂商枚举：新增一个需要特殊客户端的厂商，只要它的协议实现对应接口即可。
+  之前 MainForm 里有两个 switch（客户端 10 个 case、服务端 9 个 case），加协议要同时改枚举、两个 Builder、Provider 和窗体；
+  现在窗体只传一个枚举，新增协议改到 3 处（枚举 + Builder 的 case + 软元件表）。
+  服务端的协议字段之所以是 `object`：`IServerProtocol` / `IModbusServerProtocol` / `IOmronFinsServerProtocol` 三族互不继承（响应结构本质不同），
+  硬塞进一个基接口只会到处判空——与客户端「一个 `IPlcClientProtocol` 通吃」的情况不同，这里用 `is` 分派是刻意的。
 - **软元件视图（DeviceView）**：两个窗体的第三个页签，列出「区域 / 描述 / 位 / 字 / 备注」。描述与位/字能力不在界面里硬编码，统一走 `DeviceAreaInfoProvider`：
   | 协议 | 描述来源 |
   | --- | --- |
@@ -152,7 +169,7 @@ using PlcTest.Client.ClientInterface;          // IPlcClient
 var client = new PlcClientBuilder()
     .UseTcp("192.168.1.10", 5000)
     .UseMelsecMc3EBinary()
-    .BuildMelsecMcPlcClient();
+    .Build();
 
 client.ShowCommMessageEvent += msg => Console.WriteLine(msg);   // 交互报文日志
 
@@ -194,7 +211,7 @@ using PlcTest.Server.ServerInterface;
 
 IPlcServer server = new PlcServerBuilder()
     .UseTcp("127.0.0.1", 5000)
-    .UseMelsecMc3E()
+    .UseMelsecMc3EBinary()
     .Build();
 server.OpenServer();   // 之后客户端即可按 MC 3E Binary 连入并读写模拟寄存器
 
@@ -213,7 +230,7 @@ modbusServer.OpenServer();
 | `MainForm` | 客户端 / 服务端连接参数配置、连接状态指示灯、打开寄存器视图；连接客户端与开启服务端时都会弹出「通讯方式 + 协议」选择框 |
 | `ConnectSettingsForm` | 连接设置对话框：选通信方式与协议。**当前只提供 TCP**（串口标志全为 false，串口选项连出现都不出现）。客户端与服务端各列出 9 种（西门子两端都不可选），列表由 `ProtocolInfo` 能力位自动生成，不硬编码 |
 | `PlcClientForm` | 选区域 + 起始地址 + 长度后周期读取（1 s），表格展示：D 区展开 16 个位并附高字节 / 低字节 / short / ASCII，其他区按点位显示；双击位格反写回 PLC；单点写位 / 写字；区间清零与全区清零；下方分 **DataView / DeviceView / LogView** 三个页签，标题带「协议 + 连接参数」 |
-| `PlcServerForm` | 初始化服务端模拟寄存器的区域与范围、单点改写模拟值、清零；下方分 **DataView / DeviceView / LogView** 三个页签，日志页显示收发的原始报文与界面操作记录，标题带「协议 + 监听参数」 |
+| `PlcServerForm` | 初始化服务端模拟寄存器的区域与范围、单点改写模拟值、清零；三个区域下拉框都取自 `IPlcServer.GetSupportedAreas()`（写位/写字再按能力过滤，**不再列全部 `MemoryArea` 枚举**），位/字视图按区域能力选择；下方分 **DataView / DeviceView / LogView** 三个页签，日志页显示收发的原始报文与界面操作记录，标题带「协议 + 监听参数」 |
 
 界面文案目前是英文（`Please Check ...`），控件命名沿用 `btn_` / `tb_` / `lab_` / `cmb_` / `DGV` 前缀，Designer 生成的代码不动。
 
@@ -235,7 +252,7 @@ PLCClient/
 │  ├─ DataFormat.cs                32 位数据的 ABCD / BADC / CDAB / DCBA
 │  └─ Enums.cs                     MemoryArea / PlcType / CommunicationType / ProtocolType(+ProtocolInfo)
 ├─ Client/
-│  ├─ ClientInterface/             IClientCommunication / IPlcClient / IPlcClientProtocol / IDataFormatConfigurable
+│  ├─ ClientInterface/             IClientCommunication / IPlcClient / IPlcClientProtocol / IDataFormatConfigurable / IOmronFinsClientProtocol
 │  ├─ ClientCommunication/         TCP、串口通讯实现（内部串行化）+ ResponseFrameAssembler（共用的帧组装）
 │  ├─ ClientProtocolManagement/    各厂商协议实现
 │  │  ├─ Melsec/                   1E/3E/4E × ASCII/Binary
@@ -249,13 +266,14 @@ PLCClient/
 │  ├─ ServerInterface/             IPlcServer / IRegisterTable / IServerCommunication / IServerProtocol / IModbusServerProtocol / IOmronFinsServerProtocol / IClientSession
 │  ├─ ServerCommunication/         TCP 监听、串口（按协议帧长收帧）
 │  ├─ ServerProtocolManagement/    Melsec / Inovance / Omron 三族协议 + AsciiFrameHelper + MelsecServerDeviceMapper
-│  ├─ PlcServer/                   MelsecPlcServer / InovancePlcServer / OmronFinsServer 三套模拟服务
-│  └─ PlcServerBuilder.cs          服务端建造者（通讯方式 + 9 种协议）
+│  ├─ PlcServer/                   PlcServerBase（公共骨架）+ MelsecPlcServer / InovancePlcServer / OmronFinsServer 三套模拟服务
+│  └─ PlcServerBuilder.cs          服务端建造者（通讯方式 + 9 种协议；结构同客户端 Builder，Build 按接口分派）
 ├─ View/
 │  ├─ Forms/                       MainForm / PlcClientForm / PlcServerForm / ConnectSettingsForm
 │  ├─ CustomControl/               MGroupBox 自绘分组框
-│  ├─ DeviceViewHelper.cs          软元件视图的列定义与填充（两个窗体共用）
-│  └─ LogViewHelper.cs             日志文本框写入（跨线程投递 + 500 行裁剪，两个窗体共用）
+│  └─ ViewHelper/                  两个窗体共用的小工具
+│     ├─ DeviceViewHelper.cs       软元件视图的列定义与填充
+│     └─ LogViewHelper.cs          日志文本框写入（跨线程投递 + 500 行裁剪）
 ├─ Tool/                           ConverterTool（位/字节/ASCII）、DataFormatConverter（32 位排列）、OtherTool（校验）、StructureHelp
 ├─ Document/                       协议报文、厂商手册与架构资料
 └─ Program.cs                      程序入口
@@ -316,3 +334,15 @@ bin/Debug/net472/PlcTest.SmokeTest.exe
 - [ ] `btn_Trigger` 触发按钮还没有事件实现
 - [ ] 界面提示语英文化 → 改中文
 - [ ] 用真实 PLC / 客户端做一次真机联调（本轮客户端改造只做了编译 + 冒烟验证）
+
+### 结构扩展性（2026-11-05 评审结论，均暂缓）
+
+> 这几条不是 bug，是「现在不改也能跑，但会卡住下一次扩展」的设计债。按性价比 A→D 排序，E 建议等真有第四家厂商再做。
+
+- [ ] **A. 传输能力从 4 个 bool 改成 flags**：`ProtocolInfoAttribute` 的 `clientTcp` / `clientSerial` / `serverTcp` / `serverSerial` 是硬编码的二元矩阵，加 UDP / TLS 要改构造签名（10 个枚举标签全部要动）；更麻烦的是 `ProtocolTypeExtensions.GetProtocols` 里 `bool tcp = communicationType == CommunicationType.Tcp`——第三种传输会被当成串口，**静默返回错误集合**。改成 `[Flags] enum TransportSupport` + `HasFlag` 即可。改动面：`Models/Enums.cs`（属性 + 10 个标签 + GetProtocols）、`View/Forms/ConnectSettingsForm.cs`（通讯方式下拉目前写死 TCP / 串口两项）。
+- [ ] **B. 统一厂商私有选项的配置通道**：`DataFormat` 有 `IDataFormatConfigurable`，但 `CpuModel`（汇川 H3U / Easy）只能 `as InovanceModbusTcpClientProtocol` 设置——这正是刚在 Omron 握手上去掉的模式；服务端 `UseInovanceModbusTcp()` 连这个口子都没有，界面更是完全无法设置（`grep CpuModel\|DataFormat View/` 为空）。建议加 `IProtocolOptions`（或让 Builder 收参数），把 DataFormat / CpuModel 统一进去，避免每加一个选项就发明一个接口。
+- [ ] **C. `IRegisterTable` 增加带 `PlcAddress`（含 DbNumber）的重载**：现有签名只有 `(MemoryArea, int)`，表达不了存储体 / DB 号 / 位偏移。已出现的症状：欧姆龙 `TryAddRegister` 只能建 `bank = 0xFF` 的地址，界面无法为 EM bank≠0 预建；将来做西门子 S7 服务端（`DB1.DBW0`）必须先扩这个接口。改动面：`Server/ServerInterface/IRegisterTable.cs` + 3 个服务端实现 + `PlcServerForm`。
+- [ ] **D. 抽公共表格控件 / 基类**：两个窗体有 17 个同名方法，`CheckCanStartRead` 22 行 **100% 相同**、`EnsureDataGridViewRowCount` 87 / 94 行 67% 相似。把「建行、刷新、双击写值、启动校验」收进一个 `PlcDataGrid`，否则「汇川 32 位合并显示」这类需求要在两个窗体各改一遍。改动面：`PlcClientForm` / `PlcServerForm` + 新组件；改完必须重跑两个窗体的 STA 构造测试。
+- [ ] **E. 拆 `MemoryArea`（成本高，建议最后做）**：32 个值混了三菱与欧姆龙（`CIO/HR/AR/EM` 欧姆龙专用，`D` 在三菱是数据寄存器、在欧姆龙是 DM），**40 个文件**引用，是 fan-in 最高的类型。拆成各厂商枚举 + 映射能消除厂商知识泄漏，但影响面大、收益要等第四家厂商出现才兑现。
+
+顺带记录、暂不单独立项：`PlcType` 与 `ProtocolType` 是双枚举（`PlcType` 的 14 处引用全在 `PlcClientBuilder` 内，只用于厂商/协议错配校验），加厂商要同时改两个；`PlcAddress` 是可变类且无 `Equals`，不能当字典键。这两条等 A–D 做完再一起看。

@@ -73,6 +73,7 @@
     <Compile Include="Client\ClientInterface\IClientCommunication.cs" />
     <Compile Include="Client\ClientInterface\IPlcClient.cs" />
     <Compile Include="Client\ClientInterface\IPlcClientProtocol.cs" />
+    <Compile Include="Client\ClientInterface\IOmronFinsClientProtocol.cs" />
     <Compile Include="Client\ClientInterface\IDataFormatConfigurable.cs" />
     <Compile Include="Models\Enums.cs" />
     <Compile Include="Models\DataFormat.cs" />
@@ -85,6 +86,7 @@
     <Compile Include="Properties\Resources.Designer.cs" />
     <Compile Include="Properties\Settings.Designer.cs" />
     <Compile Include="Server\PlcServer\Melsec\MelsecPlcServer.cs" />
+    <Compile Include="Server\PlcServer\PlcServerBase.cs" />
     <Compile Include="Server\PlcServerBuilder.cs" />
     <Compile Include="Server\ServerCommunication\SerialServerCommunication.cs" />
     <Compile Include="Server\ServerCommunication\TcpServerCommunication.cs" />
@@ -102,15 +104,15 @@
     <Compile Include="Server\PlcServer\Omron\OmronFinsServer.cs" />
     <Compile Include="Server\ServerProtocolManagement\MelsecServerDeviceMapper.cs" />
     <Compile Include="Server\ServerProtocolManagement\AsciiFrameHelper.cs" />
-    <Compile Include="Server\ServerProtocolManagement\Melsec\MelsecMc3EServerProtocol.cs" />
+    <Compile Include="Server\ServerProtocolManagement\Melsec\MelsecMc3EBinaryServerProtocol.cs" />
     <Compile Include="Server\ServerProtocolManagement\Melsec\MelsecMc1EBinaryServerProtocol.cs" />
     <Compile Include="Server\ServerProtocolManagement\Melsec\MelsecMc1EAsciiServerProtocol.cs" />
     <Compile Include="Server\ServerProtocolManagement\Melsec\MelsecMc3EAsciiServerProtocol.cs" />
     <Compile Include="Server\ServerProtocolManagement\Melsec\MelsecMc4EAsciiServerProtocol.cs" />
     <Compile Include="Server\ServerProtocolManagement\Melsec\MelsecMc4EBinaryServerProtocol.cs" />
     <Compile Include="Tool\ConverterTool.cs" />
-    <Compile Include="View\DeviceViewHelper.cs" />
-    <Compile Include="View\LogViewHelper.cs" />
+    <Compile Include="View\ViewHelper\DeviceViewHelper.cs" />
+    <Compile Include="View\ViewHelper\LogViewHelper.cs" />
     <Compile Include="Tool\DataFormatConverter.cs" />
     <Compile Include="Tool\OtherTool.cs" />
     <Compile Include="Tool\StructureHelp.cs" />

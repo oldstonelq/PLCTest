@@ -13,9 +13,8 @@ namespace PlcTest.Server.PlcServer.Omron
     /// 内部按「区域 + EM 存储体」存放位表与字表，区码解析复用客户端的
     /// <see cref="OmronFinsDeviceCatalog"/>，因此客户端认得的软元件服务端都模拟。
     /// </summary>
-    public class OmronFinsServer : IPlcServer, IRegisterTable
+    public class OmronFinsServer : PlcServerBase
     {
-        private readonly IServerCommunication _comm;
         private readonly IOmronFinsServerProtocol _protocol;
         private readonly object _memoryLock = new object();
 
@@ -31,115 +30,59 @@ namespace PlcTest.Server.PlcServer.Omron
         /// <summary>分配给客户端的节点号</summary>
         public byte RemoteNode { get; set; }
 
-        /// <summary>服务是否在运行</summary>
-        public bool ServerIsOpen
-        {
-            get { return _comm != null && _comm.IsRunning; }
-        }
-
-        /// <summary>已连接客户端数量</summary>
-        public int ClientCount
-        {
-            get { return _comm != null ? _comm.ClientCount : 0; }
-        }
         /// <summary>
         /// 本服务端支持的软元件区域：与客户端共用同一份 FINS 软元件表。
         /// </summary>
-        public IReadOnlyList<MemoryArea> GetSupportedAreas()
+        public override IReadOnlyList<MemoryArea> GetSupportedAreas()
         {
             return OmronFinsDeviceCatalog.All.Select(spec => spec.Area).ToList();
         }
-        /// <summary>通讯日志事件（与客户端 <c>IPlcClient.ShowCommMessageEvent</c> 对称）</summary>
-        public event Action<string> ShowCommMessageEvent;
-
-        /// <summary>触发通讯日志；事件在协议线程上触发，订阅方自己切回 UI 线程。</summary>
-        private void LogComm(string message)
-        {
-            Action<string> handler = ShowCommMessageEvent;
-            if (handler != null)
-            {
-                try
-                {
-                    handler(message);
-                }
-                catch
-                {
-                    // 日志订阅方的异常不能影响报文处理
-                }
-            }
-        }
-
         public OmronFinsServer(IServerCommunication comm, IOmronFinsServerProtocol protocol)
+            : base(comm)
         {
-            _comm = comm ?? throw new ArgumentNullException(nameof(comm));
             _protocol = protocol ?? throw new ArgumentNullException(nameof(protocol));
             LocalNode = 1;
             RemoteNode = 2;
 
-            _comm.FrameLengthResolver = _protocol.GetRequestFrameLength;
-        }
-
-        /// <summary>开启服务端</summary>
-        public void OpenServer()
-        {
-            if (_comm.IsRunning) return;
-            _comm.OnDataReceived += OnDataReceived;
-            _comm.Start();
-            LogComm("服务端已启动，等待客户端连接");
-        }
-
-        /// <summary>关闭服务端</summary>
-        public void CloseServer()
-        {
-            if (!_comm.IsRunning) return;
-            _comm.OnDataReceived -= OnDataReceived;
-            _comm.Stop();
-            LogComm("服务端已停止");
+            Communication.FrameLengthResolver = _protocol.GetRequestFrameLength;
         }
 
         #region 请求处理
 
-        private void OnDataReceived(byte[] data, IClientSession client)
+        protected override void HandleFrame(byte[] data, IClientSession client)
         {
+            // 握手：节点地址请求，回 24 字节
+            if (_protocol.IsHandshakeRequest(data))
+            {
+                LogComm("节点地址请求: " + BitConverter.ToString(data));
+                byte[] handshake = _protocol.BuildHandshakeResponse(LocalNode, RemoteNode);
+                Communication.SendToClient(handshake, client);
+                LogComm("发送报文: " + BitConverter.ToString(handshake));
+                return;
+            }
+
+            OmronFinsRequestInfo request = _protocol.ParseRequest(data);
+            if (request == null)
+            {
+                // 帧格式非法：FINS 从站不响应，让主站超时重发
+                LogComm("报文格式非法，已丢弃（不回包）: " + BitConverter.ToString(data));
+                return;
+            }
+
+            LogComm("接收报文: " + BitConverter.ToString(data));
+
+            byte[] response;
             try
             {
-                // 握手：节点地址请求，回 24 字节
-                if (_protocol.IsHandshakeRequest(data))
-                {
-                    LogComm("节点地址请求: " + BitConverter.ToString(data));
-                    byte[] handshake = _protocol.BuildHandshakeResponse(LocalNode, RemoteNode);
-                    _comm.SendToClient(handshake, client);
-                    LogComm("发送报文: " + BitConverter.ToString(handshake));
-                    return;
-                }
-
-                OmronFinsRequestInfo request = _protocol.ParseRequest(data);
-                if (request == null)
-                {
-                    // 帧格式非法：FINS 从站不响应，让主站超时重发
-                    LogComm("报文格式非法，已丢弃（不回包）: " + BitConverter.ToString(data));
-                    return;
-                }
-
-                LogComm("接收报文: " + BitConverter.ToString(data));
-
-                byte[] response;
-                try
-                {
-                    response = ProcessRequest(request);
-                }
-                catch
-                {
-                    response = _protocol.BuildErrorResponse(request, 0x0001);
-                }
-
-                _comm.SendToClient(response, client);
-                LogComm("发送报文: " + BitConverter.ToString(response));
+                response = ProcessRequest(request);
             }
-            catch (Exception ex)
+            catch
             {
-                LogComm("请求处理异常: " + ex.Message);
+                response = _protocol.BuildErrorResponse(request, 0x0001);
             }
+
+            Communication.SendToClient(response, client);
+            LogComm("发送报文: " + BitConverter.ToString(response));
         }
 
         /// <summary>
@@ -272,7 +215,7 @@ namespace PlcTest.Server.PlcServer.Omron
 
         #region 软元件访问
 
-        public Result<bool> ReadBit(PlcAddress address)
+        public override Result<bool> ReadBit(PlcAddress address)
         {
             try
             {
@@ -288,7 +231,7 @@ namespace PlcTest.Server.PlcServer.Omron
             }
         }
 
-        public Result<bool[]> ReadBitArray(PlcAddress address)
+        public override Result<bool[]> ReadBitArray(PlcAddress address)
         {
             try
             {
@@ -309,7 +252,7 @@ namespace PlcTest.Server.PlcServer.Omron
             }
         }
 
-        public Result<bool> WriteBit(PlcAddress address, bool value)
+        public override Result<bool> WriteBit(PlcAddress address, bool value)
         {
             try
             {
@@ -323,7 +266,7 @@ namespace PlcTest.Server.PlcServer.Omron
             }
         }
 
-        public Result<bool> WriteBitArray(PlcAddress address, bool[] values)
+        public override Result<bool> WriteBitArray(PlcAddress address, bool[] values)
         {
             try
             {
@@ -343,7 +286,7 @@ namespace PlcTest.Server.PlcServer.Omron
             }
         }
 
-        public Result<short> ReadWord(PlcAddress address)
+        public override Result<short> ReadWord(PlcAddress address)
         {
             try
             {
@@ -359,7 +302,7 @@ namespace PlcTest.Server.PlcServer.Omron
             }
         }
 
-        public Result<short[]> ReadWordArray(PlcAddress address)
+        public override Result<short[]> ReadWordArray(PlcAddress address)
         {
             try
             {
@@ -380,7 +323,7 @@ namespace PlcTest.Server.PlcServer.Omron
             }
         }
 
-        public Result<bool> WriteWord(PlcAddress address, short value)
+        public override Result<bool> WriteWord(PlcAddress address, short value)
         {
             try
             {
@@ -394,7 +337,7 @@ namespace PlcTest.Server.PlcServer.Omron
             }
         }
 
-        public Result<bool> WriteWordArray(PlcAddress address, short[] values)
+        public override Result<bool> WriteWordArray(PlcAddress address, short[] values)
         {
             try
             {
@@ -418,7 +361,7 @@ namespace PlcTest.Server.PlcServer.Omron
 
         #region 寄存器表
 
-        public int GetRegisterCount(MemoryArea area)
+        public override int GetRegisterCount(MemoryArea area)
         {
             int total = 0;
             foreach (var pair in _bitTables)
@@ -432,7 +375,7 @@ namespace PlcTest.Server.PlcServer.Omron
             return total;
         }
 
-        public bool ContainsRegister(MemoryArea area, int address)
+        public override bool ContainsRegister(MemoryArea area, int address)
         {
             foreach (var pair in _bitTables)
             {
@@ -445,7 +388,7 @@ namespace PlcTest.Server.PlcServer.Omron
             return false;
         }
 
-        public bool TryAddRegister(MemoryArea area, int address)
+        public override bool TryAddRegister(MemoryArea area, int address)
         {
             if (address < 0) return false;
 
@@ -456,7 +399,7 @@ namespace PlcTest.Server.PlcServer.Omron
             return addedBit || addedWord;
         }
 
-        public void ClearRegisters(MemoryArea area)
+        public override void ClearRegisters(MemoryArea area)
         {
             foreach (var pair in _bitTables)
             {
@@ -468,7 +411,7 @@ namespace PlcTest.Server.PlcServer.Omron
             }
         }
 
-        public void ResetRegisterValues(MemoryArea area, int start, int length)
+        public override void ResetRegisterValues(MemoryArea area, int start, int length)
         {
             if (length <= 0) return;
 
@@ -497,7 +440,7 @@ namespace PlcTest.Server.PlcServer.Omron
         /// 与 <see cref="ClearRegisters"/> 的区别：那个移除地址，这个只把值清零，
         /// 否则界面的地址列表会整片消失、客户端也读不到原本声明过的地址。
         /// </summary>
-        public void ResetAllRegisterValues(MemoryArea area)
+        public override void ResetAllRegisterValues(MemoryArea area)
         {
             foreach (var pair in _bitTables)
             {

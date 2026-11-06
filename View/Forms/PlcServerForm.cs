@@ -86,18 +86,78 @@ namespace PlcTest.View.Forms
             AddInfo("就绪：选好区域 / 起始地址 / 长度后点 StartRead 初始化模拟寄存器");
         }
         /// <summary>
-        /// 初始化下拉控件
+        /// 初始化下拉控件：区域列表取自服务端自己声明的软元件（<see cref="IPlcServer.GetSupportedAreas"/>），
+        /// 不再把 <see cref="MemoryArea"/> 的全部枚举名直接塞进来——那样三菱服务端也会列出欧姆龙专用的
+        /// CIO / HR / AR / EM，选中只会造出一片协议根本不应答的模拟地址。
         /// </summary>
         private void InitCombox()
         {
-            cmb_Area.Items.Clear();
-            cmb_Area.Items.AddRange(Enum.GetNames(typeof(MemoryArea)));
+            IReadOnlyList<DeviceAreaInfo> areas = BuildDeviceAreaInfos();
 
-            cmb_WriteBitArea.Items.Clear();
-            cmb_WriteBitArea.Items.AddRange(Enum.GetNames(typeof(MemoryArea)));
+            FillAreaCombo(cmb_Area, areas, info => true);
+            FillAreaCombo(cmb_WriteBitArea, areas, info => info.SupportsBit);
+            FillAreaCombo(cmb_WriteWordArea, areas, info => info.SupportsWord);
 
-            cmb_WriteWordArea.Items.Clear();
-            cmb_WriteWordArea.Items.AddRange(Enum.GetNames(typeof(MemoryArea)));
+            // 让 CurrentReadArea 与下拉框首选项保持一致，避免首次刷表格时区名对不上
+            MemoryArea initialArea;
+            if (cmb_Area.SelectedItem != null
+                && Enum.TryParse(cmb_Area.SelectedItem.ToString(), out initialArea))
+            {
+                CurrentReadArea = initialArea;
+            }
+        }
+        /// <summary>
+        /// 填充区域下拉框，尽量默认选中 D（最常用），没有 D 时选第一项。
+        /// </summary>
+        /// <param name="combo">目标下拉框</param>
+        /// <param name="areas">候选区域（已按服务端能力过滤）</param>
+        /// <param name="predicate">能力筛选：写位只要支持位的、写字只要支持字的，读区不限</param>
+        private static void FillAreaCombo(
+            ComboBox combo,
+            IReadOnlyList<DeviceAreaInfo> areas,
+            Func<DeviceAreaInfo, bool> predicate)
+        {
+            combo.Items.Clear();
+            foreach (DeviceAreaInfo info in areas)
+            {
+                if (predicate(info))
+                {
+                    combo.Items.Add(info.Area.ToString());
+                }
+            }
+
+            if (combo.Items.Count == 0)
+            {
+                return;
+            }
+
+            int preferred = combo.Items.IndexOf(MemoryArea.D.ToString());
+            combo.SelectedIndex = preferred >= 0 ? preferred : 0;
+        }
+        /// <summary>
+        /// 查区域的描述与位/字能力：与「软元件视图」同一份数据，界面不再硬编码「D 是字、其余是位」。
+        /// </summary>
+        /// <param name="area">软元件区域</param>
+        /// <returns>区域信息；当前协议的表里没有该区域时按旧规则兜底（只有 D 当字区）</returns>
+        private DeviceAreaInfo GetAreaInfo(MemoryArea area)
+        {
+            DeviceAreaInfo info = DeviceAreaInfoProvider.Get(_protocol, area);
+            if (info != null)
+            {
+                return info;
+            }
+            bool isD = area == MemoryArea.D;
+            return new DeviceAreaInfo(area, area.ToString(), !isD, isD);
+        }
+        /// <summary>
+        /// 该区域用位视图（一行一个点位）还是字视图（16 位 + 高低字节 + 数值）。
+        /// 与客户端窗体的默认视图一致：**只能按字**的区域用字视图，能按位的（含位字皆可）用位视图。
+        /// </summary>
+        /// <param name="area">软元件区域</param>
+        /// <returns>true = 位视图</returns>
+        private bool IsBitArea(MemoryArea area)
+        {
+            return GetAreaInfo(area).SupportsBit;
         }
         /// <summary>
         /// 软元件视图：服务端没有客户端实例，行集合按协议从 catalog 取，
@@ -123,8 +183,7 @@ namespace PlcTest.View.Forms
 
             foreach (MemoryArea area in PlcServer.GetSupportedAreas())
             {
-                DeviceAreaInfo spec = DeviceAreaInfoProvider.Get(_protocol, area);
-                infos.Add(spec ?? new DeviceAreaInfo(area, area.ToString(), false, false));
+                infos.Add(GetAreaInfo(area));
             }
             return infos;
         }
@@ -184,7 +243,11 @@ namespace PlcTest.View.Forms
             {
                 return;
             }
-            if (WriteArea == MemoryArea.D) return;
+            if (!GetAreaInfo(WriteArea).SupportsBit)
+            {
+                MessageBox.Show($"{WriteArea} 区域不支持按位写入");
+                return;
+            }
 
             PlcServer.WriteBit(PlcAddress.Bit(WriteArea, WriteAddress), WriteValue == 1);
             AddInfo($"{WriteArea}{WriteAddress} = {WriteValue}（界面写入）");
@@ -212,7 +275,11 @@ namespace PlcTest.View.Forms
             {
                 return;
             }
-            if (WriteArea != MemoryArea.D) return;
+            if (!GetAreaInfo(WriteArea).SupportsWord)
+            {
+                MessageBox.Show($"{WriteArea} 区域不支持按字写入");
+                return;
+            }
             PlcServer.WriteWord(PlcAddress.Word(WriteArea, WriteAddress), WriteValue);
             AddInfo($"{WriteArea}{WriteAddress} = {WriteValue}（界面写入）");
         }
@@ -331,7 +398,8 @@ namespace PlcTest.View.Forms
 
                 }
 
-                if (CurrentReadArea == MemoryArea.D)
+                // 视图形态跟着区域能力走，不再写死「只有 D 是字区」
+                if (!IsBitArea(CurrentReadArea))
                 {
                     if ((RegisterTable?.GetRegisterCount(CurrentReadArea) ?? 0) > 0)
                     {
@@ -418,7 +486,8 @@ namespace PlcTest.View.Forms
                 {
                     return;
                 }
-                if (CurrentReadArea == MemoryArea.D)
+                // 字视图：双击 16 位列之一翻转对应 bit；位视图：双击第 16 列翻转该点
+                if (!IsBitArea(CurrentReadArea))
                 {
                     var wordResult = PlcServer.ReadWord(PlcAddress.Word(CurrentReadArea, CurrentReadAddress + rowindex));
                     short currentValue = wordResult.IsSuccess ? wordResult.Data : (short)0;

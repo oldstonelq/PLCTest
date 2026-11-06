@@ -11,13 +11,8 @@ namespace PlcTest.Server.PlcServer.Melsec
     /// 寄存器表、读写分发、批量请求处理都在这里；帧结构的差异（1E/3E/4E、二进制/ASCII）
     /// 全部交给注入的 <see cref="IServerProtocol"/>。
     /// </summary>
-    public class MelsecPlcServer : IPlcServer, IRegisterTable
+    public class MelsecPlcServer : PlcServerBase
     {
-        /// <summary>
-        /// 服务端通讯接口
-        /// </summary>
-        private readonly IServerCommunication _comm;
-
         /// <summary>
         /// 模拟PLC内存访问锁
         /// </summary>
@@ -59,44 +54,11 @@ namespace PlcTest.Server.PlcServer.Melsec
         }
 
         /// <summary>
-        /// 服务是否开启
-        /// </summary>
-        public bool ServerIsOpen => _comm != null && _comm.IsRunning;
-
-        /// <summary>
-        /// 连接客户端数量
-        /// </summary>
-        public int ClientCount => _comm != null ? _comm.ClientCount : 0;
-        /// <summary>
         /// 本服务端支持的软元件区域：直接问协议（1E 用 1E 的表、3E/4E 用 3E4E 的表）。
         /// </summary>
-        public IReadOnlyList<MemoryArea> GetSupportedAreas()
+        public override IReadOnlyList<MemoryArea> GetSupportedAreas()
         {
             return _protocol.GetSupportedAreas();
-        }
-
-        /// <summary>
-        /// 通讯日志事件（与客户端 <c>IPlcClient.ShowCommMessageEvent</c> 对称）
-        /// </summary>
-        public event Action<string> ShowCommMessageEvent;
-
-        /// <summary>
-        /// 触发通讯日志。事件由协议线程触发，订阅方自己负责切回 UI 线程。
-        /// </summary>
-        private void LogComm(string message)
-        {
-            Action<string> handler = ShowCommMessageEvent;
-            if (handler != null)
-            {
-                try
-                {
-                    handler(message);
-                }
-                catch
-                {
-                    // 日志订阅方的异常不能影响报文处理
-                }
-            }
         }
 
         /// <summary>
@@ -105,87 +67,58 @@ namespace PlcTest.Server.PlcServer.Melsec
         /// <param name="comm">服务端通讯方式</param>
         /// <param name="protocol">协议实现</param>
         public MelsecPlcServer(IServerCommunication comm, IServerProtocol protocol)
+            : base(comm)
         {
-            _comm = comm ?? throw new ArgumentNullException(nameof(comm));
             _protocol = protocol ?? throw new ArgumentNullException(nameof(protocol));
 
             // 把"这一帧有多长"的判断交给协议，通讯层不再写死某一种帧头
-            _comm.FrameLengthResolver = _protocol.GetRequestFrameLength;
-        }
-
-        /// <summary>
-        /// 开启服务端
-        /// </summary>
-        public void OpenServer()
-        {
-            if (_comm.IsRunning) return;
-            _comm.OnDataReceived += OnDataReceived;
-            _comm.Start();
-            LogComm("服务端已启动，等待客户端连接");
-        }
-
-        /// <summary>
-        /// 关闭服务端
-        /// </summary>
-        public void CloseServer()
-        {
-            if (!_comm.IsRunning) return;
-            _comm.OnDataReceived -= OnDataReceived;
-            _comm.Stop();
-            LogComm("服务端已停止");
+            Communication.FrameLengthResolver = _protocol.GetRequestFrameLength;
         }
 
         /// <summary>
         /// 客户端数据到达时的处理（委托协议解析，服务层只负责业务逻辑）
         /// </summary>
-        private void OnDataReceived(byte[] byt, IClientSession client)
+        protected override void HandleFrame(byte[] byt, IClientSession client)
         {
+            if (!_protocol.ValidateRequestHeader(byt))
+            {
+                LogComm("报文头不属于本协议，已丢弃: " + BitConverter.ToString(byt));
+                return;
+            }
+
+            LogComm("接收报文: " + BitConverter.ToString(byt));
+
+            var request = _protocol.ParseRequest(byt);
+            if (request.Command == 0)
+            {
+                LogComm("请求解析失败，回结束码 0x0001");
+                // 解析失败也要回结束码，避免客户端一直等到超时
+                byte[] errData = _protocol.BuildEndCodeResponse(0x0001);
+                byte[] errHeader = _protocol.BuildResponseHeader(byt, errData.Length);
+                byte[] errResp = new byte[errHeader.Length + errData.Length];
+                Array.Copy(errHeader, 0, errResp, 0, errHeader.Length);
+                Array.Copy(errData, 0, errResp, errHeader.Length, errData.Length);
+                Communication.SendToClient(errResp, client);
+                LogComm("发送报文: " + BitConverter.ToString(errResp));
+                return;
+            }
+
+            byte[] responseData;
             try
             {
-                if (!_protocol.ValidateRequestHeader(byt))
-                {
-                    LogComm("报文头不属于本协议，已丢弃: " + BitConverter.ToString(byt));
-                    return;
-                }
-
-                LogComm("接收报文: " + BitConverter.ToString(byt));
-
-                var request = _protocol.ParseRequest(byt);
-                if (request.Command == 0)
-                {
-                    LogComm("请求解析失败，回结束码 0x0001");
-                    // 解析失败也要回结束码，避免客户端一直等到超时
-                    byte[] errData = _protocol.BuildEndCodeResponse(0x0001);
-                    byte[] errHeader = _protocol.BuildResponseHeader(byt, errData.Length);
-                    byte[] errResp = new byte[errHeader.Length + errData.Length];
-                    Array.Copy(errHeader, 0, errResp, 0, errHeader.Length);
-                    Array.Copy(errData, 0, errResp, errHeader.Length, errData.Length);
-                    _comm.SendToClient(errResp, client);
-                    LogComm("发送报文: " + BitConverter.ToString(errResp));
-                    return;
-                }
-
-                byte[] responseData;
-                try
-                {
-                    responseData = ProcessRequest(request);
-                }
-                catch
-                {
-                    responseData = _protocol.BuildEndCodeResponse(0x0001);
-                }
-
-                byte[] respHeader = _protocol.BuildResponseHeader(byt, responseData.Length);
-                byte[] resp = new byte[respHeader.Length + responseData.Length];
-                Array.Copy(respHeader, 0, resp, 0, respHeader.Length);
-                Array.Copy(responseData, 0, resp, respHeader.Length, responseData.Length);
-                _comm.SendToClient(resp, client);
-                LogComm("发送报文: " + BitConverter.ToString(resp));
+                responseData = ProcessRequest(request);
             }
-            catch (Exception ex)
+            catch
             {
-                LogComm("请求处理异常: " + ex.Message);
+                responseData = _protocol.BuildEndCodeResponse(0x0001);
             }
+
+            byte[] respHeader = _protocol.BuildResponseHeader(byt, responseData.Length);
+            byte[] resp = new byte[respHeader.Length + responseData.Length];
+            Array.Copy(respHeader, 0, resp, 0, respHeader.Length);
+            Array.Copy(responseData, 0, resp, respHeader.Length, responseData.Length);
+            Communication.SendToClient(resp, client);
+            LogComm("发送报文: " + BitConverter.ToString(resp));
         }
 
         /// <summary>
@@ -298,7 +231,7 @@ namespace PlcTest.Server.PlcServer.Melsec
         /// </summary>
         /// <param name="address">统一地址模型。</param>
         /// <returns>读取结果。</returns>
-        public Result<bool> ReadBit(PlcAddress address)
+        public override Result<bool> ReadBit(PlcAddress address)
         {
             try
             {
@@ -317,7 +250,7 @@ namespace PlcTest.Server.PlcServer.Melsec
         /// </summary>
         /// <param name="address">统一地址模型，长度从 <see cref="PlcAddress.Length"/> 读取。</param>
         /// <returns>读取结果。</returns>
-        public Result<bool[]> ReadBitArray(PlcAddress address)
+        public override Result<bool[]> ReadBitArray(PlcAddress address)
         {
             try
             {
@@ -343,7 +276,7 @@ namespace PlcTest.Server.PlcServer.Melsec
         /// <summary>
         /// 写入单个位。
         /// </summary>
-        public Result<bool> WriteBit(PlcAddress address, bool value)
+        public override Result<bool> WriteBit(PlcAddress address, bool value)
         {
             try
             {
@@ -359,7 +292,7 @@ namespace PlcTest.Server.PlcServer.Melsec
         /// <summary>
         /// 写入位数组。
         /// </summary>
-        public Result<bool> WriteBitArray(PlcAddress address, bool[] values)
+        public override Result<bool> WriteBitArray(PlcAddress address, bool[] values)
         {
             try
             {
@@ -384,7 +317,7 @@ namespace PlcTest.Server.PlcServer.Melsec
         /// <summary>
         /// 读取单个字。
         /// </summary>
-        public Result<short> ReadWord(PlcAddress address)
+        public override Result<short> ReadWord(PlcAddress address)
         {
             try
             {
@@ -401,7 +334,7 @@ namespace PlcTest.Server.PlcServer.Melsec
         /// <summary>
         /// 读取字数组。
         /// </summary>
-        public Result<short[]> ReadWordArray(PlcAddress address)
+        public override Result<short[]> ReadWordArray(PlcAddress address)
         {
             try
             {
@@ -427,7 +360,7 @@ namespace PlcTest.Server.PlcServer.Melsec
         /// <summary>
         /// 写入单个字。
         /// </summary>
-        public Result<bool> WriteWord(PlcAddress address, short value)
+        public override Result<bool> WriteWord(PlcAddress address, short value)
         {
             try
             {
@@ -443,7 +376,7 @@ namespace PlcTest.Server.PlcServer.Melsec
         /// <summary>
         /// 写入字数组。
         /// </summary>
-        public Result<bool> WriteWordArray(PlcAddress address, short[] values)
+        public override Result<bool> WriteWordArray(PlcAddress address, short[] values)
         {
             try
             {
@@ -469,7 +402,7 @@ namespace PlcTest.Server.PlcServer.Melsec
         /// <summary>
         /// 获取指定区域已建立的寄存器数量（位表优先）
         /// </summary>
-        public int GetRegisterCount(MemoryArea area)
+        public override int GetRegisterCount(MemoryArea area)
         {
             ConcurrentDictionary<int, bool> bits;
             if (_bitTables.TryGetValue(area, out bits) && bits.Count > 0)
@@ -487,7 +420,7 @@ namespace PlcTest.Server.PlcServer.Melsec
         /// <summary>
         /// 检查指定地址在该区域的位表或字表中是否存在
         /// </summary>
-        public bool ContainsRegister(MemoryArea area, int address)
+        public override bool ContainsRegister(MemoryArea area, int address)
         {
             ConcurrentDictionary<int, bool> bits;
             if (_bitTables.TryGetValue(area, out bits) && bits.ContainsKey(address))
@@ -501,7 +434,7 @@ namespace PlcTest.Server.PlcServer.Melsec
         /// <summary>
         /// 尝试添加寄存器（位表与字表各加一个初始值）
         /// </summary>
-        public bool TryAddRegister(MemoryArea area, int address)
+        public override bool TryAddRegister(MemoryArea area, int address)
         {
             if (address < 0)
             {
@@ -515,7 +448,7 @@ namespace PlcTest.Server.PlcServer.Melsec
         /// <summary>
         /// 清空指定区域的位表与字表
         /// </summary>
-        public void ClearRegisters(MemoryArea area)
+        public override void ClearRegisters(MemoryArea area)
         {
             ConcurrentDictionary<int, bool> bits;
             if (_bitTables.TryGetValue(area, out bits))
@@ -532,7 +465,7 @@ namespace PlcTest.Server.PlcServer.Melsec
         /// <summary>
         /// 把指定区间内的寄存器值恢复为初始值（保留 Key）
         /// </summary>
-        public void ResetRegisterValues(MemoryArea area, int start, int length)
+        public override void ResetRegisterValues(MemoryArea area, int start, int length)
         {
             if (length <= 0)
             {
@@ -572,7 +505,7 @@ namespace PlcTest.Server.PlcServer.Melsec
         /// 若这里图省事调 ClearRegisters，地址会整片消失，界面表格随之清空，
         /// 客户端也会读不到原本声明过的地址——这正是"ClearAll 把寄存器删掉"那个 bug。
         /// </summary>
-        public void ResetAllRegisterValues(MemoryArea area)
+        public override void ResetAllRegisterValues(MemoryArea area)
         {
             ConcurrentDictionary<int, bool> bits;
             if (_bitTables.TryGetValue(area, out bits))
