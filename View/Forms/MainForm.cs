@@ -4,7 +4,6 @@ using PlcTest.Client.ClientInterface;
 using PlcTest.Server;
 using PlcTest.Server.ServerInterface;
 using PlcTest.Tool;
-using PlcTest.View.Workspace;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;

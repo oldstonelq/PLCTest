@@ -9,7 +9,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
-namespace PlcTest.View.CustomControl
+namespace PlcTest.View.Controls
 {
     public partial class MGroupBox : GroupBox
     {

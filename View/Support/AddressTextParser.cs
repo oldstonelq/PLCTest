@@ -3,7 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace PlcTest.View.Workspace
+namespace PlcTest.View.Support
 {
     /// <summary>
     /// 地址文本要按位还是按字解析。

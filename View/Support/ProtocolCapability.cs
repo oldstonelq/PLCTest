@@ -5,7 +5,7 @@ using PlcTest.Server.ServerInterface;
 using System;
 using System.Collections.Generic;
 
-namespace PlcTest.View.Workspace
+namespace PlcTest.View.Support
 {
     /// <summary>
     /// 一个协议在界面上的能力快照：支持哪些软元件、每个区域能不能按位/按字、默认落在哪个区域。

@@ -1,9 +1,10 @@
 using PlcTest.Models;
+using PlcTest.View.Support;
 using System;
 using System.Drawing;
 using System.Windows.Forms;
 
-namespace PlcTest.View.Workspace
+namespace PlcTest.View.Controls
 {
     /// <summary>
     /// 地址输入栏：文本框是主输入，区域下拉与偏移框是从属控件，三者双向同步。
@@ -18,15 +19,8 @@ namespace PlcTest.View.Workspace
     /// 已知唯一可行的解析方式时，让人先看到错误再回头改下拉是多余的一步。
     /// </para>
     /// </summary>
-    public sealed class AddressInputPanel : UserControl
+    public partial class AddressInputPanel : UserControl
     {
-        private readonly TextBox _tbAddress;
-        private readonly ComboBox _cmbArea;
-        private readonly TextBox _tbOffset;
-        private readonly TextBox _tbLength;
-        private readonly ComboBox _cmbKind;
-        private readonly Label _labHint;
-
         private ProtocolCapability _capability = ProtocolCapability.Empty;
         private PlcAddress _address;
         private string _error;
@@ -113,58 +107,18 @@ namespace PlcTest.View.Workspace
         }
 
         /// <summary>
-        /// 构造：地址框 + 区域下拉 + 偏移 + 长度 + 位/字 + 提示行。
-        /// 全部代码布局，用 FlowLayoutPanel 自动换行，窗口变窄也不会互相遮挡。
+        /// 构造：五个字段与提示行都在 Designer 里（可直接在设计器中查看/调整），
+        /// 这里只挂事件——同步规则见 ReparseFromText / SyncFromAreaOrOffset。
         /// </summary>
         public AddressInputPanel()
         {
-            AutoScaleMode = AutoScaleMode.None;
-            BackColor = Color.Transparent;
+            InitializeComponent();
 
-            var flow = new FlowLayoutPanel
-            {
-                Dock = DockStyle.Fill,
-                FlowDirection = FlowDirection.LeftToRight,
-                WrapContents = true,
-                AutoScroll = true,
-                Padding = new Padding(0, 4, 0, 0),
-            };
-
-            _tbAddress = new TextBox { Width = 130, Font = new Font("Consolas", 9f) };
             _tbAddress.TextChanged += (s, e) => ReparseFromText();
-
-            _cmbArea = new ComboBox { Width = 72, DropDownStyle = ComboBoxStyle.DropDownList };
             _cmbArea.SelectedIndexChanged += (s, e) => SyncFromAreaOrOffset();
-
-            _tbOffset = new TextBox { Width = 70 };
             _tbOffset.TextChanged += (s, e) => SyncFromAreaOrOffset();
-
-            _tbLength = new TextBox { Width = 48, Text = "1" };
             _tbLength.TextChanged += (s, e) => ReparseFromText();
-
-            _cmbKind = new ComboBox { Width = 56, DropDownStyle = ComboBoxStyle.DropDownList };
-            _cmbKind.Items.Add("位");
-            _cmbKind.Items.Add("字");
-            _cmbKind.SelectedIndex = 0;
             _cmbKind.SelectedIndexChanged += (s, e) => ReparseFromText();
-
-            AddField(flow, "地址", _tbAddress, 0);
-            AddField(flow, "区域", _cmbArea, 0);
-            AddField(flow, "偏移", _tbOffset, 0);
-            AddField(flow, "长度", _tbLength, 8);
-            AddField(flow, "方式", _cmbKind, 8);
-
-            _labHint = new Label
-            {
-                AutoSize = true,
-                Margin = new Padding(8, 6, 0, 0),
-                Font = new Font("Microsoft Sans Serif", 8.25f),
-                ForeColor = Color.FromArgb(95, 94, 90),
-                Text = string.Empty,
-            };
-            flow.Controls.Add(_labHint);
-
-            Controls.Add(flow);
         }
 
         /// <summary>
@@ -391,17 +345,5 @@ namespace PlcTest.View.Workspace
 
         #endregion
 
-        private static void AddField(FlowLayoutPanel host, string caption, Control editor, int extraLeft)
-        {
-            host.Controls.Add(new Label
-            {
-                Text = caption,
-                AutoSize = true,
-                Margin = new Padding(extraLeft, 7, 2, 0),
-                Font = new Font("Microsoft Sans Serif", 8.25f),
-                ForeColor = Color.FromArgb(95, 94, 90),
-            });
-            host.Controls.Add(editor);
-        }
     }
 }

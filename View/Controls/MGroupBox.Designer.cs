@@ -1,4 +1,4 @@
-namespace PlcTest.View.CustomControl
+namespace PlcTest.View.Controls
 {
     partial class MGroupBox
     {

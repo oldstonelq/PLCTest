@@ -271,12 +271,12 @@ PLCClient/
 │  ├─ ServerProtocolManagement/    Melsec / Inovance / Omron 三族协议 + AsciiFrameHelper + MelsecServerDeviceMapper
 │  ├─ PlcServer/                   PlcServerBase（公共骨架）+ MelsecPlcServer / InovancePlcServer / OmronFinsServer 三套模拟服务
 │  └─ PlcServerBuilder.cs          服务端建造者（通讯方式 + 9 种协议；结构同客户端 Builder，Build 按接口分派）
-├─ View/
-│  ├─ Forms/                       MainForm / PlcClientForm / PlcServerForm / ConnectSettingsForm
-│  ├─ CustomControl/               MGroupBox 自绘分组框
-│  └─ ViewHelper/                  两个窗体共用的小工具
-│     ├─ DeviceViewHelper.cs       软元件视图的列定义与填充
-│     └─ LogViewHelper.cs          日志文本框写入（跨线程投递 + 500 行裁剪）
+├─ View/                           界面层，按「是不是可视控件」分三个目录
+│  ├─ Forms/                       窗体：MainForm / ConnectSettingsForm / PlcWorkspaceForm / PlcServerWorkspaceForm
+│  ├─ Controls/                    可设计控件：MGroupBox（自绘分组框）、FrameLogView（报文视图）、
+│  │                               AddressInputPanel（地址栏）、MonitorGrid（监视列表）
+│  └─ Support/                     非可视辅助：ProtocolCapability（协议能力快照）、
+│                                  AddressTextParser（地址字符串解析）、MonitorReadResult（一次读取的结果）
 ├─ Tool/                           ConverterTool（位/字节/ASCII）、DataFormatConverter（32 位排列）、OtherTool（校验）、StructureHelp
 ├─ Document/                       协议报文、厂商手册与架构资料
 └─ Program.cs                      程序入口

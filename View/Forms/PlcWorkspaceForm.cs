@@ -1,15 +1,17 @@
 using PlcTest.Client.ClientInterface;
 using PlcTest.Protocols;
 using PlcTest.Models;
-using PlcTest.View.CustomControl;
+using PlcTest.View.Controls;
+using PlcTest.View.Support;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Drawing;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
-namespace PlcTest.View.Workspace
+namespace PlcTest.View.Forms
 {
     /// <summary>
     /// 客户端调试工作台：一个连接一个窗口，地址为主输入、监视列表为常用视图。
@@ -22,27 +24,27 @@ namespace PlcTest.View.Workspace
     /// 左侧软元件列表来自能力快照，地址解析与位/字校验由 <see cref="AddressTextParser"/> 负责。
     /// </para>
     /// </summary>
-    public sealed class PlcWorkspaceForm : Form
+    public partial class PlcWorkspaceForm : Form
     {
-        private readonly IPlcClient _client;
-        private readonly ProtocolCapability _capability;
+        private IPlcClient _client;
+        private ProtocolCapability _capability;
         /// <summary>当前生效的协议私有选项的显示文本（如「机型=Easy · 字节序=CDAB」），空串表示无选项</summary>
-        private readonly string _optionText;
-
-        private readonly Label _labStatus;
-        private readonly ListBox _lstAreas;
-        private readonly AddressInputPanel _addressPanel;
-        private readonly MonitorGrid _monitor;
-        private readonly TabControl _tabs;
-        private readonly TextBox _tbReadResult;
-        private readonly TextBox _tbWriteValue;
-        private readonly Button _btnRead;
-        private readonly Button _btnWrite;
-        private readonly FrameLogView _frameLog;
-        private readonly Timer _statusTimer;
+        private string _optionText;
 
         /// <summary>上一次自动填进地址框的软元件（切换列表项时才改，避免每次刷新都覆盖用户输入）</summary>
         private MemoryArea? _lastAreaPicked;
+
+        /// <summary>
+        /// 设计器专用构造：只建控件树，不碰数据。Visual Studio 用无参构造实例化窗体，
+        /// 所以这里不能做任何依赖 IPlcClient 的事，否则设计器一打开就抛。
+        /// </summary>
+        public PlcWorkspaceForm()
+        {
+            InitializeComponent();
+
+            // SplitterDistance 要等控件有真实尺寸才能设，设计器里不执行 Load
+            Load += (s, e) => { try { _middle.SplitterDistance = 190; } catch { } };
+        }
 
         /// <summary>
         /// 构造工作区。
@@ -53,7 +55,23 @@ namespace PlcTest.View.Workspace
         /// <param name="options">连接时使用的协议私有选项，仅用于在状态条上显示，可传 null</param>
         public PlcWorkspaceForm(IPlcClient client, ProtocolType protocol, string endpoint = null,
             ProtocolOptions options = null)
+            : this()
         {
+            InitializeRuntime(client, protocol, endpoint, options);
+        }
+
+        /// <summary>
+        /// 运行期初始化：绑数据、挂事件、起状态定时器。与控件树（Designer）分开，
+        /// 这样设计器只看到结构与属性，不会被真实客户端数据干扰。
+        /// </summary>
+        private void InitializeRuntime(IPlcClient client, ProtocolType protocol, string endpoint, ProtocolOptions options)
+        {
+            if (LicenseManager.UsageMode == LicenseUsageMode.Designtime)
+            {
+                // DesignMode 在构造函数里恒为 false，只能用 LicenseManager 判断
+                return;
+            }
+
             if (client == null)
             {
                 throw new ArgumentNullException("client");
@@ -65,173 +83,21 @@ namespace PlcTest.View.Workspace
 
             Text = "PLC 工作台 - " + protocol.GetDisplayName()
                 + (string.IsNullOrEmpty(endpoint) ? string.Empty : " · " + endpoint);
-            StartPosition = FormStartPosition.CenterParent;
-            ClientSize = new Size(1020, 660);
-            MinimumSize = new Size(820, 520);
-            Font = new Font("Microsoft Sans Serif", 9f);
 
-            // ---- 顶部状态条 ----
-            _labStatus = new Label
-            {
-                Dock = DockStyle.Fill,
-                TextAlign = ContentAlignment.MiddleLeft,
-                Padding = new Padding(10, 0, 0, 0),
-                Text = protocol.GetDisplayName() + " · " + (endpoint ?? string.Empty),
-                ForeColor = Color.FromArgb(44, 44, 42),
-            };
-
-            // ---- 左侧软元件列表 ----
-            _lstAreas = new ListBox
-            {
-                Dock = DockStyle.Fill,
-                BorderStyle = BorderStyle.None,
-                IntegralHeight = false,
-                Font = new Font("Consolas", 9f),
-            };
             FillAreaList();
+            _leftTitle.Text = "  软元件（" + _capability.Areas.Count + " 项）";
+            _addressPanel.Capability = _capability;
+            _monitor.Capability = _capability;
+            _monitor.Reader = ReadForMonitor;
+
             _lstAreas.SelectedIndexChanged += (s, e) => OnAreaPicked();
-
-            var leftHost = new Panel { Dock = DockStyle.Fill };
-            var leftTitle = new Label
-            {
-                Dock = DockStyle.Top,
-                Height = 24,
-                Text = "  软元件（" + _capability.Areas.Count + " 项）",
-                TextAlign = ContentAlignment.MiddleLeft,
-                ForeColor = Color.FromArgb(95, 94, 90),
-                Font = new Font("Microsoft Sans Serif", 8.25f),
-            };
-            leftHost.Controls.Add(_lstAreas);
-            leftHost.Controls.Add(leftTitle);
-
-            // ---- 地址输入 ----
-            _addressPanel = new AddressInputPanel
-            {
-                Dock = DockStyle.Fill,
-                Capability = _capability,
-            };
             _addressPanel.AddressChanged += (s, e) => RefreshButtons();
-
-            // ---- 读取结果 ----
-            _tbReadResult = new TextBox
-            {
-                Dock = DockStyle.Fill,
-                Multiline = true,
-                ReadOnly = true,
-                ScrollBars = ScrollBars.Both,
-                WordWrap = false,
-                BackColor = Color.White,
-                Font = new Font("Consolas", 9f),
-            };
-
-            _btnRead = MakeButton("读取", 74);
             _btnRead.Click += OnReadClick;
-
-            var btnClearResult = MakeButton("清空结果", 74);
-            btnClearResult.Click += (s, e) => _tbReadResult.Clear();
-
-            // ---- 写入 ----
-            _tbWriteValue = new TextBox { Width = 240, Font = new Font("Consolas", 9f) };
-            _btnWrite = MakeButton("写入", 74);
+            _btnClearResult.Click += (s, e) => _tbReadResult.Clear();
             _btnWrite.Click += OnWriteClick;
 
-            var writeRow = new FlowLayoutPanel
-            {
-                Dock = DockStyle.Fill,
-                FlowDirection = FlowDirection.LeftToRight,
-                WrapContents = false,
-                Padding = new Padding(0, 3, 0, 0),
-            };
-            writeRow.Controls.Add(new Label
-            {
-                Text = "写入值",
-                AutoSize = true,
-                Margin = new Padding(0, 7, 4, 0),
-                ForeColor = Color.FromArgb(95, 94, 90),
-                Font = new Font("Microsoft Sans Serif", 8.25f),
-            });
-            writeRow.Controls.Add(_tbWriteValue);
-            writeRow.Controls.Add(_btnWrite);
-
-            // ---- 单次读写页 ----
-            var pageSingle = new TabPage("单次读写");
-            var singleLayout = new TableLayoutPanel
-            {
-                Dock = DockStyle.Fill,
-                ColumnCount = 1,
-                RowCount = 4,
-                Padding = new Padding(6),
-            };
-            singleLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
-            singleLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
-            singleLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-            singleLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
-
-            var readRow = new FlowLayoutPanel
-            {
-                Dock = DockStyle.Fill,
-                FlowDirection = FlowDirection.LeftToRight,
-                WrapContents = false,
-            };
-            readRow.Controls.Add(_btnRead);
-            readRow.Controls.Add(btnClearResult);
-
-            singleLayout.Controls.Add(_addressPanel, 0, 0);
-            singleLayout.Controls.Add(readRow, 0, 1);
-            singleLayout.Controls.Add(_tbReadResult, 0, 2);
-            singleLayout.Controls.Add(writeRow, 0, 3);
-            pageSingle.Controls.Add(singleLayout);
-
-            // ---- 监视页 ----
-            _monitor = new MonitorGrid
-            {
-                Dock = DockStyle.Fill,
-                Capability = _capability,
-                Reader = ReadForMonitor,
-            };
-
-            var pageMonitor = new TabPage("监视");
-            pageMonitor.Controls.Add(_monitor);
-
-            _tabs = new TabControl { Dock = DockStyle.Fill };
-            _tabs.TabPages.Add(pageMonitor);
-            _tabs.TabPages.Add(pageSingle);
-
-            // ---- 报文 ----
-            _frameLog = new FrameLogView { Dock = DockStyle.Fill, MaxLines = 500 };
-
-            // ---- 整体布局：顶部状态 / 中部（左列表+右页签）/ 底部报文 ----
-            var root = new TableLayoutPanel
-            {
-                Dock = DockStyle.Fill,
-                ColumnCount = 1,
-                RowCount = 3,
-            };
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 26));
-            root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 170));
-
-            var middle = new SplitContainer
-            {
-                Dock = DockStyle.Fill,
-                Orientation = Orientation.Vertical,
-                FixedPanel = FixedPanel.Panel1,
-                SplitterWidth = 4,
-            };
-            middle.Panel1.Controls.Add(leftHost);
-            middle.Panel2.Controls.Add(_tabs);
-            // SplitterDistance 必须在有尺寸之后设，放到 Shown 里
-            Load += (s, e) => { try { middle.SplitterDistance = 190; } catch { } };
-
-            root.Controls.Add(_labStatus, 0, 0);
-            root.Controls.Add(middle, 0, 1);
-            root.Controls.Add(_frameLog, 0, 2);
-            Controls.Add(root);
-
-            // ---- 事件订阅 ----
             _client.FrameEvent += _frameLog.Append;
 
-            _statusTimer = new Timer { Interval = 500 };
             _statusTimer.Tick += (s, e) => RefreshStatus();
             _statusTimer.Start();
 
@@ -576,30 +442,33 @@ namespace PlcTest.View.Workspace
 
         #endregion
 
-        private static Button MakeButton(string text, int width)
-        {
-            return new Button
-            {
-                Text = text,
-                Width = width,
-                Height = 24,
-                FlatStyle = FlatStyle.System,
-                Margin = new Padding(0, 1, 6, 0),
-            };
-        }
-
         /// <summary>
         /// 释放：同样要退订事件、停表。Close() 会走 OnFormClosing，但 Designers/using 直接 Dispose 时不会，
         /// 少了这一层，定时器会在已销毁的控件上继续 Tick。
         /// </summary>
-        protected override void Dispose(bool disposing)
+        /// <summary>
+        /// 释放运行期资源：退订帧事件、停状态定时器。
+        /// 由 Designer 的 Dispose 调用——Designer 已经声明了 Dispose(bool)，
+        /// 这里再用 override 会重复定义，所以改成独立方法。
+        /// </summary>
+        private void ReleaseRuntime()
         {
-            if (disposing)
+            if (_client != null)
             {
                 try { _client.FrameEvent -= _frameLog.Append; } catch { }
-                try { _statusTimer.Stop(); _statusTimer.Dispose(); } catch { }
             }
-            base.Dispose(disposing);
+
+            try
+            {
+                if (_statusTimer != null)
+                {
+                    _statusTimer.Stop();
+                }
+            }
+            catch
+            {
+                // 停表失败不影响关闭
+            }
         }
 
         /// <summary>
@@ -607,24 +476,7 @@ namespace PlcTest.View.Workspace
         /// </summary>
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
-            try
-            {
-                _client.FrameEvent -= _frameLog.Append;
-            }
-            catch
-            {
-                // 退订失败不影响关闭
-            }
-
-            try
-            {
-                _statusTimer.Stop();
-            }
-            catch
-            {
-                // 同上
-            }
-
+            ReleaseRuntime();
             base.OnFormClosing(e);
         }
     }

@@ -1,48 +1,13 @@
 using PlcTest.Models;
+using PlcTest.View.Support;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
-namespace PlcTest.View.Workspace
+namespace PlcTest.View.Controls
 {
-    /// <summary>
-    /// 一次监视读取的结果：位视图给 <see cref="Bits"/>，字视图给 <see cref="Words"/>。
-    /// </summary>
-    public sealed class MonitorReadResult
-    {
-        /// <summary>是否读到</summary>
-        public bool Success { get; private set; }
-
-        /// <summary>失败原因</summary>
-        public string Error { get; private set; }
-
-        /// <summary>位数据（按位读取时非 null）</summary>
-        public bool[] Bits { get; private set; }
-
-        /// <summary>字数据（按字读取时非 null）</summary>
-        public short[] Words { get; private set; }
-
-        /// <summary>位数据结果</summary>
-        public static MonitorReadResult OfBits(bool[] values)
-        {
-            return new MonitorReadResult { Success = true, Bits = values ?? new bool[0] };
-        }
-
-        /// <summary>字数据结果</summary>
-        public static MonitorReadResult OfWords(short[] values)
-        {
-            return new MonitorReadResult { Success = true, Words = values ?? new short[0] };
-        }
-
-        /// <summary>失败结果</summary>
-        public static MonitorReadResult Fail(string message)
-        {
-            return new MonitorReadResult { Success = false, Error = message };
-        }
-    }
-
     /// <summary>
     /// 监视列表：一行一个地址，按固定周期轮询，值与状态就地刷新。
     /// <para>
@@ -56,18 +21,13 @@ namespace PlcTest.View.Workspace
     /// <see cref="PollOnce"/> 是同步版本，只给测试与「立即刷新」按钮用。
     /// </para>
     /// </summary>
-    public sealed class MonitorGrid : UserControl
+    public partial class MonitorGrid : UserControl
     {
         private const int ColAddress = 0;
         private const int ColKind = 1;
         private const int ColLength = 2;
         private const int ColValue = 3;
         private const int ColStatus = 4;
-
-        private readonly DataGridView _grid;
-        private readonly TextBox _tbPeriod;
-        private readonly Button _btnPause;
-        private readonly Timer _timer;
 
         /// <summary>正在读（防止上一次没读完又发起一轮）</summary>
         private bool _polling;
@@ -100,63 +60,22 @@ namespace PlcTest.View.Workspace
             get { return _timer.Enabled; }
         }
 
+        /// <summary>
+        /// 构造：控件树（工具栏、表格、五个列、轮询定时器）都在 Designer 里，
+        /// 这里只绑事件与默认值。
+        /// </summary>
         public MonitorGrid()
         {
+            InitializeComponent();
+
             Capability = ProtocolCapability.Empty;
 
-            var bar = new Panel { Dock = DockStyle.Top, Height = 30, BackColor = SystemColors.Control };
-
-            var btnAdd = MakeButton("添加", 2, 54);
-            btnAdd.Click += (s, e) => AddRow(_lastSuggested, _suggestedKind, 1);
-
-            var btnRemove = MakeButton("删除", 58, 54);
-            btnRemove.Click += (s, e) => RemoveSelectedRows();
-
-            var btnRefresh = MakeButton("立即刷新", 114, 76);
-            btnRefresh.Click += (s, e) => PollAsync();
-
-            _btnPause = MakeButton("开始", 192, 54);
+            _btnAdd.Click += (s, e) => AddRow(_lastSuggested, _suggestedKind, 1);
+            _btnRemove.Click += (s, e) => RemoveSelectedRows();
+            _btnRefresh.Click += (s, e) => PollAsync();
             _btnPause.Click += (s, e) => ToggleAutoRefresh();
 
-            _tbPeriod = new TextBox { Left = 268, Top = 4, Width = 52, Text = "500" };
             _tbPeriod.TextChanged += (s, e) => _timer.Interval = Period;
-
-            var labPeriod = new Label
-            {
-                Text = "周期(ms)",
-                AutoSize = true,
-                Left = 324,
-                Top = 8,
-                Font = new Font("Microsoft Sans Serif", 8.25f),
-                ForeColor = Color.FromArgb(95, 94, 90),
-            };
-
-            bar.Controls.Add(btnAdd);
-            bar.Controls.Add(btnRemove);
-            bar.Controls.Add(btnRefresh);
-            bar.Controls.Add(_btnPause);
-            bar.Controls.Add(_tbPeriod);
-            bar.Controls.Add(labPeriod);
-
-            _grid = new DataGridView
-            {
-                Dock = DockStyle.Fill,
-                AllowUserToAddRows = false,
-                AllowUserToDeleteRows = false,
-                RowHeadersWidth = 26,
-                BackgroundColor = Color.White,
-                BorderStyle = BorderStyle.None,
-                SelectionMode = DataGridViewSelectionMode.FullRowSelect,
-                MultiSelect = true,
-                EditMode = DataGridViewEditMode.EditOnEnter,
-            };
-
-            _grid.Columns.Add(NewTextColumn("地址", 120, false));
-            _grid.Columns.Add(NewKindColumn());
-            _grid.Columns.Add(NewTextColumn("长度", 50, false));
-            _grid.Columns.Add(NewTextColumn("值", 260, true));
-            _grid.Columns.Add(NewTextColumn("状态", 220, true));
-            _grid.Columns[_grid.Columns.Count - 1].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
 
             _grid.CellValueChanged += (s, e) =>
             {
@@ -166,12 +85,7 @@ namespace PlcTest.View.Workspace
                 }
             };
 
-            _timer = new Timer();
-            _timer.Interval = 500;
             _timer.Tick += (s, e) => PollAsync();
-
-            Controls.Add(_grid);
-            Controls.Add(bar);
         }
 
         /// <summary>
@@ -477,55 +391,6 @@ namespace PlcTest.View.Workspace
             cell.Value = text;
             cell.Style.ForeColor = isError ? Color.FromArgb(163, 45, 45) : Color.FromArgb(15, 110, 86);
         }
-
-        private static DataGridViewTextBoxColumn NewTextColumn(string header, int width, bool readOnly)
-        {
-            return new DataGridViewTextBoxColumn
-            {
-                HeaderText = header,
-                Width = width,
-                ReadOnly = readOnly,
-                SortMode = DataGridViewColumnSortMode.NotSortable,
-            };
-        }
-
-        private static DataGridViewComboBoxColumn NewKindColumn()
-        {
-            var column = new DataGridViewComboBoxColumn
-            {
-                HeaderText = "方式",
-                Width = 56,
-                FlatStyle = FlatStyle.Flat,
-                SortMode = DataGridViewColumnSortMode.NotSortable,
-            };
-            column.Items.Add("位");
-            column.Items.Add("字");
-            return column;
-        }
-
-        private static Button MakeButton(string text, int left, int width)
-        {
-            return new Button
-            {
-                Text = text,
-                Left = left,
-                Top = 4,
-                Width = width,
-                Height = 22,
-                FlatStyle = FlatStyle.System,
-                Font = new Font("Microsoft Sans Serif", 8.25f),
-            };
-        }
-
         /// <summary>释放时停掉定时器，避免窗体关了还在轮询</summary>
-        protected override void Dispose(bool disposing)
-        {
-            if (disposing && _timer != null)
-            {
-                _timer.Stop();
-                _timer.Dispose();
-            }
-            base.Dispose(disposing);
-        }
     }
 }

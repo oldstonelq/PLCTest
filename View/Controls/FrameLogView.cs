@@ -3,7 +3,7 @@ using System;
 using System.Drawing;
 using System.Windows.Forms;
 
-namespace PlcTest.View.CustomControl
+namespace PlcTest.View.Controls
 {
     /// <summary>
     /// 通讯报文视图：带方向着色的收发报文 + 纯文本提示，替代原来的单色 <c>TextBox</c>。
@@ -19,14 +19,8 @@ namespace PlcTest.View.CustomControl
     /// 控件已销毁或句柄已释放时直接丢弃这条日志。
     /// </para>
     /// </summary>
-    public sealed class FrameLogView : UserControl
+    public partial class FrameLogView : UserControl
     {
-        private readonly RichTextBox _box;
-        private readonly Button _btnPause;
-        private readonly Button _btnClear;
-        private readonly Button _btnCopy;
-        private readonly CheckBox _chkAutoScroll;
-
         /// <summary>暂停期间收到的日志，恢复时按顺序补上（有上限，避免暂停一整天把内存吃满）</summary>
         private readonly System.Collections.Generic.Queue<CommFrame> _pending =
             new System.Collections.Generic.Queue<CommFrame>();
@@ -55,58 +49,18 @@ namespace PlcTest.View.CustomControl
         }
 
         /// <summary>
-        /// 构造：工具栏 + 只读 RichTextBox，全部代码生成（不依赖 Designer，避免老式 csproj 漏文件）。
+        /// 构造：控件树在 Designer 里（可直接在设计器中查看/调整），
+        /// 这里只做行为绑定——事件、默认行数。
         /// </summary>
         public FrameLogView()
         {
+            InitializeComponent();
+
             MaxLines = 500;
 
-            var bar = new Panel
-            {
-                Dock = DockStyle.Top,
-                Height = 26,
-                BackColor = SystemColors.Control,
-            };
-
-            _btnPause = CreateBarButton("暂停", 2, 52);
             _btnPause.Click += (s, e) => TogglePause();
-
-            _btnClear = CreateBarButton("清空", 58, 52);
             _btnClear.Click += (s, e) => ClearLog();
-
-            _btnCopy = CreateBarButton("复制", 114, 52);
             _btnCopy.Click += (s, e) => CopyAll();
-
-            _chkAutoScroll = new CheckBox
-            {
-                Text = "自动滚动",
-                Checked = true,
-                AutoSize = true,
-                Location = new Point(174, 6),
-                Font = new Font("Microsoft Sans Serif", 8.25f),
-            };
-
-            bar.Controls.Add(_btnPause);
-            bar.Controls.Add(_btnClear);
-            bar.Controls.Add(_btnCopy);
-            bar.Controls.Add(_chkAutoScroll);
-
-            _box = new RichTextBox
-            {
-                Dock = DockStyle.Fill,
-                ReadOnly = true,
-                BackColor = Color.White,
-                ForeColor = Color.FromArgb(44, 44, 42),
-                Font = new Font("Consolas", 9f),
-                WordWrap = false,
-                ScrollBars = RichTextBoxScrollBars.Both,
-                DetectUrls = false,
-                HideSelection = false,
-                BorderStyle = BorderStyle.None,
-            };
-
-            Controls.Add(_box);
-            Controls.Add(bar);
         }
 
         /// <summary>
@@ -352,20 +306,6 @@ namespace PlcTest.View.CustomControl
         #endregion
 
         #region 工具栏
-
-        private static Button CreateBarButton(string text, int left, int width)
-        {
-            return new Button
-            {
-                Text = text,
-                Left = left,
-                Top = 2,
-                Width = width,
-                Height = 22,
-                FlatStyle = FlatStyle.System,
-                Font = new Font("Microsoft Sans Serif", 8.25f),
-            };
-        }
 
         private void TogglePause()
         {

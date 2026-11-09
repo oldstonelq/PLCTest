@@ -1,4 +1,4 @@
-using PlcTest.View.CustomControl;
+using PlcTest.View.Controls;
 
 namespace PlcTest.View.Forms
 {
@@ -33,7 +33,7 @@ namespace PlcTest.View.Forms
             this.components = new System.ComponentModel.Container();
             this.tableLayoutPanel1 = new System.Windows.Forms.TableLayoutPanel();
             this.timer1 = new System.Windows.Forms.Timer(this.components);
-            this.gb_ServiceInformation = new PlcTest.View.CustomControl.MGroupBox(this.components);
+            this.gb_ServiceInformation = new PlcTest.View.Controls.MGroupBox(this.components);
             this.btn_CloseServer = new System.Windows.Forms.Button();
             this.btn_OpenServer = new System.Windows.Forms.Button();
             this.cmb_ServiceInformationCount = new System.Windows.Forms.ComboBox();
@@ -42,17 +42,17 @@ namespace PlcTest.View.Forms
             this.lab_ServiceInformationCount = new System.Windows.Forms.Label();
             this.lab_ServiceInformationPort = new System.Windows.Forms.Label();
             this.lab_ServiceInformationIP = new System.Windows.Forms.Label();
-            this.gb_ServiceInformationFunction = new PlcTest.View.CustomControl.MGroupBox(this.components);
+            this.gb_ServiceInformationFunction = new PlcTest.View.Controls.MGroupBox(this.components);
             this.btn_Trigger = new System.Windows.Forms.Button();
             this.btn_ServerWorkspace = new System.Windows.Forms.Button();
-            this.gb_PLCInformation = new PlcTest.View.CustomControl.MGroupBox(this.components);
+            this.gb_PLCInformation = new PlcTest.View.Controls.MGroupBox(this.components);
             this.btn_Disconnect = new System.Windows.Forms.Button();
             this.btn_Connect = new System.Windows.Forms.Button();
             this.tb_PLCInformationPort = new System.Windows.Forms.TextBox();
             this.tb_PLCInformationIP = new System.Windows.Forms.TextBox();
             this.lab_PLCInformationPort = new System.Windows.Forms.Label();
             this.lab_PLCInformationIP = new System.Windows.Forms.Label();
-            this.gb_ConnectionStatus = new PlcTest.View.CustomControl.MGroupBox(this.components);
+            this.gb_ConnectionStatus = new PlcTest.View.Controls.MGroupBox(this.components);
             this.label12 = new System.Windows.Forms.Label();
             this.label11 = new System.Windows.Forms.Label();
             this.label10 = new System.Windows.Forms.Label();
@@ -65,10 +65,10 @@ namespace PlcTest.View.Forms
             this.label3 = new System.Windows.Forms.Label();
             this.label2 = new System.Windows.Forms.Label();
             this.label1 = new System.Windows.Forms.Label();
-            this.gb_ConnectStatus = new PlcTest.View.CustomControl.MGroupBox(this.components);
+            this.gb_ConnectStatus = new PlcTest.View.Controls.MGroupBox(this.components);
             this.lab_ConnectPort = new System.Windows.Forms.Label();
             this.lab_ConnectStatus = new System.Windows.Forms.Label();
-            this.gb_PLCInformationFunction = new PlcTest.View.CustomControl.MGroupBox(this.components);
+            this.gb_PLCInformationFunction = new PlcTest.View.Controls.MGroupBox(this.components);
             this.btn_PLCWorkspace = new System.Windows.Forms.Button();
             this.tableLayoutPanel1.SuspendLayout();
             this.gb_ServiceInformation.SuspendLayout();
