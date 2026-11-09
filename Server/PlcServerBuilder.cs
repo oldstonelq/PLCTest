@@ -192,6 +192,24 @@ namespace PlcTest.Server
         }
         #endregion
 
+        /// <summary>
+        /// 协议私有选项。服务端目前只有汇川机型一项，而机型原本存在构建器字段上
+        /// （<see cref="UseInovanceModbusTcp"/> 直接接收），所以在 <see cref="Build"/> 里合并：
+        /// 选项里没给就用字段上的值。
+        /// </summary>
+        private ProtocolOptions _options = new ProtocolOptions();
+
+        /// <summary>
+        /// 设置协议私有选项；服务端不认识的多余键会被忽略。
+        /// </summary>
+        /// <param name="options">选项集，可传 null</param>
+        /// <returns>构建器本身，便于链式调用</returns>
+        public PlcServerBuilder UseOptions(ProtocolOptions options)
+        {
+            _options = options ?? new ProtocolOptions();
+            return this;
+        }
+
         #region 构建服务端
         /// <summary>
         /// 构建服务端实例：按协议实现的接口选服务端类型。
@@ -223,7 +241,9 @@ namespace PlcTest.Server
             // 汇川按机型过滤软元件表，机型也要传进去
             if (_protocol is IModbusServerProtocol modbus)
             {
-                return new InovancePlcServer(_communication, modbus, _inovanceCpuModel);
+                // 机型可能来自 UseInovanceModbusTcp(model)，也可能来自选项集（界面统一走选项）
+                InovanceCpuModel cpuModel = _options.GetValue("CpuModel", _inovanceCpuModel);
+                return new InovancePlcServer(_communication, modbus, cpuModel);
             }
 
             // 剩下的按 MC 语义处理（三菱 1E / 3E / 4E，含 ASCII 与 Binary）

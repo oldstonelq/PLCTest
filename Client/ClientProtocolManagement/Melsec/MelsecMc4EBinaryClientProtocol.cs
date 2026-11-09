@@ -2,13 +2,14 @@ using PlcTest.Models;
 using PlcTest.Client.ClientInterface;
 using System;
 using PlcTest.Protocols;
+using PlcTest.Tool;
 
 namespace PlcTest.Client.ClientProtocolManagement.Melsec
 {
     /// <summary>
     /// 三菱MC4E二进制通讯协议
     /// </summary>
-    public class MelsecMc4EBinaryClientProtocol : IPlcClientProtocol
+    public class MelsecMc4EBinaryClientProtocol : IPlcClientProtocol, IProtocolOptionHost
     {
         /// <summary>
         ///获取寄存器地址的真实编码
@@ -101,6 +102,27 @@ namespace PlcTest.Client.ClientProtocolManagement.Melsec
         /// </summary>
         /// <param name="address">PLC地址模型</param>
         /// <returns>读取命令报文</returns>
+        /// <summary>
+        /// 目标网络号（0–255）。直连本机 CPU 时为 0；经 MELSECNET / CC-Link 路由时才需要改。
+        /// 写进请求帧头的网络号字节。
+        /// </summary>
+        public int NetworkNumber { get; set; } = 0;
+
+        /// <summary>
+        /// 目标模块站号（0–255）。直连本机 CPU 时为 0。
+        /// </summary>
+        public int StationNumber { get; set; } = 0;
+
+        /// <summary>
+        /// 应用界面传来的协议选项（网络号 / 站号）。越界值夹到字节范围，避免拼帧时写坏。
+        /// </summary>
+        /// <param name="options">选项集，可能为 null</param>
+        public void ApplyOptions(ProtocolOptions options)
+        {
+            NetworkNumber = ProtocolOptionValues.ClampInt(options, "NetworkNumber", NetworkNumber, 0, 255);
+            StationNumber = ProtocolOptionValues.ClampInt(options, "StationNumber", StationNumber, 0, 255);
+        }
+
         public byte[] BuildReadData(PlcAddress address)
         {
             int memory = GetMemoryCode(address.Area);
@@ -174,14 +196,14 @@ namespace PlcTest.Client.ClientProtocolManagement.Melsec
             Command[4] = 0x00;
             Command[5] = 0x00;
             //网络号
-            Command[6] = 0x00;
+            Command[6] = (byte)NetworkNumber;
             //PLC编号
             Command[7] = 0xFF;
             //目标模块IO编号
             Command[8] = 0xFF;
             Command[9] = 0x03;
             //目标模块站号
-            Command[10] = 0x00;
+            Command[10] = (byte)StationNumber;
             //请求数据长度(剩余数据长度，CPU+data长度)
             Command[11] = (byte)((Command.Length - 13) % 256);
             Command[12] = (byte)((Command.Length - 13) / 256);

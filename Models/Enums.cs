@@ -119,9 +119,9 @@ namespace PlcTest.Models
     /// 恢复串口时把对应端的串口参数补回 <c>true</c> 即可，两者可以并存。
     /// </para>
     /// <para>
-    /// 西门子的四个开关全是 <c>false</c>，属于**主动下架**：实现已写完，但还没拿到官方手册逐条核对
-    /// 帧格式，先不让它出现在下拉框里，避免用未验证的协议去连真机。手册到位后把
-    /// <c>clientTcp</c> 改回 <c>true</c> 即可恢复。
+    /// 西门子只有客户端（<c>clientTcp</c>），服务端还没实现：从站要做同样的 COTP + Setup Communication
+    /// 两段握手再逐条应答，工作量约为其他协议的两倍。客户端侧的两段握手与读写帧已按公开报文样本核对，
+    /// 真机验证时先看日志里的「S7 会话已建立：协商 PDU 长度 N」，握手不过会直接返回失败原因。
     /// </para>
     /// </remarks>
     public enum ProtocolType
@@ -167,9 +167,9 @@ namespace PlcTest.Models
         [ProtocolInfo("汇川 Modbus RTU", clientTcp: true, serverTcp: true, clientSerial: false, serverSerial: false)]
         InovanceModbusRtu = 7,
         /// <summary>
-        /// 西门子 S7-1200（TCP，仅客户端；**暂不开放**——实现已写完，官方手册未到位，尚未逐条核对帧格式）
+        /// 西门子 S7-1200（TCP，客户端可用；服务端尚未实现）
         /// </summary>
-        [ProtocolInfo("西门子 S7-1200", clientTcp: false, serverTcp: false, clientSerial: false, serverSerial: false)]
+        [ProtocolInfo("西门子 S7-1200", clientTcp: true, serverTcp: false, clientSerial: false, serverSerial: false)]
         SiemensS71200 = 8,
         /// <summary>
         /// 欧姆龙 FINS/TCP（TCP，客户端/服务端）

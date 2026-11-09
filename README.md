@@ -46,6 +46,9 @@
 - **服务端下拉框曾经把 `MemoryArea` 全部 32 个枚举名直接塞进去**（`Enum.GetNames`），于是三菱服务端也会列出欧姆龙专用的 `CIO` / `HR` / `AR` / `EM`，选中后只是造出一片协议永不应答的模拟地址；
   写位 / 写字两个框同样列全，导致「选中 R 写字却没反应」这类静默失败（旧代码里还有 `if (WriteArea != MemoryArea.D) return;` 的硬编码）。
   现在三处都从 `GetSupportedAreas()` + 区域能力生成，视图形态也按 `SupportsBit` 判定（只有 `SupportsBit` 为 true 才用位视图，与客户端默认一致）。
+- **S7 的两段握手单独成一个接口**：`IS7SessionProtocol`（COTP 连接 `0xE0` + Setup Communication `0xF0`，顺便带回协商的 PDU 长度），
+  与 `IOmronFinsClientProtocol` 同一套路子——`Build()` 只看协议实现了哪个接口来挑客户端（`S7PlcClient` / `OmronPlcClient` / 通用实现），
+  不按厂商枚举配对。握手帧的字节基准来自公开报文样本，写在冒烟测试里逐字节比对；西门子没有服务端，端到端往返测不了，只能靠外部样本卡结构。
 - **两个 Builder 结构完全同构，协议分派只有一个入口**：`UseProtocol(ProtocolType)` + 无参 `Build()`。
   两端都是「两个字段（通讯方式 + 已选协议）+ 一行赋值的 `UseXxx` + `Build` 里按**接口**分派」：
   | | 字段 | `Build()` 的分派 |
@@ -128,16 +131,16 @@ PlcAddress.Word(MemoryArea.D, 0, dbNumber: 1, length: 10);
 | 三菱 | MC 3E Binary | `UseMelsecMc3EBinary()` | ✅ | ✅ | ✅ |
 | 三菱 | MC 4E ASCII | `UseMelsecMc4EAscii()` | ✅ | ✅ | ✅ |
 | 三菱 | MC 4E Binary | `UseMelsecMc4EBinary()` | ✅ | ✅ | ✅ |
-| 西门子 | S7-1200（S7comm） | `UseSiemensS71200()` | ⏸ 暂不开放 | ✅ | — |
+| 西门子 | S7-1200（S7comm） | `UseSiemensS71200()` | ✅ 待真机验证 | ✅ | — |
 | 欧姆龙 | FINS TCP | `UseOmronFinsTcp()` | ✅ | ✅ | ✅ |
 | 汇川 | Modbus TCP | `UseInovanceModbusTcp()` | ✅ | ✅ | ✅ `UseInovanceModbusTcp()` |
 | 汇川 | Modbus RTU | `UseInovanceModbusRtu()` | ✅ | ✅ | ✅ `UseInovanceModbusRtu()` |
 
-> 表中「协议实现 ✅」指报文编解码已写完。**西门子**：客户端已写完但**暂时下架**（官方手册还没拿到，帧格式未逐条核对，先不让它出现在下拉框里；手册到位后把 `ProtocolType.SiemensS71200` 的 `clientTcp` 改回 `true` 即可）；服务端尚未实现（S7 需要 COTP 两次握手 + S7comm 的 Setup Communication，工作量约为其他协议的两倍）。
+> 表中「协议实现 ✅」指报文编解码已写完。**西门子**：客户端已上架（COTP 连接、Setup Communication、M/X/Y 读写按公开报文样本逐字节核对，见 `Tests` 里的 `S7 COTP 连接请求 = 22 字节` 等断言），但**还没上真机**——连 S7-1200 前记得在 TIA 里打开「允许 PUT/GET 通信访问」，DB 块要关掉「优化的块访问」。服务端尚未实现（要做同样两段握手 + 逐条应答，工作量约为其他协议的两倍）。
 
 服务端已实现 **9 种协议**：三菱 MC 六种（**1E / 3E / 4E × ASCII / Binary**）+ 汇川 Modbus 两种（**TCP / RTU 从站**）+ 欧姆龙 FINS/TCP。
 
-> **界面当前客户端可选 9 种、服务端 9 种**：串口能力全部关闭后，原本只跑串口的 1E 两种与 Modbus RTU 改成「帧直接跑在 TCP 上」（帧格式与串口一致，不是 Modbus TCP 的 MBAP），因此仍然可选；共同缺席的是西门子——客户端因手册未到位主动下架，服务端本就未实现。
+> **界面当前客户端可选 10 种、服务端 9 种**：串口能力全部关闭后，原本只跑串口的 1E 两种与 Modbus RTU 改成「帧直接跑在 TCP 上」（帧格式与串口一致，不是 Modbus TCP 的 MBAP），因此仍然可选；唯一缺席的是西门子服务端——客户端已上架，从站还没实现。
 > 重新打开串口，只需在 `ProtocolType` 里给对应标签补回 `clientSerial` / `serverSerial`，下拉框与串口选项会自动回来，TCP 与串口可以并存。
 
 - 三菱六者共用 `MelsecPlcServer`（`0x0401` 批量读、`0x1401` 批量写），帧格式差异全部由注入的 `IServerProtocol` 承担，**六种协议共用一个 `MelsecPlcServer`，没有按协议派生子类**。
@@ -228,7 +231,7 @@ modbusServer.OpenServer();
 | 窗体 | 功能 |
 | --- | --- |
 | `MainForm` | 客户端 / 服务端连接参数配置、连接状态指示灯、打开寄存器视图；连接客户端与开启服务端时都会弹出「通讯方式 + 协议」选择框 |
-| `ConnectSettingsForm` | 连接设置对话框：选通信方式与协议。**当前只提供 TCP**（串口标志全为 false，串口选项连出现都不出现）。客户端与服务端各列出 9 种（西门子两端都不可选），列表由 `ProtocolInfo` 能力位自动生成，不硬编码 |
+| `ConnectSettingsForm` | 连接设置对话框：选通信方式与协议。**当前只提供 TCP**（串口标志全为 false，串口选项连出现都不出现）。客户端列出 10 种、服务端 9 种（西门子只有客户端），列表由 `ProtocolInfo` 能力位自动生成，不硬编码 |
 | `PlcClientForm` | 选区域 + 起始地址 + 长度后周期读取（1 s），表格展示：D 区展开 16 个位并附高字节 / 低字节 / short / ASCII，其他区按点位显示；双击位格反写回 PLC；单点写位 / 写字；区间清零与全区清零；下方分 **DataView / DeviceView / LogView** 三个页签，标题带「协议 + 连接参数」 |
 | `PlcServerForm` | 初始化服务端模拟寄存器的区域与范围、单点改写模拟值、清零；三个区域下拉框都取自 `IPlcServer.GetSupportedAreas()`（写位/写字再按能力过滤，**不再列全部 `MemoryArea` 枚举**），位/字视图按区域能力选择；下方分 **DataView / DeviceView / LogView** 三个页签，日志页显示收发的原始报文与界面操作记录，标题带「协议 + 监听参数」 |
 
@@ -252,15 +255,15 @@ PLCClient/
 │  ├─ DataFormat.cs                32 位数据的 ABCD / BADC / CDAB / DCBA
 │  └─ Enums.cs                     MemoryArea / PlcType / CommunicationType / ProtocolType(+ProtocolInfo)
 ├─ Client/
-│  ├─ ClientInterface/             IClientCommunication / IPlcClient / IPlcClientProtocol / IDataFormatConfigurable / IOmronFinsClientProtocol
+│  ├─ ClientInterface/             IClientCommunication / IPlcClient / IPlcClientProtocol / IDataFormatConfigurable / IOmronFinsClientProtocol / IS7SessionProtocol
 │  ├─ ClientCommunication/         TCP、串口通讯实现（内部串行化）+ ResponseFrameAssembler（共用的帧组装）
 │  ├─ ClientProtocolManagement/    各厂商协议实现
 │  │  ├─ Melsec/                   1E/3E/4E × ASCII/Binary
-│  │  ├─ Siemens/                  S7-1200
+│  │  ├─ Siemens/                  S7-1200（COTP + Setup Communication + 读写）
 │  │  ├─ Omron/                    FINS TCP（含节点地址握手）
 │  │  ├─ Inovance/                 Modbus RTU / TCP（含 32 位段与数量上限）
 │  │  └─ Template/                 新协议模板
-│  ├─ PlcClient/                   CommunicationPlcClient（组合式客户端）+ OmronPlcClient（带握手）+ Template 骨架
+│  ├─ PlcClient/                   CommunicationPlcClient（组合式客户端）+ OmronPlcClient（FINS 握手）+ S7PlcClient（S7 两段握手）+ Template 骨架
 │  └─ PlcClientBuilder.cs          客户端建造者（通讯方式 + 10 种协议实现，界面当前可选 9 种）
 ├─ Server/
 │  ├─ ServerInterface/             IPlcServer / IRegisterTable / IServerCommunication / IServerProtocol / IModbusServerProtocol / IOmronFinsServerProtocol / IClientSession
@@ -283,7 +286,8 @@ PLCClient/
 
 - `Document/md/项目架构总览.png`：架构图
 - `Document/Melsec/`：3E / 4E / 1E 报文、控制命令截图；`寄存器地址.png` 为《基本型 QCPU 软元件一览》（3E / 4E 共用 28 种软元件，含进制列），`1E寄存器地址.png` 为 A 兼容 1E / FX 系列的 10 种软元件与编号范围（另两个线圈代码 `TC` / `CC` 取自 MC 协议手册 442 页，图中未列）
-- `Document/Siemens/`：两次握手、读写报文、区域类型、功能编码、ROSCTR、PUD 类型截图
+- `Document/Siemens/`：`西门子S7协议介绍.docx`（协议正文：TPKT/COTP/S7 头、Request Item 与 Data Item 字段、错误码、块上传下载），另有两次握手、读写报文、区域类型、功能编码、ROSCTR、PDU 类型截图
+- 西门子的报文基准还参考了博客园《西门子s7通信协议》（2024-09-06）：COTP 连接、Setup Communication、读/写 M2000 的完整十六进制序列，已抄进冒烟测试逐字节比对
 - `Document/Inovance/Modbus.doc`：Modbus 协议资料
 - `Document/Inovance/Easy寄存器地址.png`、`H3U寄存器地址.png`：两机型的 Modbus 地址映射（线圈区 / 寄存器区），均为官方手册页面的截图，原页见下表
 
@@ -303,6 +307,21 @@ PLCClient/
 
 - **H3U 的 `T256–T511` 只有触点，没有当前值**：线圈编址 `T0~T511 @0xF000`（512 点），寄存器编址只到 `T0~T255 @0xF000`（256 点）。手册 574 页与 680 页两处口径一致，是官方设计而非遗漏。故 `TS` 上限 511、`TN` 上限 255。
 - **Easy 编程支持 `W0~W32767`，但 Modbus 不映射 W**（435 页原文：不支持 W 元件、不支持 Pointer 变量）。故 `InovanceDeviceCatalog` 中 Easy 不含 W 区。
+
+西门子侧（来自 `Document/Siemens/西门子S7协议介绍.docx` 2.2.2.1 节与公开报文样本）：
+
+- **响应头比请求头多 2 字节**：`ROSCTR=0x03`（Ack-Data）的 S7 头是 12 字节，末尾两个字节是 [错误类][错误码]；
+  参数区因此从偏移 **19** 开始、数据项从 **21** 开始。按请求的 10 字节头（偏移 17）去读，会把错误类当成功能码、
+  把功能码当成数据项返回码——**真机上读写会全部解析失败**。文档 §2.1 原文：头 10–12 字节，确认消息多两个错误码字节
+- **握手结果必须逐层校验**：COTP 要检查 PDU 类型 `0xD0`（收到 `0x80` 是 DR，多为机架/槽号错或连接占满）、
+  目标引用回显 `0x0001`；Setup 要检查响应头错误类/错误码（`0x81` 应用关系、`0x83` 资源不足），
+  不校验就会「握手假成功、第一次读才报错」，排障信息全丢
+- **位读的 Data 区每点占 1 字节**：`TS=0x03(BIT)` 时数据项长度填**位数**，数据按「1 点 1 字节」给（HSL 的实现与抓包一致）。
+  真机若按位打包（50 位只回 7 字节），`ParseReadBitResponse` 会判「长度不足」——到时候按实测再改
+- **Data Item 的长度字段按「变量类型 × 数量」解释**：`0x03(BIT)` / `0x04(BYTE/WORD/DWORD)` 时按**位**算（4 字节写 = `0x0020`），其它类型按字节。旧实现填字节数 `0x0004`，PLC 只当 4 个位处理
+- **Request Item 的 Count 单位跟着 Variable Type 走**：`0x02(BYTE)` 时是字节数，所以字读 N 点要填 `N×2`；`0x01(BIT)` 时才是位数
+- **地址是位偏移**：`字节地址 × 8 + 位号`，例如 `DBX40.3` = `0x000143`。本项目目前只支持整字/整字节，位偏移等 `PlcAddress` 加位号字段后再做
+- **Data Item 要从偶数字节开始**，多变量读写的奇数长度项之间要补 `0x00`；单变量场景用不到，多变量实现时必须处理
 
 三菱侧同样两条：
 
@@ -325,7 +344,7 @@ bin/Debug/net472/PlcTest.SmokeTest.exe
 
 ## 待办
 
-- [ ] 西门子 S7：**拿到官方手册核对帧格式后重新上架**（`ProtocolType.SiemensS71200` 的 `clientTcp` 改回 `true`）；另外 DB 区读写与 M0.3 这类位偏移尚未支持（`PlcAddress` 目前没有位序号字段）
+- [ ] 西门子 S7：**上真机验证**（M / X / Y 区读写、两次握手、错误码分支；客户端已在界面上架）；另需补 DB 区读写与 M0.3 这类位偏移（`PlcAddress` 目前没有位序号字段，DB 号已可用），以及按协商 PDU 长度分段（超过 240/960 字节的长读要拆多帧）
 - [ ] 汇川 32 位计数器的界面展示：协议层已返回每点两个 16 位寄存器，但表格仍按「一行一个寄存器」渲染，`C200` 以上会显示成两行（低 16 位 / 高 16 位），尚未合并成 32 位值；清零按钮也需按 2 倍长度生成数据。**解码能力已就绪**（`DataFormatConverter` + 协议上的 `DataFormat`），差的只是表格这一层
 - [ ] 汇川 T256–T511 只支持触点：官方手册（9.4.3 串行 Modbus、9.7 以太网 Modbus 两处口径一致）的寄存器编址只到 `T0~T255`，`T256~T511`（1ms 定时器）只有线圈地址、没有当前值地址。当前 `TN` 上限设 255、`TS` 上限设 511 与手册一致，属于官方限制而非实现缺陷
 - [ ] 汇川 M 区分段：H3U 的 M 是 `M0–M7679` + `M8000–M8511`，中间 7680–7999 是空洞；`GetMaxIndex` 只能表达单一下限，目前按 8511 放行，空洞内地址不拦

@@ -51,6 +51,7 @@
     <Compile Include="Client\ClientCommunication\TcpClientCommunication.cs" />
     <Compile Include="Client\ClientCommunication\ResponseFrameAssembler.cs" />
     <Compile Include="Protocols\InovanceDeviceCatalog.cs" />
+    <Compile Include="Protocols\ProtocolOptionCatalog.cs" />
     <Compile Include="Client\ClientProtocolManagement\Inovance\InovanceModbusRtuClientProtocol.cs" />
     <Compile Include="Client\ClientProtocolManagement\Inovance\InovanceModbusTCPClientProtocol.cs" />
     <Compile Include="Protocols\Melsec1EDeviceCatalog.cs" />
@@ -68,17 +69,22 @@
     <Compile Include="Client\PlcClient\CommunicationPlcClient.cs" />
     <Compile Include="Client\PlcClient\Omron\OmronPlcClient.cs" />
     <Compile Include="Client\PlcClient\Template\TemplatePlcClient.cs" />
+    <Compile Include="Client\PlcClient\Siemens\S7PlcClient.cs" />
     <Compile Include="Client\PlcClientBuilder.cs" />
     <Compile Include="Protocols\DeviceAreaInfoProvider.cs" />
     <Compile Include="Client\ClientInterface\IClientCommunication.cs" />
     <Compile Include="Client\ClientInterface\IPlcClient.cs" />
     <Compile Include="Client\ClientInterface\IPlcClientProtocol.cs" />
     <Compile Include="Client\ClientInterface\IOmronFinsClientProtocol.cs" />
+    <Compile Include="Client\ClientInterface\IProtocolOptionHost.cs" />
+    <Compile Include="Client\ClientInterface\IS7SessionProtocol.cs" />
     <Compile Include="Client\ClientInterface\IDataFormatConfigurable.cs" />
+    <Compile Include="Models\CommFrame.cs" />
     <Compile Include="Models\Enums.cs" />
     <Compile Include="Models\DataFormat.cs" />
     <Compile Include="Models\DeviceAreaInfo.cs" />
     <Compile Include="Models\PlcAddress.cs" />
+    <Compile Include="Models\ProtocolOption.cs" />
     <Compile Include="Models\RequestInfo.cs" />
     <Compile Include="Models\Result.cs" />
     <Compile Include="Program.cs" />
@@ -111,11 +117,25 @@
     <Compile Include="Server\ServerProtocolManagement\Melsec\MelsecMc4EAsciiServerProtocol.cs" />
     <Compile Include="Server\ServerProtocolManagement\Melsec\MelsecMc4EBinaryServerProtocol.cs" />
     <Compile Include="Tool\ConverterTool.cs" />
-    <Compile Include="View\ViewHelper\DeviceViewHelper.cs" />
-    <Compile Include="View\ViewHelper\LogViewHelper.cs" />
+    <Compile Include="View\Workspace\AddressInputPanel.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="View\Workspace\AddressTextParser.cs" />
+    <Compile Include="View\Workspace\MonitorGrid.cs" />
+    <Compile Include="View\Workspace\PlcServerWorkspaceForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="View\Workspace\PlcWorkspaceForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="View\Workspace\ProtocolCapability.cs" />
     <Compile Include="Tool\DataFormatConverter.cs" />
     <Compile Include="Tool\OtherTool.cs" />
+    <Compile Include="Tool\ProtocolOptionValues.cs" />
     <Compile Include="Tool\StructureHelp.cs" />
+    <Compile Include="View\CustomControl\FrameLogView.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
     <Compile Include="View\CustomControl\MGroupBox.cs">
       <SubType>Component</SubType>
     </Compile>
@@ -131,29 +151,11 @@
     <Compile Include="View\Forms\MainForm.Designer.cs">
       <DependentUpon>MainForm.cs</DependentUpon>
     </Compile>
-    <Compile Include="View\Forms\PlcClientForm.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="View\Forms\PlcClientForm.Designer.cs">
-      <DependentUpon>PlcClientForm.cs</DependentUpon>
-    </Compile>
-    <Compile Include="View\Forms\PlcServerForm.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="View\Forms\PlcServerForm.Designer.cs">
-      <DependentUpon>PlcServerForm.cs</DependentUpon>
-    </Compile>
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Properties\Resources.resx" />
     <EmbeddedResource Include="View\Forms\MainForm.resx">
       <DependentUpon>MainForm.cs</DependentUpon>
-    </EmbeddedResource>
-    <EmbeddedResource Include="View\Forms\PlcClientForm.resx">
-      <DependentUpon>PlcClientForm.cs</DependentUpon>
-    </EmbeddedResource>
-    <EmbeddedResource Include="View\Forms\PlcServerForm.resx">
-      <DependentUpon>PlcServerForm.cs</DependentUpon>
     </EmbeddedResource>
   </ItemGroup>
   <ItemGroup>

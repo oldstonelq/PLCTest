@@ -58,6 +58,12 @@ namespace PlcTest.Server.PlcServer
         public event Action<string> ShowCommMessageEvent;
 
         /// <summary>
+        /// 结构化通讯帧事件（与客户端 <c>IPlcClient.FrameEvent</c> 对称）。
+        /// 同时触发旧的字符串事件，两者内容等价。
+        /// </summary>
+        public event Action<CommFrame> FrameEvent;
+
+        /// <summary>
         /// 启动服务：挂接收委托、开通讯、记一条日志。重复调用是空操作。
         /// </summary>
         public void OpenServer()
@@ -164,23 +170,56 @@ namespace PlcTest.Server.PlcServer
 
         /// <summary>
         /// 触发通讯日志。订阅方抛异常不能影响报文处理，这里吞掉。
+        /// 旧字符串事件与新帧事件各抛一次：老界面照旧，新报文视图能拿到方向与字节。
         /// </summary>
         /// <param name="message">日志内容</param>
         protected void LogComm(string message)
         {
-            Action<string> handler = ShowCommMessageEvent;
-            if (handler == null)
+            RaiseSafe(message, CommFrame.Note(message));
+        }
+
+        /// <summary>
+        /// 记一条收发帧。旧事件收到的文本与重构前逐字一致（"发送报文: 01-FF"），
+        /// 新事件额外带上方向与原始字节。
+        /// </summary>
+        /// <param name="isSend">true 表示本端发出</param>
+        /// <param name="frame">完整报文</param>
+        /// <param name="caption">说明，默认「发送报文」/「接收报文」；丢弃、握手等场景可写具体原因</param>
+        protected void LogFrame(bool isSend, byte[] frame, string caption = null)
+        {
+            CommFrame item = isSend ? CommFrame.Send(frame, caption) : CommFrame.Receive(frame, caption);
+            RaiseSafe(item.ToLogText(), item);
+        }
+
+        /// <summary>
+        /// 两个事件一起抛，任一订阅方抛异常都不影响另一路与报文处理。
+        /// </summary>
+        private void RaiseSafe(string message, CommFrame frame)
+        {
+            Action<string> messageHandler = ShowCommMessageEvent;
+            if (messageHandler != null)
             {
-                return;
+                try
+                {
+                    messageHandler(message);
+                }
+                catch
+                {
+                    // 日志订阅方的异常不能影响报文处理
+                }
             }
 
-            try
+            Action<CommFrame> frameHandler = FrameEvent;
+            if (frameHandler != null)
             {
-                handler(message);
-            }
-            catch
-            {
-                // 日志订阅方的异常不能影响报文处理
+                try
+                {
+                    frameHandler(frame);
+                }
+                catch
+                {
+                    // 同上
+                }
             }
         }
     }

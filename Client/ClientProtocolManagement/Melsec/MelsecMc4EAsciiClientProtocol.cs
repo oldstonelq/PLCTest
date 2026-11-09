@@ -4,6 +4,7 @@ using System;
 using System.Linq;
 using System.Text;
 using PlcTest.Protocols;
+using PlcTest.Tool;
 
 namespace PlcTest.Client.ClientProtocolManagement.Melsec
 {
@@ -12,7 +13,7 @@ namespace PlcTest.Client.ClientProtocolManagement.Melsec
     /// 4E 帧与 3E 帧的头部结构相同（副标题 + 网络号 + PLC号 + 目标模块IO号 + 站号 + 数据长度），
     /// 区别只在副标题：请求 "4E00"，响应 "D400"。
     /// </summary>
-    public class MelsecMc4EAsciiClientProtocol : IPlcClientProtocol
+    public class MelsecMc4EAsciiClientProtocol : IPlcClientProtocol, IProtocolOptionHost
     {
         /// <summary>
         ///获取寄存器地址的真实编码
@@ -92,6 +93,27 @@ namespace PlcTest.Client.ClientProtocolManagement.Melsec
         /// </summary>
         /// <param name="address">PLC地址模型</param>
         /// <returns>读取命令报文</returns>
+        /// <summary>
+        /// 目标网络号（0–255）。直连本机 CPU 时为 0；经 MELSECNET / CC-Link 路由时才需要改。
+        /// 写进请求帧头的网络号字节。
+        /// </summary>
+        public int NetworkNumber { get; set; } = 0;
+
+        /// <summary>
+        /// 目标模块站号（0–255）。直连本机 CPU 时为 0。
+        /// </summary>
+        public int StationNumber { get; set; } = 0;
+
+        /// <summary>
+        /// 应用界面传来的协议选项（网络号 / 站号）。越界值夹到字节范围，避免拼帧时写坏。
+        /// </summary>
+        /// <param name="options">选项集，可能为 null</param>
+        public void ApplyOptions(ProtocolOptions options)
+        {
+            NetworkNumber = ProtocolOptionValues.ClampInt(options, "NetworkNumber", NetworkNumber, 0, 255);
+            StationNumber = ProtocolOptionValues.ClampInt(options, "StationNumber", StationNumber, 0, 255);
+        }
+
         public byte[] BuildReadData(PlcAddress address)
         {
             int memory = GetMemoryCode(address.Area);
@@ -169,9 +191,10 @@ namespace PlcTest.Client.ClientProtocolManagement.Melsec
             Command[1] = 0x45;
             Command[2] = 0x30;
             Command[3] = 0x30;
-            // 网络号
-            Command[4] = 0x30;
-            Command[5] = 0x30;
+            // 网络号（两位大写十六进制字符）
+            byte[] networkBytes = Encoding.ASCII.GetBytes(NetworkNumber.ToString("X2"));
+            Command[4] = networkBytes[0];
+            Command[5] = networkBytes[1];
             // PLC编号
             Command[6] = 0x46;
             Command[7] = 0x46;
@@ -180,9 +203,10 @@ namespace PlcTest.Client.ClientProtocolManagement.Melsec
             Command[9] = 0x33;
             Command[10] = 0x46;
             Command[11] = 0x46;
-            // 目标模块站号
-            Command[12] = 0x30;
-            Command[13] = 0x30;
+            // 目标模块站号（两位大写十六进制字符）
+            byte[] stationBytes = Encoding.ASCII.GetBytes(StationNumber.ToString("X2"));
+            Command[12] = stationBytes[0];
+            Command[13] = stationBytes[1];
             // 数据长度（从 CPU 监视定时器起算的字符数）
             byte[] mByte = Encoding.ASCII.GetBytes(Convert.ToString(Command.Length - 18, 16).PadLeft(4, '0').ToUpper());
             Command[14] = mByte[0];

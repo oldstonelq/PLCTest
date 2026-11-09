@@ -4,6 +4,7 @@ using PlcTest.Client.ClientInterface;
 using PlcTest.Server;
 using PlcTest.Server.ServerInterface;
 using PlcTest.Tool;
+using PlcTest.View.Workspace;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -26,25 +27,29 @@ namespace PlcTest.View.Forms
         /// </summary>
         IPlcClient plcControl = null;
         /// <summary>
-        /// PLC窗体实例
+        /// 新的调试工作台（地址字符串输入 + 监视列表 + 报文），与旧窗体并存
         /// </summary>
-        PlcClientForm plcClientForm=null;
+        PlcWorkspaceForm plcWorkspaceForm = null;
         /// <summary>最近一次成功连接使用的协议（窗体标题与软元件视图要用）</summary>
         private ProtocolType? _clientProtocol;
         /// <summary>连接参数，如 192.168.1.10:5000 或 COM3 9600</summary>
         private string _clientEndpoint;
+        /// <summary>连接时使用的协议私有选项，工作台用来在状态条上显示</summary>
+        private ProtocolOptions _clientOptions;
         /// <summary>最近一次成功启动的服务端协议</summary>
         private ProtocolType? _serverProtocol;
         /// <summary>服务端监听参数</summary>
         private string _serverEndpoint;
+        /// <summary>启动服务端时使用的协议私有选项</summary>
+        private ProtocolOptions _serverOptions;
         /// <summary>
         /// PLC服务实例
         /// </summary>
         IPlcServer PlcServer = null;
         /// <summary>
-        /// PLC服务窗体
+        /// 服务端调试工作台（模拟寄存器 + 报文），与旧窗体并存
         /// </summary>
-        PlcServerForm pLCServerForm = null;
+        PlcServerWorkspaceForm plcServerWorkspaceForm = null;
         /// <summary>
         ///  这个属性可以增加界面动态加载的流畅性
         /// </summary>
@@ -83,6 +88,7 @@ namespace PlcTest.View.Forms
         {
             bool useSerial;
             ProtocolType protocol;
+            ProtocolOptions protocolOptions;
             using (var settings = new ConnectSettingsForm())
             {
                 if (settings.ShowDialog(this) != DialogResult.OK)
@@ -91,6 +97,8 @@ namespace PlcTest.View.Forms
                 }
                 useSerial = settings.Communication == CommunicationType.Serial;
                 protocol = settings.Protocol;
+                // 对话框是 using 的，选项要在块内取出来，否则释放后拿到的是空集合
+                protocolOptions = settings.Options;
             }
 
             int number;
@@ -147,7 +155,7 @@ namespace PlcTest.View.Forms
                 // 界面这里不再需要知道「哪个厂商对应哪个 Build 方法」
                 try
                 {
-                    plcControl = builder.UseProtocol(protocol).Build();
+                    plcControl = builder.UseProtocol(protocol).UseOptions(protocolOptions).Build();
                 }
                 catch (ArgumentOutOfRangeException)
                 {
@@ -166,6 +174,7 @@ namespace PlcTest.View.Forms
                 {
                     // 记下协议与连接参数，供子窗体标题与软元件视图使用
                     _clientProtocol = protocol;
+                    _clientOptions = protocolOptions;
                     _clientEndpoint = useSerial
                         ? tb_PLCInformationIP.Text.Trim() + " " + number
                         : tb_PLCInformationIP.Text.Trim() + ":" + number;
@@ -184,14 +193,11 @@ namespace PlcTest.View.Forms
         /// <param name="e"></param>
         private void btn_Disconnect_Click(object sender, EventArgs e)
         {
-            // 子窗体绑定的是当前这条连接的协议实例，断开时一并关掉。
-            // 否则下次连另一个协议（比如从三菱换成汇川）后复用旧窗体，
-            // 区域下拉框里还是上一台 PLC 的软元件列表。
-            if (plcClientForm != null && !plcClientForm.IsDisposed)
+            if (plcWorkspaceForm != null && !plcWorkspaceForm.IsDisposed)
             {
-                plcClientForm.Close();
+                plcWorkspaceForm.Close();
             }
-            plcClientForm = null;
+            plcWorkspaceForm = null;
 
             if (plcControl != null)
             {
@@ -205,31 +211,52 @@ namespace PlcTest.View.Forms
 
             _clientProtocol = null;
             _clientEndpoint = null;
+            _clientOptions = null;
         }
         /// <summary>
-        /// PLC寄存器操作视图
+        /// 打开调试工作台（唯一的寄存器视图入口）。
         /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        private void btn_PLCInformationMemoryView_Click(object sender, EventArgs e)
+        private void btn_PLCWorkspace_Click(object sender, EventArgs e)
         {
-            if ((plcControl != null && plcControl.IsConnected))
+            if (plcControl == null || !plcControl.IsConnected)
             {
-                if (plcClientForm==null|| plcClientForm.IsDisposed)
-                {
-                    // 协议在连接时就记下来了：窗体创建点与选协议的方法不是同一个
-                    ProtocolType protocol = _clientProtocol ?? ProtocolType.MelsecMc3EBinary;
-                    plcClientForm = new PlcClientForm(plcControl, protocol, _clientEndpoint);
-                    plcClientForm.Show();
-                }
-                else
-                {
-                    plcClientForm.Show();
-                }
+                MessageBox.Show("Please Check PLC Connected");
+                return;
+            }
+
+            if (plcWorkspaceForm == null || plcWorkspaceForm.IsDisposed)
+            {
+                ProtocolType protocol = _clientProtocol ?? ProtocolType.MelsecMc3EBinary;
+                plcWorkspaceForm = new PlcWorkspaceForm(plcControl, protocol, _clientEndpoint, _clientOptions);
+                plcWorkspaceForm.Show();
             }
             else
             {
-                MessageBox.Show("Please Check PLC Connected");
+                plcWorkspaceForm.Show();
+                plcWorkspaceForm.Activate();
+            }
+        }
+        /// <summary>
+        /// 打开服务端调试工作台：维护模拟寄存器、改写模拟值、看报文。
+        /// </summary>
+        private void btn_ServerWorkspace_Click(object sender, EventArgs e)
+        {
+            if (PlcServer == null || !PlcServer.ServerIsOpen)
+            {
+                MessageBox.Show("Please Check PlcServer Open");
+                return;
+            }
+
+            if (plcServerWorkspaceForm == null || plcServerWorkspaceForm.IsDisposed)
+            {
+                ProtocolType protocol = _serverProtocol ?? ProtocolType.MelsecMc3EBinary;
+                plcServerWorkspaceForm = new PlcServerWorkspaceForm(PlcServer, protocol, _serverEndpoint, _serverOptions);
+                plcServerWorkspaceForm.Show();
+            }
+            else
+            {
+                plcServerWorkspaceForm.Show();
+                plcServerWorkspaceForm.Activate();
             }
         }
         /// <summary>
@@ -285,7 +312,7 @@ namespace PlcTest.View.Forms
             // 协议分派收敛在 Builder 里，界面不再逐个 case 地挑 UseXxx
             try
             {
-                builder.UseProtocol(settings.Protocol);
+                builder.UseProtocol(settings.Protocol).UseOptions(settings.Options);
             }
             catch (ArgumentOutOfRangeException)
             {
@@ -300,6 +327,7 @@ namespace PlcTest.View.Forms
 
                 // 记下协议与监听参数，供服务端子窗体使用
                 _serverProtocol = settings.Protocol;
+                _serverOptions = settings.Options;
                 _serverEndpoint = settings.Communication == CommunicationType.Serial
                     ? tb_ServiceInformationIP.Text.Trim() + " " + tb_ServiceInformationPort.Text.Trim()
                     : tb_ServiceInformationIP.Text.Trim() + ":" + tb_ServiceInformationPort.Text.Trim();
@@ -317,6 +345,12 @@ namespace PlcTest.View.Forms
         /// <param name="e"></param>
         private void btn_CloseServer_Click(object sender, EventArgs e)
         {
+            if (plcServerWorkspaceForm != null && !plcServerWorkspaceForm.IsDisposed)
+            {
+                plcServerWorkspaceForm.Close();
+            }
+            plcServerWorkspaceForm = null;
+
             if (PlcServer != null)
             {
                 PlcServer.CloseServer();
@@ -325,31 +359,7 @@ namespace PlcTest.View.Forms
 
             _serverProtocol = null;
             _serverEndpoint = null;
-        }
-        /// <summary>
-        /// PLC服务端寄存器视图
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        private void btn_ServiceInformationMemoryView_Click(object sender, EventArgs e)
-        {
-            if ((PlcServer != null && PlcServer.ServerIsOpen))
-            {
-                if (pLCServerForm == null || pLCServerForm.IsDisposed)
-                {
-                    ProtocolType protocol = _serverProtocol ?? ProtocolType.MelsecMc3EBinary;
-                    pLCServerForm = new PlcServerForm(PlcServer, protocol, _serverEndpoint);
-                    pLCServerForm.Show();
-                }
-                else
-                {
-                    pLCServerForm.Show();
-                }
-            }
-            else
-            {
-                MessageBox.Show("Please Check PlcServer Open");
-            }
+            _serverOptions = null;
         }
         #endregion
         /// <summary>
@@ -375,7 +385,7 @@ namespace PlcTest.View.Forms
                 tb_ServiceInformationPort.ReadOnly = true;
                 btn_OpenServer.Enabled = false;
                 btn_CloseServer.Enabled = true;
-                btn_ServiceInformationMemoryView.Enabled = true;
+                btn_ServerWorkspace.Enabled = true;
                 btn_Trigger.Enabled = true;
             }
             else
@@ -384,11 +394,12 @@ namespace PlcTest.View.Forms
                 tb_ServiceInformationPort.ReadOnly = false;
                 btn_OpenServer.Enabled = true;
                 btn_CloseServer.Enabled = false;
-                btn_ServiceInformationMemoryView.Enabled = false;
+                btn_ServerWorkspace.Enabled = false;
                 btn_Trigger.Enabled = false;
-                if ((pLCServerForm != null && pLCServerForm.IsDisposed == false))
+                if ((plcServerWorkspaceForm != null && plcServerWorkspaceForm.IsDisposed == false))
                 {
-                    pLCServerForm.Dispose();
+                    plcServerWorkspaceForm.Dispose();
+                    plcServerWorkspaceForm = null;
                 }
             }
         }
@@ -409,7 +420,7 @@ namespace PlcTest.View.Forms
 
                     btn_Connect.Enabled = false;
                     btn_Disconnect.Enabled = true;
-                    btn_PLCInformationMemoryView.Enabled = true;
+                    btn_PLCWorkspace.Enabled = true;
                 }
                 else
                 {
@@ -417,7 +428,7 @@ namespace PlcTest.View.Forms
                     lab_ConnectStatus.BackColor = Color.Orange;
                     btn_Connect.Enabled = false;
                     btn_Disconnect.Enabled = true;
-                    btn_PLCInformationMemoryView.Enabled = false;
+                    btn_PLCWorkspace.Enabled = false;
                 }
             }
             else
@@ -430,11 +441,12 @@ namespace PlcTest.View.Forms
 
                 btn_Connect.Enabled = true;
                 btn_Disconnect.Enabled = false;
-                btn_PLCInformationMemoryView.Enabled = false;
+                btn_PLCWorkspace.Enabled = false;
 
-                if ((plcClientForm != null && plcClientForm.IsDisposed == false))
+                if ((plcWorkspaceForm != null && plcWorkspaceForm.IsDisposed == false))
                 {
-                    plcClientForm.Dispose();
+                    plcWorkspaceForm.Dispose();
+                    plcWorkspaceForm = null;
                 }
             }
         }

@@ -54,10 +54,10 @@ namespace PlcTest.Server.PlcServer.Omron
             // 握手：节点地址请求，回 24 字节
             if (_protocol.IsHandshakeRequest(data))
             {
-                LogComm("节点地址请求: " + BitConverter.ToString(data));
+                LogFrame(false, data, "节点地址请求");
                 byte[] handshake = _protocol.BuildHandshakeResponse(LocalNode, RemoteNode);
                 Communication.SendToClient(handshake, client);
-                LogComm("发送报文: " + BitConverter.ToString(handshake));
+                LogFrame(true, handshake);
                 return;
             }
 
@@ -65,11 +65,11 @@ namespace PlcTest.Server.PlcServer.Omron
             if (request == null)
             {
                 // 帧格式非法：FINS 从站不响应，让主站超时重发
-                LogComm("报文格式非法，已丢弃（不回包）: " + BitConverter.ToString(data));
+                LogFrame(false, data, "报文格式非法，已丢弃（不回包）");
                 return;
             }
 
-            LogComm("接收报文: " + BitConverter.ToString(data));
+            LogFrame(false, data);
 
             byte[] response;
             try
@@ -82,7 +82,7 @@ namespace PlcTest.Server.PlcServer.Omron
             }
 
             Communication.SendToClient(response, client);
-            LogComm("发送报文: " + BitConverter.ToString(response));
+            LogFrame(true, response);
         }
 
         /// <summary>

@@ -44,7 +44,7 @@ namespace PlcTest.View.Forms
             this.lab_ServiceInformationIP = new System.Windows.Forms.Label();
             this.gb_ServiceInformationFunction = new PlcTest.View.CustomControl.MGroupBox(this.components);
             this.btn_Trigger = new System.Windows.Forms.Button();
-            this.btn_ServiceInformationMemoryView = new System.Windows.Forms.Button();
+            this.btn_ServerWorkspace = new System.Windows.Forms.Button();
             this.gb_PLCInformation = new PlcTest.View.CustomControl.MGroupBox(this.components);
             this.btn_Disconnect = new System.Windows.Forms.Button();
             this.btn_Connect = new System.Windows.Forms.Button();
@@ -69,7 +69,7 @@ namespace PlcTest.View.Forms
             this.lab_ConnectPort = new System.Windows.Forms.Label();
             this.lab_ConnectStatus = new System.Windows.Forms.Label();
             this.gb_PLCInformationFunction = new PlcTest.View.CustomControl.MGroupBox(this.components);
-            this.btn_PLCInformationMemoryView = new System.Windows.Forms.Button();
+            this.btn_PLCWorkspace = new System.Windows.Forms.Button();
             this.tableLayoutPanel1.SuspendLayout();
             this.gb_ServiceInformation.SuspendLayout();
             this.gb_ServiceInformationFunction.SuspendLayout();
@@ -209,7 +209,7 @@ namespace PlcTest.View.Forms
             // 
             this.gb_ServiceInformationFunction.BorderColor = System.Drawing.Color.Black;
             this.gb_ServiceInformationFunction.Controls.Add(this.btn_Trigger);
-            this.gb_ServiceInformationFunction.Controls.Add(this.btn_ServiceInformationMemoryView);
+            this.gb_ServiceInformationFunction.Controls.Add(this.btn_ServerWorkspace);
             this.gb_ServiceInformationFunction.Dock = System.Windows.Forms.DockStyle.Fill;
             this.gb_ServiceInformationFunction.Location = new System.Drawing.Point(282, 3);
             this.gb_ServiceInformationFunction.Name = "gb_ServiceInformationFunction";
@@ -220,22 +220,22 @@ namespace PlcTest.View.Forms
             // 
             // btn_Trigger
             // 
-            this.btn_Trigger.Location = new System.Drawing.Point(16, 60);
+            this.btn_Trigger.Location = new System.Drawing.Point(16, 56);
             this.btn_Trigger.Name = "btn_Trigger";
-            this.btn_Trigger.Size = new System.Drawing.Size(95, 33);
+            this.btn_Trigger.Size = new System.Drawing.Size(95, 32);
             this.btn_Trigger.TabIndex = 1;
             this.btn_Trigger.Text = "Trigger";
             this.btn_Trigger.UseVisualStyleBackColor = true;
             // 
-            // btn_ServiceInformationMemoryView
+            // btn_ServerWorkspace
             // 
-            this.btn_ServiceInformationMemoryView.Location = new System.Drawing.Point(16, 21);
-            this.btn_ServiceInformationMemoryView.Name = "btn_ServiceInformationMemoryView";
-            this.btn_ServiceInformationMemoryView.Size = new System.Drawing.Size(95, 32);
-            this.btn_ServiceInformationMemoryView.TabIndex = 0;
-            this.btn_ServiceInformationMemoryView.Text = "MemoryView";
-            this.btn_ServiceInformationMemoryView.UseVisualStyleBackColor = true;
-            this.btn_ServiceInformationMemoryView.Click += new System.EventHandler(this.btn_ServiceInformationMemoryView_Click);
+            this.btn_ServerWorkspace.Location = new System.Drawing.Point(16, 19);
+            this.btn_ServerWorkspace.Name = "btn_ServerWorkspace";
+            this.btn_ServerWorkspace.Size = new System.Drawing.Size(95, 32);
+            this.btn_ServerWorkspace.TabIndex = 2;
+            this.btn_ServerWorkspace.Text = "Workspace";
+            this.btn_ServerWorkspace.UseVisualStyleBackColor = true;
+            this.btn_ServerWorkspace.Click += new System.EventHandler(this.btn_ServerWorkspace_Click);
             // 
             // gb_PLCInformation
             // 
@@ -481,7 +481,7 @@ namespace PlcTest.View.Forms
             // gb_PLCInformationFunction
             // 
             this.gb_PLCInformationFunction.BorderColor = System.Drawing.Color.Black;
-            this.gb_PLCInformationFunction.Controls.Add(this.btn_PLCInformationMemoryView);
+            this.gb_PLCInformationFunction.Controls.Add(this.btn_PLCWorkspace);
             this.gb_PLCInformationFunction.Dock = System.Windows.Forms.DockStyle.Fill;
             this.gb_PLCInformationFunction.Location = new System.Drawing.Point(528, 108);
             this.gb_PLCInformationFunction.Name = "gb_PLCInformationFunction";
@@ -490,15 +490,15 @@ namespace PlcTest.View.Forms
             this.gb_PLCInformationFunction.TabStop = false;
             this.gb_PLCInformationFunction.Text = "Function";
             // 
-            // btn_PLCInformationMemoryView
+            // btn_PLCWorkspace
             // 
-            this.btn_PLCInformationMemoryView.Location = new System.Drawing.Point(12, 20);
-            this.btn_PLCInformationMemoryView.Name = "btn_PLCInformationMemoryView";
-            this.btn_PLCInformationMemoryView.Size = new System.Drawing.Size(80, 70);
-            this.btn_PLCInformationMemoryView.TabIndex = 1;
-            this.btn_PLCInformationMemoryView.Text = "MemoryView";
-            this.btn_PLCInformationMemoryView.UseVisualStyleBackColor = true;
-            this.btn_PLCInformationMemoryView.Click += new System.EventHandler(this.btn_PLCInformationMemoryView_Click);
+            this.btn_PLCWorkspace.Location = new System.Drawing.Point(12, 20);
+            this.btn_PLCWorkspace.Name = "btn_PLCWorkspace";
+            this.btn_PLCWorkspace.Size = new System.Drawing.Size(80, 70);
+            this.btn_PLCWorkspace.TabIndex = 2;
+            this.btn_PLCWorkspace.Text = "Workspace";
+            this.btn_PLCWorkspace.UseVisualStyleBackColor = true;
+            this.btn_PLCWorkspace.Click += new System.EventHandler(this.btn_PLCWorkspace_Click);
             // 
             // MainForm
             // 
@@ -528,7 +528,7 @@ namespace PlcTest.View.Forms
 
         #endregion
 
-        private System.Windows.Forms.Button btn_PLCInformationMemoryView;
+        private System.Windows.Forms.Button btn_PLCWorkspace;
         private System.Windows.Forms.Button btn_Connect;
         private System.Windows.Forms.Button btn_CloseServer;
         private System.Windows.Forms.Button btn_OpenServer;
@@ -543,7 +543,7 @@ namespace PlcTest.View.Forms
         private System.Windows.Forms.Label lab_PLCInformationPort;
         private System.Windows.Forms.Label lab_PLCInformationIP;
         private System.Windows.Forms.Button btn_Trigger;
-        private System.Windows.Forms.Button btn_ServiceInformationMemoryView;
+        private System.Windows.Forms.Button btn_ServerWorkspace;
         private System.Windows.Forms.Button btn_Disconnect;
         private System.Windows.Forms.TableLayoutPanel tableLayoutPanel1;
         private System.Windows.Forms.Label lab_ConnectPort;

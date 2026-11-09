@@ -82,11 +82,11 @@ namespace PlcTest.Server.PlcServer.Melsec
         {
             if (!_protocol.ValidateRequestHeader(byt))
             {
-                LogComm("报文头不属于本协议，已丢弃: " + BitConverter.ToString(byt));
+                LogFrame(false, byt, "报文头不属于本协议，已丢弃");
                 return;
             }
 
-            LogComm("接收报文: " + BitConverter.ToString(byt));
+            LogFrame(false, byt);
 
             var request = _protocol.ParseRequest(byt);
             if (request.Command == 0)
@@ -99,7 +99,7 @@ namespace PlcTest.Server.PlcServer.Melsec
                 Array.Copy(errHeader, 0, errResp, 0, errHeader.Length);
                 Array.Copy(errData, 0, errResp, errHeader.Length, errData.Length);
                 Communication.SendToClient(errResp, client);
-                LogComm("发送报文: " + BitConverter.ToString(errResp));
+                LogFrame(true, errResp);
                 return;
             }
 
@@ -118,7 +118,7 @@ namespace PlcTest.Server.PlcServer.Melsec
             Array.Copy(respHeader, 0, resp, 0, respHeader.Length);
             Array.Copy(responseData, 0, resp, respHeader.Length, responseData.Length);
             Communication.SendToClient(resp, client);
-            LogComm("发送报文: " + BitConverter.ToString(resp));
+            LogFrame(true, resp);
         }
 
         /// <summary>

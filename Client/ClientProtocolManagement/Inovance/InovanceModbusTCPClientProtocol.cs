@@ -12,7 +12,7 @@ namespace PlcTest.Client.ClientProtocolManagement.Inovance
     /// 将请求 PDU 构建为 Modbus PDU，并通过 BuildCompletePack 封装为 MBAP + PDU。
     /// 该实现支持读取/写入线圈（位）和保持寄存器（字）。
     /// </summary>
-    public class InovanceModbusTcpClientProtocol : IPlcClientProtocol, IDataFormatConfigurable
+    public class InovanceModbusTcpClientProtocol : IPlcClientProtocol, IDataFormatConfigurable, IProtocolOptionHost
     {
         /// <summary>
         /// 事务标识符（Transaction Identifier），用于区分请求和响应。每次发送请求时递增。
@@ -43,6 +43,22 @@ namespace PlcTest.Client.ClientProtocolManagement.Inovance
             // 返回该软元件在 Modbus 地址空间中的起始地址（真实地址 = 起始地址 + 编号）
             return InovanceDeviceCatalog.Get(memoryArea, CpuModel).BaseAddress;
         }
+        /// <summary>
+        /// 应用界面传来的协议选项：机型决定软元件表，字节序决定 32 位数据的解码方式。
+        /// 多余的键直接忽略（同一份选项集会发给不同协议）。
+        /// </summary>
+        /// <param name="options">选项集，可能为 null</param>
+        public void ApplyOptions(ProtocolOptions options)
+        {
+            if (options == null)
+            {
+                return;
+            }
+
+            CpuModel = options.GetValue("CpuModel", CpuModel);
+            DataFormat = options.GetValue("DataFormat", DataFormat);
+        }
+
         /// <summary>
         /// 该软元件区域允许的访问方式。
         /// D/R 在本实现中既可当保持寄存器（字）访问，也可当线圈（位）访问，两者地址空间相互独立。

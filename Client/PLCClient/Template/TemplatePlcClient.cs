@@ -104,6 +104,13 @@ namespace PlcTest.Client.PlcClient.Template
         /// </summary>
         public event Action<string> ShowCommMessageEvent;
         /// <summary>
+        /// 结构化通讯帧事件。模板还没实现收发流程，所以这里声明了但不会触发；
+        /// 照抄本模板实现新客户端时，请在收发处同时触发它（见 CommunicationPlcClient.RaiseCommFrame）。
+        /// </summary>
+#pragma warning disable 67
+        public event Action<CommFrame> FrameEvent;
+#pragma warning restore 67
+        /// <summary>
         /// 构造函数
         /// </summary>
         /// <param name="comm">通讯方式</param>

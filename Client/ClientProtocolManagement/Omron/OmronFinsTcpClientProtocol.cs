@@ -1,5 +1,6 @@
 using PlcTest.Client.ClientInterface;
 using PlcTest.Models;
+using PlcTest.Tool;
 using System;
 using System.Text;
 using PlcTest.Protocols;
@@ -11,7 +12,7 @@ namespace PlcTest.Client.ClientProtocolManagement.Omron
     /// 两层结构：外层 FINS/TCP 外壳（16 字节）+ 内层 FINS 帧（10 字节头 + 指令代码 + 参数）。
     /// 依据 OMRON W342《FINS 通信指令手册》第 5 章；外层封装参考 FINS/TCP 网关约定。
     /// </summary>
-    public class OmronFinsTcpClientProtocol : IPlcClientProtocol, IDataFormatConfigurable, IOmronFinsClientProtocol
+    public class OmronFinsTcpClientProtocol : IPlcClientProtocol, IDataFormatConfigurable, IOmronFinsClientProtocol, IProtocolOptionHost
     {
         /// <summary>外层 FINS/TCP 头长度</summary>
         public const int OuterHeaderLength = 16;
@@ -49,6 +50,23 @@ namespace PlcTest.Client.ClientProtocolManagement.Omron
         public DataFormat DataFormat { get; set; } = DataFormat.CDAB;
         /// <summary>是否已完成节点地址握手</summary>
         public bool IsHandshaked { get; set; }
+
+        /// <summary>
+        /// 应用界面传来的协议选项。目标网络号 / 单元号写进 FINS 帧头（DNA / DA2），
+        /// 同网段直连时保持 0；跨路由访问才需要改。字节序同汇川，默认低字在前。
+        /// </summary>
+        /// <param name="options">选项集，可能为 null</param>
+        public void ApplyOptions(ProtocolOptions options)
+        {
+            if (options == null)
+            {
+                return;
+            }
+
+            DataFormat = options.GetValue("DataFormat", DataFormat);
+            Dna = ProtocolOptionValues.ClampByte(options, "TargetNetwork", Dna);
+            Da2 = ProtocolOptionValues.ClampByte(options, "TargetUnit", Da2);
+        }
 
         #region 区域能力
 

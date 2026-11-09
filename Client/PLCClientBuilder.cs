@@ -4,6 +4,7 @@ using PlcTest.Client.ClientProtocolManagement.Omron;
 using PlcTest.Client.ClientProtocolManagement.Siemens;
 using PlcTest.Client.PlcClient;
 using PlcTest.Client.PlcClient.Omron;
+using PlcTest.Client.PlcClient.Siemens;
 using PlcTest.Client.ClientCommunication;
 using PlcTest.Client.ClientInterface;
 using PlcTest.Models;
@@ -27,6 +28,33 @@ namespace PlcTest.Client
         /// 通讯协议实例，用于处理 PLC 通讯协议的具体实现
         /// </summary>
         private IPlcClientProtocol _protocol;
+
+        /// <summary>
+        /// 协议私有选项（机型、字节序、机架槽号……）。在 <see cref="Build"/> 里交给协议应用，
+        /// 所以与 UseProtocol 的先后顺序无所谓。
+        /// </summary>
+        private ProtocolOptions _options = new ProtocolOptions();
+
+        /// <summary>
+        /// 设置协议私有选项。键的含义见 <see cref="PlcTest.Protocols.ProtocolOptionCatalog"/>；
+        /// 协议不认识的多余键会被忽略，不会抛异常。
+        /// </summary>
+        /// <param name="options">选项集，可传 null 表示不设置</param>
+        /// <returns>构建器本身，便于链式调用</returns>
+        public PlcClientBuilder UseOptions(ProtocolOptions options)
+        {
+            _options = options ?? new ProtocolOptions();
+            return this;
+        }
+
+        /// <summary>
+        /// 设置单个选项，等价于 <c>UseOptions(new ProtocolOptions().Set(key, value))</c>，便于调用方按需拼。
+        /// </summary>
+        public PlcClientBuilder SetOption(string key, object value)
+        {
+            _options.Set(key, value);
+            return this;
+        }
 
         #region 通讯方式
         /// <summary>
@@ -218,10 +246,23 @@ namespace PlcTest.Client
                 throw new InvalidOperationException("请先选择协议（UseProtocol 或 UseMelsecMc3EBinary 等）。");
             }
 
+            // 协议私有选项在建客户端之前应用：机型会影响软元件表，机架/槽号会影响 COTP 帧
+            IProtocolOptionHost optionHost = _protocol as IProtocolOptionHost;
+            if (optionHost != null)
+            {
+                optionHost.ApplyOptions(_options);
+            }
+
             // FINS 必须在建连后做节点地址握手，用专门的客户端
             if (_protocol is IOmronFinsClientProtocol)
             {
                 return new OmronPlcClient(_communication, _protocol);
+            }
+
+            // S7 建连后还要做 COTP + Setup Communication 两段握手
+            if (_protocol is IS7SessionProtocol)
+            {
+                return new S7PlcClient(_communication, _protocol);
             }
 
             return new CommunicationPlcClient(_communication, _protocol);

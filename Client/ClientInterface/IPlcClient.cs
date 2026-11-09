@@ -97,5 +97,14 @@ namespace PlcTest.Client.ClientInterface
         /// 交互信息委托
         /// </summary>
          event Action<string> ShowCommMessageEvent;
+
+        /// <summary>
+        /// 结构化通讯帧事件：带方向、时间与原始字节，供报文视图着色与复制。
+        /// <para>
+        /// 与 <see cref="ShowCommMessageEvent"/> 同时触发、内容等价，后者保留给既有调用方；
+        /// 新界面订阅这一个就够（能同时收到收发帧与纯文本提示）。
+        /// </para>
+        /// </summary>
+        event Action<CommFrame> FrameEvent;
     }
 }

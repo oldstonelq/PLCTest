@@ -56,11 +56,11 @@ namespace PlcTest.Server.PlcServer.Inovance
             if (request == null)
             {
                 // 报文非法（长度不足 / CRC 不符）：Modbus 从站应当静默丢弃，不回包
-                LogComm("报文非法（长度不足或 CRC 不符），已丢弃: " + BitConverter.ToString(data));
+                LogFrame(false, data, "报文非法（长度不足或 CRC 不符），已丢弃");
                 return;
             }
 
-            LogComm("接收报文: " + BitConverter.ToString(data));
+            LogFrame(false, data);
 
             byte[] response;
             try
@@ -73,7 +73,7 @@ namespace PlcTest.Server.PlcServer.Inovance
             }
 
             Communication.SendToClient(response, client);
-            LogComm("发送报文: " + BitConverter.ToString(response));
+            LogFrame(true, response);
         }
 
         /// <summary>

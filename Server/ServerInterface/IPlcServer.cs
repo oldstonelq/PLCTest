@@ -39,5 +39,11 @@ namespace PlcTest.Server.ServerInterface
         /// 由协议线程触发，订阅方（界面）需要自己切回 UI 线程再更新控件。
         /// </summary>
         event Action<string> ShowCommMessageEvent;
+
+        /// <summary>
+        /// 结构化通讯帧事件：带方向、时间与原始字节，供报文视图着色与复制。
+        /// 与 <see cref="ShowCommMessageEvent"/> 同时触发、内容等价，后者保留给既有调用方。
+        /// </summary>
+        event Action<CommFrame> FrameEvent;
     }
 }

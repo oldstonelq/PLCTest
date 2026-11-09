@@ -13,7 +13,7 @@ namespace PlcTest.Client.ClientProtocolManagement.Inovance
     /// Modbus RTU 实现的 Inovance 协议适配器。
     /// 构造 RTU 帧： [UnitId][PDU][CRClo][CRChi]
     /// </summary>
-    public class InovanceModbusRtuClientProtocol : IPlcClientProtocol, IDataFormatConfigurable
+    public class InovanceModbusRtuClientProtocol : IPlcClientProtocol, IDataFormatConfigurable, IProtocolOptionHost
     {
         /// <summary>
         /// 单元标识符，设备地址，一般默认1
@@ -32,6 +32,22 @@ namespace PlcTest.Client.ClientProtocolManagement.Inovance
         /// 32 位数据（占两个寄存器）的字节序与字序，默认低字在前（<see cref="DataFormat.CDAB"/>），与 TCP 一致。
         /// </summary>
         public DataFormat DataFormat { get; set; } = DataFormat.CDAB;
+
+        /// <summary>
+        /// 应用界面传来的协议选项：机型决定软元件表，字节序决定 32 位数据的解码方式。
+        /// 多余的键直接忽略（同一份选项集会发给不同协议）。
+        /// </summary>
+        /// <param name="options">选项集，可能为 null</param>
+        public void ApplyOptions(ProtocolOptions options)
+        {
+            if (options == null)
+            {
+                return;
+            }
+
+            CpuModel = options.GetValue("CpuModel", CpuModel);
+            DataFormat = options.GetValue("DataFormat", DataFormat);
+        }
 
         public int GetMemoryCode(MemoryArea memoryArea)
         {

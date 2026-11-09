@@ -47,13 +47,50 @@ namespace PlcTest.Client.PlcClient
         /// </summary>
         public event Action<string> ShowCommMessageEvent;
         /// <summary>
+        /// 结构化通讯帧事件（方向 + 原始字节），供报文视图着色与复制。
+        /// </summary>
+        public event Action<CommFrame> FrameEvent;
+
+        /// <summary>
         /// 供子类在握手等额外流程中输出通讯日志（事件只能在声明类内触发）。
+        /// 同时抛给旧字符串事件和新帧事件，界面订阅任意一个都能收到。
         /// </summary>
         protected void RaiseCommMessage(string message)
         {
-            if (ShowCommMessageEvent != null)
+            Action<string> messageHandler = ShowCommMessageEvent;
+            if (messageHandler != null)
             {
-                ShowCommMessageEvent(message);
+                messageHandler(message);
+            }
+
+            Action<CommFrame> frameHandler = FrameEvent;
+            if (frameHandler != null)
+            {
+                frameHandler(CommFrame.Note(message));
+            }
+        }
+
+        /// <summary>
+        /// 抛一条收发帧：旧事件收到的是与原来逐字相同的文本，新事件拿到方向与字节。
+        /// </summary>
+        /// <param name="frame">帧</param>
+        protected void RaiseCommFrame(CommFrame frame)
+        {
+            if (frame == null)
+            {
+                return;
+            }
+
+            Action<string> messageHandler = ShowCommMessageEvent;
+            if (messageHandler != null)
+            {
+                messageHandler(frame.ToLogText());
+            }
+
+            Action<CommFrame> frameHandler = FrameEvent;
+            if (frameHandler != null)
+            {
+                frameHandler(frame);
             }
         }
 
@@ -644,10 +681,20 @@ namespace PlcTest.Client.PlcClient
                     return false;
                 }
 
-                ShowCommMessageEvent?.Invoke($"发送报文: {BitConverter.ToString(pack)}");
+                RaiseCommFrame(CommFrame.Send(pack));
                 // 由协议决定"这一帧多长"，通讯层据此读满，不再靠静默超时猜帧尾
                 response = _comm.SendAndReceiveData(pack, _communicationProtocol.GetResponseFrameLength);
-                ShowCommMessageEvent?.Invoke($"接收报文: {BitConverter.ToString(response)}");
+
+                // 通讯层正常路径要么返回数据、要么抛异常；返回 null 只可能来自自定义/替身实现。
+                // 这里显式判掉：原先这行会走到 BitConverter.ToString(null) 抛 NRE，
+                // 被下面的 catch 变成"通讯异常: 值不能为 null"，把真正的原因盖住了。
+                if (response == null || response.Length == 0)
+                {
+                    error = "通讯异常: 未收到响应";
+                    return false;
+                }
+
+                RaiseCommFrame(CommFrame.Receive(response));
                 return true;
             }
             catch (Exception ex)
