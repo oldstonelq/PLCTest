@@ -74,7 +74,9 @@
     <Compile Include="Protocols\DeviceAreaInfoProvider.cs" />
     <Compile Include="Client\ClientInterface\IClientCommunication.cs" />
     <Compile Include="Client\ClientInterface\IPlcClient.cs" />
+    <Compile Include="Client\ClientInterface\IFrameSegmentProtocol.cs" />
     <Compile Include="Client\ClientInterface\IPlcClientProtocol.cs" />
+    <Compile Include="Client\ClientInterface\IS7MultiVarProtocol.cs" />
     <Compile Include="Client\ClientInterface\IOmronFinsClientProtocol.cs" />
     <Compile Include="Client\ClientInterface\IProtocolOptionHost.cs" />
     <Compile Include="Client\ClientInterface\IS7SessionProtocol.cs" />
@@ -100,6 +102,8 @@
     <Compile Include="Server\ServerInterface\IRegisterTable.cs" />
     <Compile Include="Server\ServerInterface\IPlcServer.cs" />
     <Compile Include="Server\ServerInterface\IServerCommunication.cs" />
+    <Compile Include="Server\ServerInterface\IS7ServerProtocol.cs" />
+    <Compile Include="Server\ServerInterface\S7RequestInfo.cs" />
     <Compile Include="Server\ServerInterface\IServerProtocol.cs" />
     <Compile Include="Server\ServerInterface\IModbusServerProtocol.cs" />
     <Compile Include="Server\ServerProtocolManagement\Inovance\InovanceModbusTcpServerProtocol.cs" />
@@ -107,7 +111,9 @@
     <Compile Include="Server\PlcServer\Inovance\InovancePlcServer.cs" />
     <Compile Include="Server\ServerInterface\IOmronFinsServerProtocol.cs" />
     <Compile Include="Server\ServerProtocolManagement\Omron\OmronFinsTcpServerProtocol.cs" />
+    <Compile Include="Server\ServerProtocolManagement\Siemens\SiemensS71200ServerProtocol.cs" />
     <Compile Include="Server\PlcServer\Omron\OmronFinsServer.cs" />
+    <Compile Include="Server\PlcServer\Siemens\S7PlcServer.cs" />
     <Compile Include="Server\ServerProtocolManagement\MelsecServerDeviceMapper.cs" />
     <Compile Include="Server\ServerProtocolManagement\AsciiFrameHelper.cs" />
     <Compile Include="Server\ServerProtocolManagement\Melsec\MelsecMc3EBinaryServerProtocol.cs" />
@@ -174,6 +180,9 @@
     <EmbeddedResource Include="Properties\Resources.resx" />
     <EmbeddedResource Include="View\Forms\MainForm.resx">
       <DependentUpon>MainForm.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="View\Forms\PlcServerWorkspaceForm.resx">
+      <DependentUpon>PlcServerWorkspaceForm.cs</DependentUpon>
     </EmbeddedResource>
   </ItemGroup>
   <ItemGroup>

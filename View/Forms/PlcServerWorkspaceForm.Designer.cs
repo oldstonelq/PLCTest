@@ -43,14 +43,6 @@ namespace PlcTest.View.Forms
             this._tabs = new System.Windows.Forms.TabControl();
             this._pageRegisters = new System.Windows.Forms.TabPage();
             this._registerLayout = new System.Windows.Forms.TableLayoutPanel();
-            this._registerBar = new System.Windows.Forms.FlowLayoutPanel();
-            this._btnInit = new System.Windows.Forms.Button();
-            this._btnResetRange = new System.Windows.Forms.Button();
-            this._btnResetAll = new System.Windows.Forms.Button();
-            this._btnRemoveArea = new System.Windows.Forms.Button();
-            this._btnRandom = new System.Windows.Forms.Button();
-            this._registerHint = new System.Windows.Forms.Label();
-            this._monitor = new PlcTest.View.Controls.MonitorGrid();
             this._pageSingle = new System.Windows.Forms.TabPage();
             this._singleLayout = new System.Windows.Forms.TableLayoutPanel();
             this._readBar = new System.Windows.Forms.FlowLayoutPanel();
@@ -61,8 +53,16 @@ namespace PlcTest.View.Forms
             this._writeLabel = new System.Windows.Forms.Label();
             this._tbWriteValue = new System.Windows.Forms.TextBox();
             this._btnWrite = new System.Windows.Forms.Button();
-            this._frameLog = new FrameLogView();
+            this._frameLog = new PlcTest.View.Controls.FrameLogView();
             this._statusTimer = new System.Windows.Forms.Timer(this.components);
+            this._registerHint = new System.Windows.Forms.Label();
+            this._btnRandom = new System.Windows.Forms.Button();
+            this._btnRemoveArea = new System.Windows.Forms.Button();
+            this._btnResetAll = new System.Windows.Forms.Button();
+            this._btnResetRange = new System.Windows.Forms.Button();
+            this._btnInit = new System.Windows.Forms.Button();
+            this._registerBar = new System.Windows.Forms.FlowLayoutPanel();
+            this._monitor = new PlcTest.View.Controls.MonitorGrid();
             this._root.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this._middle)).BeginInit();
             this._middle.Panel1.SuspendLayout();
@@ -72,11 +72,11 @@ namespace PlcTest.View.Forms
             this._tabs.SuspendLayout();
             this._pageRegisters.SuspendLayout();
             this._registerLayout.SuspendLayout();
-            this._registerBar.SuspendLayout();
             this._pageSingle.SuspendLayout();
             this._singleLayout.SuspendLayout();
             this._readBar.SuspendLayout();
             this._writeBar.SuspendLayout();
+            this._registerBar.SuspendLayout();
             this.SuspendLayout();
             // 
             // _root
@@ -112,8 +112,11 @@ namespace PlcTest.View.Forms
             // 
             // _addressPanel
             // 
+            this._addressPanel.AddressText = "";
             this._addressPanel.BackColor = System.Drawing.Color.Transparent;
             this._addressPanel.Dock = System.Windows.Forms.DockStyle.Fill;
+            this._addressPanel.Kind = PlcTest.View.Support.AddressValueKind.Bit;
+            this._addressPanel.Length = 1;
             this._addressPanel.Location = new System.Drawing.Point(3, 29);
             this._addressPanel.Name = "_addressPanel";
             this._addressPanel.Size = new System.Drawing.Size(1014, 34);
@@ -135,7 +138,6 @@ namespace PlcTest.View.Forms
             this._middle.Panel2.Controls.Add(this._tabs);
             this._middle.Size = new System.Drawing.Size(1014, 418);
             this._middle.SplitterDistance = 190;
-            this._middle.SplitterWidth = 4;
             this._middle.TabIndex = 2;
             // 
             // _leftHost
@@ -154,6 +156,7 @@ namespace PlcTest.View.Forms
             this._lstAreas.Dock = System.Windows.Forms.DockStyle.Fill;
             this._lstAreas.Font = new System.Drawing.Font("Consolas", 9F);
             this._lstAreas.IntegralHeight = false;
+            this._lstAreas.ItemHeight = 14;
             this._lstAreas.Location = new System.Drawing.Point(0, 24);
             this._lstAreas.Name = "_lstAreas";
             this._lstAreas.Size = new System.Drawing.Size(190, 394);
@@ -185,10 +188,10 @@ namespace PlcTest.View.Forms
             // _pageRegisters
             // 
             this._pageRegisters.Controls.Add(this._registerLayout);
-            this._pageRegisters.Location = new System.Drawing.Point(4, 22);
+            this._pageRegisters.Location = new System.Drawing.Point(4, 24);
             this._pageRegisters.Name = "_pageRegisters";
             this._pageRegisters.Padding = new System.Windows.Forms.Padding(3);
-            this._pageRegisters.Size = new System.Drawing.Size(812, 392);
+            this._pageRegisters.Size = new System.Drawing.Size(812, 390);
             this._pageRegisters.TabIndex = 0;
             this._pageRegisters.Text = "模拟寄存器";
             this._pageRegisters.UseVisualStyleBackColor = true;
@@ -204,96 +207,10 @@ namespace PlcTest.View.Forms
             this._registerLayout.Name = "_registerLayout";
             this._registerLayout.Padding = new System.Windows.Forms.Padding(6);
             this._registerLayout.RowCount = 2;
-            this._registerLayout.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 32F));
+            this._registerLayout.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 41F));
             this._registerLayout.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 100F));
-            this._registerLayout.Size = new System.Drawing.Size(806, 386);
+            this._registerLayout.Size = new System.Drawing.Size(806, 384);
             this._registerLayout.TabIndex = 0;
-            // 
-            // _registerBar
-            // 
-            this._registerBar.Controls.Add(this._btnInit);
-            this._registerBar.Controls.Add(this._btnResetRange);
-            this._registerBar.Controls.Add(this._btnResetAll);
-            this._registerBar.Controls.Add(this._btnRemoveArea);
-            this._registerBar.Controls.Add(this._btnRandom);
-            this._registerBar.Controls.Add(this._registerHint);
-            this._registerBar.Dock = System.Windows.Forms.DockStyle.Fill;
-            this._registerBar.Location = new System.Drawing.Point(9, 9);
-            this._registerBar.Name = "_registerBar";
-            this._registerBar.Padding = new System.Windows.Forms.Padding(0, 4, 0, 0);
-            this._registerBar.Size = new System.Drawing.Size(788, 26);
-            this._registerBar.TabIndex = 0;
-            this._registerBar.WrapContents = false;
-            // 
-            // _btnInit
-            // 
-            this._btnInit.FlatStyle = System.Windows.Forms.FlatStyle.System;
-            this._btnInit.Location = new System.Drawing.Point(0, 5);
-            this._btnInit.Margin = new System.Windows.Forms.Padding(0, 1, 6, 0);
-            this._btnInit.Name = "_btnInit";
-            this._btnInit.Size = new System.Drawing.Size(92, 24);
-            this._btnInit.TabIndex = 0;
-            this._btnInit.Text = "初始化区间";
-            // 
-            // _btnResetRange
-            // 
-            this._btnResetRange.FlatStyle = System.Windows.Forms.FlatStyle.System;
-            this._btnResetRange.Location = new System.Drawing.Point(98, 5);
-            this._btnResetRange.Margin = new System.Windows.Forms.Padding(0, 1, 6, 0);
-            this._btnResetRange.Name = "_btnResetRange";
-            this._btnResetRange.Size = new System.Drawing.Size(80, 24);
-            this._btnResetRange.TabIndex = 1;
-            this._btnResetRange.Text = "清零区间";
-            // 
-            // _btnResetAll
-            // 
-            this._btnResetAll.FlatStyle = System.Windows.Forms.FlatStyle.System;
-            this._btnResetAll.Location = new System.Drawing.Point(184, 5);
-            this._btnResetAll.Margin = new System.Windows.Forms.Padding(0, 1, 6, 0);
-            this._btnResetAll.Name = "_btnResetAll";
-            this._btnResetAll.Size = new System.Drawing.Size(80, 24);
-            this._btnResetAll.TabIndex = 2;
-            this._btnResetAll.Text = "全部清零";
-            // 
-            // _btnRemoveArea
-            // 
-            this._btnRemoveArea.FlatStyle = System.Windows.Forms.FlatStyle.System;
-            this._btnRemoveArea.Location = new System.Drawing.Point(270, 5);
-            this._btnRemoveArea.Margin = new System.Windows.Forms.Padding(0, 1, 6, 0);
-            this._btnRemoveArea.Name = "_btnRemoveArea";
-            this._btnRemoveArea.Size = new System.Drawing.Size(80, 24);
-            this._btnRemoveArea.TabIndex = 3;
-            this._btnRemoveArea.Text = "移除区域";
-            // 
-            // _btnRandom
-            // 
-            this._btnRandom.FlatStyle = System.Windows.Forms.FlatStyle.System;
-            this._btnRandom.Location = new System.Drawing.Point(356, 5);
-            this._btnRandom.Margin = new System.Windows.Forms.Padding(0, 1, 6, 0);
-            this._btnRandom.Name = "_btnRandom";
-            this._btnRandom.Size = new System.Drawing.Size(80, 24);
-            this._btnRandom.TabIndex = 4;
-            this._btnRandom.Text = "随机填充";
-            // 
-            // _registerHint
-            // 
-            this._registerHint.AutoSize = true;
-            this._registerHint.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F);
-            this._registerHint.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(95)))), ((int)(((byte)(94)))), ((int)(((byte)(90)))));
-            this._registerHint.Location = new System.Drawing.Point(450, 9);
-            this._registerHint.Margin = new System.Windows.Forms.Padding(8, 5, 0, 0);
-            this._registerHint.Name = "_registerHint";
-            this._registerHint.Size = new System.Drawing.Size(233, 12);
-            this._registerHint.TabIndex = 5;
-            this._registerHint.Text = "清零只置 0（地址保留）；移除会删地址";
-            // 
-            // _monitor
-            // 
-            this._monitor.Dock = System.Windows.Forms.DockStyle.Fill;
-            this._monitor.Location = new System.Drawing.Point(9, 41);
-            this._monitor.Name = "_monitor";
-            this._monitor.Size = new System.Drawing.Size(788, 336);
-            this._monitor.TabIndex = 1;
             // 
             // _pageSingle
             // 
@@ -365,7 +282,7 @@ namespace PlcTest.View.Forms
             this._tbReadResult.Name = "_tbReadResult";
             this._tbReadResult.ReadOnly = true;
             this._tbReadResult.ScrollBars = System.Windows.Forms.ScrollBars.Both;
-            this._tbReadResult.Size = new System.Drawing.Size(788, 308);
+            this._tbReadResult.Size = new System.Drawing.Size(788, 304);
             this._tbReadResult.TabIndex = 1;
             this._tbReadResult.WordWrap = false;
             // 
@@ -375,7 +292,7 @@ namespace PlcTest.View.Forms
             this._writeBar.Controls.Add(this._tbWriteValue);
             this._writeBar.Controls.Add(this._btnWrite);
             this._writeBar.Dock = System.Windows.Forms.DockStyle.Fill;
-            this._writeBar.Location = new System.Drawing.Point(9, 355);
+            this._writeBar.Location = new System.Drawing.Point(9, 351);
             this._writeBar.Name = "_writeBar";
             this._writeBar.Padding = new System.Windows.Forms.Padding(0, 3, 0, 0);
             this._writeBar.Size = new System.Drawing.Size(788, 26);
@@ -390,14 +307,14 @@ namespace PlcTest.View.Forms
             this._writeLabel.Location = new System.Drawing.Point(0, 10);
             this._writeLabel.Margin = new System.Windows.Forms.Padding(0, 7, 4, 0);
             this._writeLabel.Name = "_writeLabel";
-            this._writeLabel.Size = new System.Drawing.Size(41, 12);
+            this._writeLabel.Size = new System.Drawing.Size(43, 13);
             this._writeLabel.TabIndex = 0;
             this._writeLabel.Text = "写入值";
             // 
             // _tbWriteValue
             // 
             this._tbWriteValue.Font = new System.Drawing.Font("Consolas", 9F);
-            this._tbWriteValue.Location = new System.Drawing.Point(45, 6);
+            this._tbWriteValue.Location = new System.Drawing.Point(50, 6);
             this._tbWriteValue.Name = "_tbWriteValue";
             this._tbWriteValue.Size = new System.Drawing.Size(240, 22);
             this._tbWriteValue.TabIndex = 1;
@@ -405,7 +322,7 @@ namespace PlcTest.View.Forms
             // _btnWrite
             // 
             this._btnWrite.FlatStyle = System.Windows.Forms.FlatStyle.System;
-            this._btnWrite.Location = new System.Drawing.Point(291, 7);
+            this._btnWrite.Location = new System.Drawing.Point(299, 4);
             this._btnWrite.Margin = new System.Windows.Forms.Padding(6, 1, 6, 0);
             this._btnWrite.Name = "_btnWrite";
             this._btnWrite.Size = new System.Drawing.Size(74, 24);
@@ -416,6 +333,7 @@ namespace PlcTest.View.Forms
             // 
             this._frameLog.Dock = System.Windows.Forms.DockStyle.Fill;
             this._frameLog.Location = new System.Drawing.Point(3, 493);
+            this._frameLog.MaxLines = 500;
             this._frameLog.Name = "_frameLog";
             this._frameLog.Size = new System.Drawing.Size(1014, 164);
             this._frameLog.TabIndex = 3;
@@ -424,9 +342,96 @@ namespace PlcTest.View.Forms
             // 
             this._statusTimer.Interval = 500;
             // 
+            // _registerHint
+            // 
+            this._registerHint.AutoSize = true;
+            this._registerHint.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F);
+            this._registerHint.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(95)))), ((int)(((byte)(94)))), ((int)(((byte)(90)))));
+            this._registerHint.Location = new System.Drawing.Point(450, 9);
+            this._registerHint.Margin = new System.Windows.Forms.Padding(8, 5, 0, 0);
+            this._registerHint.Name = "_registerHint";
+            this._registerHint.Size = new System.Drawing.Size(220, 13);
+            this._registerHint.TabIndex = 5;
+            this._registerHint.Text = "清零只置 0（地址保留）；移除会删地址";
+            // 
+            // _btnRandom
+            // 
+            this._btnRandom.FlatStyle = System.Windows.Forms.FlatStyle.System;
+            this._btnRandom.Location = new System.Drawing.Point(356, 5);
+            this._btnRandom.Margin = new System.Windows.Forms.Padding(0, 1, 6, 0);
+            this._btnRandom.Name = "_btnRandom";
+            this._btnRandom.Size = new System.Drawing.Size(80, 24);
+            this._btnRandom.TabIndex = 4;
+            this._btnRandom.Text = "随机填充";
+            // 
+            // _btnRemoveArea
+            // 
+            this._btnRemoveArea.FlatStyle = System.Windows.Forms.FlatStyle.System;
+            this._btnRemoveArea.Location = new System.Drawing.Point(270, 5);
+            this._btnRemoveArea.Margin = new System.Windows.Forms.Padding(0, 1, 6, 0);
+            this._btnRemoveArea.Name = "_btnRemoveArea";
+            this._btnRemoveArea.Size = new System.Drawing.Size(80, 24);
+            this._btnRemoveArea.TabIndex = 3;
+            this._btnRemoveArea.Text = "移除区域";
+            // 
+            // _btnResetAll
+            // 
+            this._btnResetAll.FlatStyle = System.Windows.Forms.FlatStyle.System;
+            this._btnResetAll.Location = new System.Drawing.Point(184, 5);
+            this._btnResetAll.Margin = new System.Windows.Forms.Padding(0, 1, 6, 0);
+            this._btnResetAll.Name = "_btnResetAll";
+            this._btnResetAll.Size = new System.Drawing.Size(80, 24);
+            this._btnResetAll.TabIndex = 2;
+            this._btnResetAll.Text = "全部清零";
+            // 
+            // _btnResetRange
+            // 
+            this._btnResetRange.FlatStyle = System.Windows.Forms.FlatStyle.System;
+            this._btnResetRange.Location = new System.Drawing.Point(98, 5);
+            this._btnResetRange.Margin = new System.Windows.Forms.Padding(0, 1, 6, 0);
+            this._btnResetRange.Name = "_btnResetRange";
+            this._btnResetRange.Size = new System.Drawing.Size(80, 24);
+            this._btnResetRange.TabIndex = 1;
+            this._btnResetRange.Text = "清零区间";
+            // 
+            // _btnInit
+            // 
+            this._btnInit.FlatStyle = System.Windows.Forms.FlatStyle.System;
+            this._btnInit.Location = new System.Drawing.Point(0, 5);
+            this._btnInit.Margin = new System.Windows.Forms.Padding(0, 1, 6, 0);
+            this._btnInit.Name = "_btnInit";
+            this._btnInit.Size = new System.Drawing.Size(92, 24);
+            this._btnInit.TabIndex = 0;
+            this._btnInit.Text = "初始化区间";
+            // 
+            // _registerBar
+            // 
+            this._registerBar.Controls.Add(this._btnInit);
+            this._registerBar.Controls.Add(this._btnResetRange);
+            this._registerBar.Controls.Add(this._btnResetAll);
+            this._registerBar.Controls.Add(this._btnRemoveArea);
+            this._registerBar.Controls.Add(this._btnRandom);
+            this._registerBar.Controls.Add(this._registerHint);
+            this._registerBar.Dock = System.Windows.Forms.DockStyle.Fill;
+            this._registerBar.Location = new System.Drawing.Point(9, 9);
+            this._registerBar.Name = "_registerBar";
+            this._registerBar.Padding = new System.Windows.Forms.Padding(0, 4, 0, 0);
+            this._registerBar.Size = new System.Drawing.Size(788, 35);
+            this._registerBar.TabIndex = 0;
+            this._registerBar.WrapContents = false;
+            // 
+            // _monitor
+            // 
+            this._monitor.Dock = System.Windows.Forms.DockStyle.Fill;
+            this._monitor.Location = new System.Drawing.Point(9, 50);
+            this._monitor.Name = "_monitor";
+            this._monitor.Reader = null;
+            this._monitor.Size = new System.Drawing.Size(788, 325);
+            this._monitor.TabIndex = 1;
+            // 
             // PlcServerWorkspaceForm
             // 
-            this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 12F);
+            this.AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(1020, 660);
             this.Controls.Add(this._root);
@@ -446,15 +451,16 @@ namespace PlcTest.View.Forms
             this._tabs.ResumeLayout(false);
             this._pageRegisters.ResumeLayout(false);
             this._registerLayout.ResumeLayout(false);
-            this._registerBar.ResumeLayout(false);
-            this._registerBar.PerformLayout();
             this._pageSingle.ResumeLayout(false);
             this._singleLayout.ResumeLayout(false);
             this._singleLayout.PerformLayout();
             this._readBar.ResumeLayout(false);
             this._writeBar.ResumeLayout(false);
             this._writeBar.PerformLayout();
+            this._registerBar.ResumeLayout(false);
+            this._registerBar.PerformLayout();
             this.ResumeLayout(false);
+
         }
 
         private System.Windows.Forms.TableLayoutPanel _root;
@@ -467,14 +473,6 @@ namespace PlcTest.View.Forms
         private System.Windows.Forms.TabControl _tabs;
         private System.Windows.Forms.TabPage _pageRegisters;
         private System.Windows.Forms.TableLayoutPanel _registerLayout;
-        private System.Windows.Forms.FlowLayoutPanel _registerBar;
-        private System.Windows.Forms.Button _btnInit;
-        private System.Windows.Forms.Button _btnResetRange;
-        private System.Windows.Forms.Button _btnResetAll;
-        private System.Windows.Forms.Button _btnRemoveArea;
-        private System.Windows.Forms.Button _btnRandom;
-        private System.Windows.Forms.Label _registerHint;
-        private MonitorGrid _monitor;
         private System.Windows.Forms.TabPage _pageSingle;
         private System.Windows.Forms.TableLayoutPanel _singleLayout;
         private System.Windows.Forms.FlowLayoutPanel _readBar;
@@ -487,5 +485,13 @@ namespace PlcTest.View.Forms
         private System.Windows.Forms.Button _btnWrite;
         private FrameLogView _frameLog;
         private System.Windows.Forms.Timer _statusTimer;
+        private System.Windows.Forms.FlowLayoutPanel _registerBar;
+        private System.Windows.Forms.Button _btnInit;
+        private System.Windows.Forms.Button _btnResetRange;
+        private System.Windows.Forms.Button _btnResetAll;
+        private System.Windows.Forms.Button _btnRemoveArea;
+        private System.Windows.Forms.Button _btnRandom;
+        private System.Windows.Forms.Label _registerHint;
+        private MonitorGrid _monitor;
     }
 }

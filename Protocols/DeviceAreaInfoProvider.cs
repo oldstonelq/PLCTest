@@ -66,6 +66,9 @@ namespace PlcTest.Protocols
                     result.Add(new DeviceAreaInfo(MemoryArea.X, "输入", true, true));
                     result.Add(new DeviceAreaInfo(MemoryArea.Y, "输出", true, true));
                     result.Add(new DeviceAreaInfo(MemoryArea.M, "位存储区", true, true));
+                    // 块号不是软元件号，没法放进下拉的「偏移」里，所以地址栏要能敲 DB1.DBW0
+                    result.Add(new DeviceAreaInfo(MemoryArea.DB, "数据块", false, true,
+                        "写法 DB1.DBW0：块号与块内字节偏移用点分隔，目前只支持按字"));
                     break;
 
                 default:

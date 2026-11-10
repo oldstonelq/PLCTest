@@ -164,6 +164,17 @@ namespace PlcTest.View.Forms
         /// <summary>
         /// 把地址栏指定的区间注册进模拟表（可重复调用，已存在的地址不会重复添加）。
         /// </summary>
+        /// <summary>
+        /// 复制地址、只改偏移。DB 区的块号在 <see cref="PlcAddress.DbNumber"/> 里，
+        /// 逐个注册时必须带上，否则每个地址都会落到 0 号块。
+        /// </summary>
+        private static PlcAddress WithOffset(PlcAddress address, int offset)
+        {
+            return address.IsBit
+                ? PlcAddress.Bit(address.Area, offset, address.DbNumber)
+                : PlcAddress.Word(address.Area, offset, address.DbNumber);
+        }
+
         private void InitializeRange()
         {
             if (!RequireRegisters(out PlcAddress address))
@@ -174,14 +185,16 @@ namespace PlcTest.View.Forms
             int added = 0;
             for (int i = address.Address; i < address.Address + address.Length; i++)
             {
-                if (_registerTable.TryAddRegister(address.Area, i))
+                // 必须带上 DbNumber：S7 的 DB1.DBW0 与 DB2.DBW0 是两块内存，
+                // 用 (area, address) 注册会把它们合并到同一块（等于只有 0 号块生效）
+                if (_registerTable.TryAddRegister(WithOffset(address, i)))
                 {
                     added++;
                 }
             }
 
-            _frameLog.Append(string.Format("已初始化 {0}{1} 起 {2} 个地址（新增 {3} 个）",
-                address.Area, address.Address, address.Length, added));
+            _frameLog.Append(string.Format("已初始化 {0} 起 {1} 个地址（新增 {2} 个）",
+                AddressTextParser.Format(address), address.Length, added));
             _monitor.PollOnce();
         }
 
@@ -195,9 +208,9 @@ namespace PlcTest.View.Forms
                 return;
             }
 
-            _registerTable.ResetRegisterValues(address.Area, address.Address, address.Length);
-            _frameLog.Append(string.Format("{0}{1} 起 {2} 个地址已清零（地址保留）",
-                address.Area, address.Address, address.Length));
+            _registerTable.ResetRegisterValues(address, address.Length);
+            _frameLog.Append(string.Format("{0} 起 {1} 个地址已清零（地址保留）",
+                AddressTextParser.Format(address), address.Length));
             _monitor.PollOnce();
         }
 

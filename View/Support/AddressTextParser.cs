@@ -35,8 +35,9 @@ namespace PlcTest.View.Support
     /// 不用 catalog 里的 <c>Name</c>——1E 表的名字带尾空格（"D "），那是发帧用的 ASCII 代码，不是给用户看的。</item>
     /// <item>大小写不敏感，中间与首尾的空格（含全角空格）一律忽略。</item>
     /// <item>最长前缀优先：SM100 先命中 SM 而不是 S，ZR0 先命中 ZR 而不是 Z，DX100 先命中 DX 而不是 D。</item>
-    /// <item>只解析「区域 + 偏移」，长度由界面单独填；位偏移（M0.3）与 S7 DB 区暂时明确拒绝并给出原因，
-    /// 不做「猜一个最接近的」这种静默降级。</item>
+    /// <item>只解析「区域 + 偏移」，长度由界面单独填；位偏移（M0.3）明确拒绝，不做「猜一个最接近的」这种静默降级。</item>
+    /// <item>S7 的 DB 区是唯一的例外，按 <c>DB1.DBW0</c> 单独解析（块号 + 块内字节偏移），
+    /// 因为它的写法是「区域 + 两个数字」，通用匹配装不下。</item>
     /// </list>
     /// </para>
     /// </summary>
@@ -62,12 +63,11 @@ namespace PlcTest.View.Support
                 return Fail("请输入地址，例如 " + capability.SuggestExample(kind == AddressValueKind.Bit));
             }
 
-            // DB 区在 MemoryArea 里还没有对应项（README 待办：S7 DB 区）。这里给一句明确的话，
-            // 不要让用户看到「无法识别的地址 DB1.DBW0」然后自己去猜是不是敲错了。
+            // DB 区必须先拦下来：它带块号（DB1.DBW0），交给下面的「软元件代码 + 纯数字」匹配会把
+            // "DB100" 误当成「DB 区第 100 字」——那样 DbNumber 是 null，发帧时实际读的是 DB0。
             if (normalized.StartsWith("DB", StringComparison.Ordinal))
             {
-                return Fail("暂不支持 S7 DB 区地址（如 DB1.DBW0），请先使用 "
-                    + capability.SuggestExample(kind == AddressValueKind.Bit) + " 这类地址");
+                return ParseDb(normalized, capability, kind);
             }
 
             MemoryArea area;
@@ -111,11 +111,76 @@ namespace PlcTest.View.Support
                 return string.Empty;
             }
 
+            // DB 区不能走下面的通用拼接：那会得到 "DB1.DB0"，而合法写法是 "DB1.DBW0"
+            if (address.Area == MemoryArea.DB)
+            {
+                return "DB" + (address.DbNumber ?? 0) + ".DBW" + address.Address;
+            }
+
             string db = address.DbNumber.HasValue ? "DB" + address.DbNumber.Value + "." : string.Empty;
             return db + address.Area + address.Address;
         }
 
         #region 解析细节
+
+        /// <summary>
+        /// 解析 S7 的 DB 区地址，形如 <c>DB1.DBW0</c>：DB 块号 + 块内字节偏移，中间点分隔。
+        /// <para>
+        /// 为什么单独一个方法：DB 区是唯一「区域 + 两个数字」的写法，通用匹配只认
+        /// 「软元件代码 + 一个数字」，硬套会把块号丢掉。宽度标记（DBW / DBB / DBD / DBX）
+        /// 也在这里区分——目前只实现了按字，其余三种明确拒绝，而不是悄悄当成字去读。
+        /// </para>
+        /// </summary>
+        private static Result<PlcAddress> ParseDb(string text, ProtocolCapability capability, AddressValueKind kind)
+        {
+            if (!capability.Supports(MemoryArea.DB))
+            {
+                return Fail("当前协议 " + capability.DisplayName + " 不支持 DB 区地址");
+            }
+
+            if (kind == AddressValueKind.Bit)
+            {
+                // 位偏移还没做（PlcAddress 没有字内位号）。与其发一条注定失败的帧，
+                // 不如在这里说清楚该换成哪个区。
+                return Fail("DB 区目前只支持按字访问（如 DB1.DBW0），按位请用 M / X / Y 区");
+            }
+
+            int dot = text.IndexOf('.');
+            if (dot < 0)
+            {
+                return Fail("DB 区地址要写成 DB<块号>.DBW<偏移>，例如 DB1.DBW0");
+            }
+
+            int dbNumber;
+            string dbText = text.Substring(2, dot - 2);
+            if (dbText.Length == 0 || !int.TryParse(dbText, out dbNumber) || dbNumber < 1 || dbNumber > 65535)
+            {
+                return Fail("DB 块号必须是 1–65535 之间的整数：" + text);
+            }
+
+            string body = text.Substring(dot + 1);
+            if (body.StartsWith("DBX", StringComparison.Ordinal))
+            {
+                return Fail("暂不支持 DB 区位偏移（如 DB1.DBX0.3），请使用整字地址 DB1.DBW0");
+            }
+            if (body.StartsWith("DBB", StringComparison.Ordinal) || body.StartsWith("DBD", StringComparison.Ordinal))
+            {
+                return Fail("暂不支持 DB 区字节/双字读写（DB1.DBB0 / DB1.DBD0），请使用整字地址 DB1.DBW0");
+            }
+            if (!body.StartsWith("DBW", StringComparison.Ordinal))
+            {
+                return Fail("DB 区地址要写成 DB<块号>.DBW<偏移>，例如 DB1.DBW0");
+            }
+
+            int offset;
+            string offsetText = body.Substring(3);
+            if (!int.TryParse(offsetText, out offset) || offset < 0 || offset > 65535)
+            {
+                return Fail("DB 区偏移必须是 0–65535 之间的整数：" + text);
+            }
+
+            return Result<PlcAddress>.Success(PlcAddress.Word(MemoryArea.DB, offset, dbNumber));
+        }
 
         /// <summary>
         /// 数值部分交给 <see cref="PlcAddress"/>，同时按 kind 校验区域能力。

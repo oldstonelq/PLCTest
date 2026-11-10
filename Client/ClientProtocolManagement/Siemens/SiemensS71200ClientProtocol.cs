@@ -2,13 +2,15 @@ using PlcTest.Models;
 using PlcTest.Tool;
 using PlcTest.Client.ClientInterface;
 using System;
+using System.Collections.Generic;
 
 namespace PlcTest.Client.ClientProtocolManagement.Siemens
 {
     /// <summary>
     /// 西门子 S7-1200 通讯协议（S7comm over TPKT+COTP）
     /// </summary>
-    public class SiemensS71200ClientProtocol : IPlcClientProtocol, IS7SessionProtocol, IProtocolOptionHost
+    public class SiemensS71200ClientProtocol : IPlcClientProtocol, IS7SessionProtocol, IProtocolOptionHost,
+        IS7MultiVarProtocol, IFrameSegmentProtocol
     {
         /// <summary>
         /// COTP 目标 TSAP 里的机架号（0–7）。写错会连不上，报文里的 C2 参数会体现出来。
@@ -68,7 +70,7 @@ namespace PlcTest.Client.ClientProtocolManagement.Siemens
                 case MemoryArea.X: return 0x81;
                 case MemoryArea.Y: return 0x82;
                 case MemoryArea.M: return 0x83;
-                //case MemoryArea.DB: return 0x84;
+                case MemoryArea.DB: return 0x84;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(area), "无效的存储区类型");
             }
@@ -87,6 +89,10 @@ namespace PlcTest.Client.ClientProtocolManagement.Siemens
                 case MemoryArea.Y:
                 case MemoryArea.M:
                     return AreaAccess.Both;
+                case MemoryArea.DB:
+                    // DB 区目前只支持按字访问：位偏移（DB1.DBX0.3）与字节/双字都还没做，
+                    // 所以这里不能给 AreaAccess.Both，否则界面会让用户选「按位读 DB1」
+                    return AreaAccess.Word;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(area), "无效的存储区类型");
             }
@@ -221,6 +227,15 @@ namespace PlcTest.Client.ClientProtocolManagement.Siemens
             int startAddress = address.Address;
             bool isBit = address.IsBit;
             int length = address.Length;
+
+            // 位写要把「逐点 1 字节」压成按位打包：S7 的位长度字段声明的是**位数**，
+            // PLC 只按 ceil(位数/8) 取数据。声明 8 个位却发 8 字节，真机会多读 7 字节垃圾，
+            // 后面紧跟的帧也被挤歪——这是「客户端和服务端互相自洽、真机却错」的典型。
+            if (isBit)
+            {
+                data = NormalizeWritePayload(address, data);
+            }
+
             byte[] param = new byte[18 + data.Length];
             //功能码
             param[0] = 0x05;
@@ -281,10 +296,20 @@ namespace PlcTest.Client.ClientProtocolManagement.Siemens
         /// <returns>完整通讯报文。</returns>
         public byte[] BuildCompletePack(byte[] data)
         {
-            // 参数区恒为 14 字节（功能码 + 项数 + 12 字节 ANY 指针）。
+            // 单变量：参数区恒为 14 字节（功能码 + 项数 + 12 字节 ANY 指针）。
             // 写命令多出来的部分（数据项头 4 字节 + 数据）属于**数据区**，
             // 旧实现按 18 字节算参数区，会把数据项头当成参数交给 PLC，读写全部失败。
-            const int paramLen = 14;
+            return BuildCompletePack(data, SingleItemParamLength);
+        }
+
+        /// <summary>
+        /// 按指定的参数区长度封装。多变量请求的参数区是 <c>2 + 12 × 项数</c>，
+        /// 不能沿用单变量的 14——否则项数一多，第 2 项之后会被当成数据区，长度字段直接错。
+        /// </summary>
+        /// <param name="data">参数区 + 数据区</param>
+        /// <param name="paramLen">参数区字节数</param>
+        private byte[] BuildCompletePack(byte[] data, int paramLen)
+        {
             int dataLen = data.Length - paramLen;
             if (dataLen < 0) dataLen = 0;
 
@@ -320,9 +345,331 @@ namespace PlcTest.Client.ClientProtocolManagement.Siemens
             return command;
         }
 
+        #region 多变量（一条请求读多个不连续地址）
+
+        /// <summary>
+        /// 多变量读：参数区是 <c>04 | 项数 | N × 12 字节 ANY 指针</c>，没有数据区。
+        /// </summary>
+        public byte[] BuildMultiVarReadPack(IList<PlcAddress> addresses)
+        {
+            if (addresses == null || addresses.Count == 0)
+            {
+                throw new ArgumentException("多变量读至少要有一个地址", "addresses");
+            }
+
+            byte[] param = BuildMultiVarParam(0x04, addresses);
+            return BuildCompletePack(param, param.Length);
+        }
+
+        /// <summary>
+        /// 多变量写：参数区同读，后面跟 N 个数据项 <c>00 | 类型 | 位长度(2) | 数据</c>。
+        /// </summary>
+        /// <param name="addresses">要写的地址</param>
+        /// <param name="data">每项的原始数据（位=逐点 0/1，字=大端字节），与地址一一对应</param>
+        public byte[] BuildMultiVarWritePack(IList<PlcAddress> addresses, IList<byte[]> data)
+        {
+            if (addresses == null || addresses.Count == 0)
+            {
+                throw new ArgumentException("多变量写至少要有一个地址", "addresses");
+            }
+            if (data == null || data.Count != addresses.Count)
+            {
+                throw new ArgumentException("写入数据必须与地址一一对应", "data");
+            }
+
+            byte[] param = BuildMultiVarParam(0x05, addresses);
+
+            var payloads = new byte[addresses.Count][];
+            int dataLength = 0;
+            for (int i = 0; i < addresses.Count; i++)
+            {
+                payloads[i] = NormalizeWritePayload(addresses[i], data[i]);
+                dataLength += 4 + payloads[i].Length;
+            }
+
+            byte[] pack = new byte[param.Length + dataLength];
+            Array.Copy(param, 0, pack, 0, param.Length);
+
+            int at = param.Length;
+            for (int i = 0; i < addresses.Count; i++)
+            {
+                PlcAddress address = addresses[i];
+                byte[] payload = payloads[i];
+                pack[at] = 0x00;
+                pack[at + 1] = address.IsBit ? (byte)0x03 : (byte)0x04;
+                // 位：长度字段是**位数**，payload 已按位打包；字：长度字段是**位长度**
+                int bitLength = address.IsBit ? address.Length : payload.Length * 8;
+                pack[at + 2] = (byte)((bitLength >> 8) & 0xFF);
+                pack[at + 3] = (byte)(bitLength & 0xFF);
+                Array.Copy(payload, 0, pack, at + 4, payload.Length);
+                at += 4 + payload.Length;
+            }
+
+            return BuildCompletePack(pack, param.Length);
+        }
+
+        /// <summary>
+        /// 解析多变量读响应：逐项读数据项，某项失败只体现在该项的错误码上。
+        /// 项数必须与请求一致——对不上说明帧错位，继续读只会把后面的项全解错。
+        /// </summary>
+        public Result<S7ItemValue[]> ParseMultiVarReadResponse(byte[] data, IList<PlcAddress> addresses)
+        {
+            if (addresses == null)
+            {
+                return Result<S7ItemValue[]>.Fail("缺少请求地址，无法确定各项长度");
+            }
+
+            int dataStart;
+            string error;
+            if (!TryLocateDataItem(data, out dataStart, out error))
+            {
+                return Result<S7ItemValue[]>.Fail(error);
+            }
+
+            if (data.Length < S7AckDataParamOffset + 2)
+            {
+                return Result<S7ItemValue[]>.Fail("响应参数区不完整");
+            }
+            if (data[S7AckDataParamOffset] != 0x04)
+            {
+                return Result<S7ItemValue[]>.Fail(
+                    $"响应功能码 0x{data[S7AckDataParamOffset]:X2} 不是读响应");
+            }
+
+            int itemCount = data[S7AckDataParamOffset + 1];
+            if (itemCount != addresses.Count)
+            {
+                return Result<S7ItemValue[]>.Fail(
+                    $"响应项数 {itemCount} 与请求项数 {addresses.Count} 不一致");
+            }
+
+            var values = new S7ItemValue[itemCount];
+            int cursor = dataStart;
+
+            for (int i = 0; i < itemCount; i++)
+            {
+                if (cursor + 2 > data.Length)
+                {
+                    return Result<S7ItemValue[]>.Fail($"第 {i + 1} 项数据项被截断");
+                }
+
+                // 失败项只有 [返回码][错误码] 两字节，没有数据
+                if (data[cursor] != 0xFF)
+                {
+                    values[i] = new S7ItemValue
+                    {
+                        IsBit = addresses[i].IsBit,
+                        ErrorCode = data[cursor + 1],
+                    };
+                    cursor += 2;
+                    continue;
+                }
+
+                if (cursor + 4 > data.Length)
+                {
+                    return Result<S7ItemValue[]>.Fail($"第 {i + 1} 项数据头被截断");
+                }
+
+                byte transportSize = data[cursor + 1];
+                int bitLength = (data[cursor + 2] << 8) | data[cursor + 3];
+                int payloadBytes = (bitLength + 7) / 8;
+                if (cursor + 4 + payloadBytes > data.Length)
+                {
+                    return Result<S7ItemValue[]>.Fail(
+                        $"第 {i + 1} 项数据被截断（需要 {payloadBytes} 字节）");
+                }
+
+                if (transportSize == 0x03)
+                {
+                    bool[] bits = new bool[bitLength];
+                    for (int k = 0; k < bitLength; k++)
+                    {
+                        bits[k] = (data[cursor + 4 + (k >> 3)] & (1 << (k & 7))) != 0;
+                    }
+                    values[i] = new S7ItemValue { IsBit = true, Bits = bits };
+                }
+                else if (transportSize == 0x04)
+                {
+                    if ((bitLength & 7) != 0)
+                    {
+                        return Result<S7ItemValue[]>.Fail(
+                            $"第 {i + 1} 项字数据长度 {bitLength} 位不是整字节");
+                    }
+                    short[] words = new short[payloadBytes / 2];
+                    for (int k = 0; k < words.Length; k++)
+                    {
+                        words[k] = (short)((data[cursor + 4 + k * 2] << 8) | data[cursor + 5 + k * 2]);
+                    }
+                    values[i] = new S7ItemValue { IsBit = false, Words = words };
+                }
+                else
+                {
+                    return Result<S7ItemValue[]>.Fail(
+                        $"第 {i + 1} 项传输类型 0x{transportSize:X2} 不支持");
+                }
+
+                cursor += 4 + payloadBytes;
+            }
+
+            return Result<S7ItemValue[]>.Success(values);
+        }
+
+        /// <summary>按项数拼 ANY 指针参数区（读请求的完整参数区，写请求的参数区部分）。</summary>
+        private byte[] BuildMultiVarParam(byte functionCode, IList<PlcAddress> addresses)
+        {
+            byte[] param = new byte[2 + addresses.Count * 12];
+            param[0] = functionCode;
+            param[1] = (byte)addresses.Count;
+
+            for (int i = 0; i < addresses.Count; i++)
+            {
+                PlcAddress address = addresses[i];
+                int memory = GetMemoryCode(address.Area);
+                int at = 2 + i * 12;
+
+                param[at] = 0x12;
+                param[at + 1] = 0x0A;
+                param[at + 2] = 0x10;
+                param[at + 3] = address.IsBit ? (byte)0x01 : (byte)0x02;
+
+                // 元素数：位=点数，字节=字数 × 2（与单变量 BuildReadData 同口径）
+                int elementCount = address.IsBit ? address.Length : address.Length * 2;
+                param[at + 4] = (byte)((elementCount >> 8) & 0xFF);
+                param[at + 5] = (byte)(elementCount & 0xFF);
+
+                // DB 号只有 DB 区才有意义：填了非 0 会让 PLC 去对应 DB 里找别的区
+                int db = memory == 0x84 ? (address.DbNumber ?? 0) : 0;
+                param[at + 6] = (byte)((db >> 8) & 0xFF);
+                param[at + 7] = (byte)(db & 0xFF);
+                param[at + 8] = (byte)memory;
+
+                int addrVal = address.Address * 8;
+                param[at + 9] = (byte)((addrVal >> 16) & 0xFF);
+                param[at + 10] = (byte)((addrVal >> 8) & 0xFF);
+                param[at + 11] = (byte)(addrVal & 0xFF);
+            }
+            return param;
+        }
+
+        /// <summary>
+        /// 把调用方给的原始写入数据整理成 S7 要的形态：位按位打包（ceil(点数/8) 字节），字保持大端字节。
+        /// 传进来已经是打包形态时原样返回，避免二次打包把数据搅坏。
+        /// </summary>
+        private static byte[] NormalizeWritePayload(PlcAddress address, byte[] data)
+        {
+            byte[] source = data ?? new byte[0];
+            if (!address.IsBit)
+            {
+                return source;
+            }
+
+            int packedLength = (address.Length + 7) / 8;
+            if (source.Length == packedLength)
+            {
+                return source;
+            }
+
+            byte[] packed = new byte[packedLength];
+            for (int i = 0; i < address.Length && i < source.Length; i++)
+            {
+                if (source[i] != 0)
+                {
+                    packed[i >> 3] |= (byte)(1 << (i & 7));
+                }
+            }
+            return packed;
+        }
+
+        #endregion
+
+        #region 分段（PDU 装不下时拆多帧）
+
+        /// <summary>读请求分段计划</summary>
+        public IReadOnlyList<PlcAddress> PlanRead(PlcAddress address)
+        {
+            return PlanSegments(address, false);
+        }
+
+        /// <summary>写请求分段计划</summary>
+        public IReadOnlyList<PlcAddress> PlanWrite(PlcAddress address)
+        {
+            return PlanSegments(address, true);
+        }
+
+        /// <summary>
+        /// 按协商 PDU 拆段。地址推进规则是协议知识：
+        /// <see cref="PlcAddress.Address"/> 在 S7 里是**字节偏移**，位读每段必须从字节边界开始
+        /// （<see cref="PlcAddress"/> 没有位内偏移字段），所以位段长取 8 的倍数。
+        /// </summary>
+        private IReadOnlyList<PlcAddress> PlanSegments(PlcAddress address, bool isWrite)
+        {
+            if (address == null || address.Length <= 0)
+            {
+                return new[] { address };
+            }
+
+            int limit = MaxElementsPerFrame(address.IsBit, isWrite);
+            if (address.Length <= limit)
+            {
+                return new[] { address };
+            }
+
+            var parts = new List<PlcAddress>();
+            int done = 0;
+            while (done < address.Length)
+            {
+                int take = Math.Min(limit, address.Length - done);
+                // Address 是**字节偏移**：位按 done/8 字节推进，字按 done×2 字节推进。
+                // 写成 done 会把第 2 段读到「第 N 个字的一半处」，数据整体错位（拼接结果看着像乱码）
+                int byteShift = address.IsBit ? done / 8 : done * 2;
+                parts.Add(new PlcAddress(address.Area, address.Address + byteShift,
+                    address.IsBit, address.DbNumber, take));
+                done += take;
+            }
+            return parts;
+        }
+
+        /// <summary>
+        /// 单帧最多能带多少个元素。按「协商 PDU − 帧开销」算数据区可用字节：
+        /// 读=TPKT4+COTP3+Ack头12+参数2+数据项头4；写=TPKT4+COTP3+Job头10+参数2+项12+项数据头4。
+        /// </summary>
+        private int MaxElementsPerFrame(bool isBit, bool isWrite)
+        {
+            int pdu = NegotiatedPduLength > 0 ? NegotiatedPduLength : RequestedPduLength;
+            int overhead = isWrite ? 35 : 25;
+            int payload = pdu - overhead;
+            if (payload <= 0)
+            {
+                return 1;
+            }
+
+            if (isBit)
+            {
+                int bits = payload * 8;
+                if (bits > 65535)
+                {
+                    bits = 65535;
+                }
+                // 段起点必须落在字节边界
+                bits -= bits % 8;
+                return bits > 0 ? bits : 8;
+            }
+
+            int words = payload / 2;
+            if (words > 32767)
+            {
+                words = 32767;
+            }
+            return words > 0 ? words : 1;
+        }
+
+        #endregion
+
         #region 响应解析（按头部长度定位，不写死偏移）
         /// <summary>TPKT(4) + COTP(3)，S7 头从这里开始</summary>
         private const int S7HeaderOffset = 7;
+        /// <summary>单变量请求的参数区：功能码 1 + 项数 1 + 一项 ANY 指针 12</summary>
+        private const int SingleItemParamLength = 14;
         /// <summary>Job 请求头 10 字节</summary>
         private const int S7JobHeaderLength = 10;
         /// <summary>Ack-Data 响应头 12 字节：比请求多出 [错误类][错误码] 两字节</summary>
@@ -447,23 +794,36 @@ namespace PlcTest.Client.ClientProtocolManagement.Siemens
                     $"读取失败：返回码 0x{returnCode:X2}，错误码 0x{data[dataStart + 1]:X2}（{GetS7ErrorMsg(data[dataStart + 1])}）");
             }
 
-            // 数据项头 4 字节（返回码 / 传输类型 / 位长度），数据从 +4 开始；位数据每点占 1 字节
+            // 数据项头 4 字节（返回码 / 传输类型 / 位长度），数据从 +4 开始。
+            // 注意：BIT 传输的数据是**按位打包**的——50 位只占 7 字节，不是每点 1 字节。
+            // 旧实现按每点 1 字节取，遇到按标准打包的响应（真机、HSL 之外的实现）会误判「长度不足」；
+            // 反过来，按每点 1 字节回包的模拟器又会让旧实现通过，属于自洽假通过。
             if (data.Length < dataStart + 4)
             {
                 return Result<bool[]>.Fail("响应数据项不完整");
             }
             int payloadStart = dataStart + 4;
             int bitLength = (data[dataStart + 2] << 8) | data[dataStart + 3];
-            int payloadBytes = (bitLength + 7) / 8;
-            if (data.Length - payloadStart < payloadBytes || data.Length - payloadStart < size)
+
+            // 先看位数够不够，再看字节数够不够：两者出错的原因不同，分开报才好定位
+            if (bitLength < size)
             {
-                return Result<bool[]>.Fail("返回数据长度不足");
+                return Result<bool[]>.Fail(
+                    $"返回数据长度不足：需要 {size} 位，实收 {bitLength} 位");
             }
 
+            int payloadBytes = (bitLength + 7) / 8;
+            if (data.Length - payloadStart < payloadBytes)
+            {
+                return Result<bool[]>.Fail(
+                    $"返回数据长度不足：需要 {payloadBytes} 字节，实收 {data.Length - payloadStart} 字节");
+            }
+
+            // S7 的位序是「字节内从低到高」：第 i 位在 data[i / 8] 的第 (i % 8) 位
             bool[] realData = new bool[size];
             for (int i = 0; i < size; i++)
             {
-                realData[i] = data[payloadStart + i] != 0x00;
+                realData[i] = (data[payloadStart + (i >> 3)] & (1 << (i & 7))) != 0;
             }
             return Result<bool[]>.Success(realData);
         }

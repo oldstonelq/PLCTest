@@ -51,6 +51,14 @@ namespace PlcTest.Models
         AR,
         /// <summary>EM 区（Extended Memory，扩展存储区，按 bank 划分，bank 存于 DbNumber）</summary>
         EM,
+
+        // ---- 以下为西门子（S7）专用区 ----
+        /// <summary>
+        /// DB 区（Data Block，数据块）。块号存于 <see cref="PlcAddress.DbNumber"/>，
+        /// 写法 <c>DB1.DBW0</c>：DB 号与块内字节偏移用点分隔。
+        /// 注意与三菱的 <see cref="V"/> 区分——那个是变址寄存器，语义完全不同。
+        /// </summary>
+        DB,
     }
     /// <summary>
     /// 软元件区域允许的访问方式。
@@ -167,9 +175,9 @@ namespace PlcTest.Models
         [ProtocolInfo("汇川 Modbus RTU", clientTcp: true, serverTcp: true, clientSerial: false, serverSerial: false)]
         InovanceModbusRtu = 7,
         /// <summary>
-        /// 西门子 S7-1200（TCP，客户端可用；服务端尚未实现）
+        /// 西门子 S7-1200（TCP，客户端/服务端；服务端模拟 I/Q/M，DB 区未模拟）
         /// </summary>
-        [ProtocolInfo("西门子 S7-1200", clientTcp: true, serverTcp: false, clientSerial: false, serverSerial: false)]
+        [ProtocolInfo("西门子 S7-1200", clientTcp: true, serverTcp: true, clientSerial: false, serverSerial: false)]
         SiemensS71200 = 8,
         /// <summary>
         /// 欧姆龙 FINS/TCP（TCP，客户端/服务端）

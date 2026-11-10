@@ -166,6 +166,28 @@ namespace PlcTest.Server.PlcServer
 
         /// <summary>把整个区域的值清零，地址保留。</summary>
         public abstract void ResetAllRegisterValues(MemoryArea area);
+
+        /// <summary>
+        /// 按完整地址建立寄存器。默认忽略块号、转调 <see cref="TryAddRegister(MemoryArea,int)"/>：
+        /// 地址里的 DbNumber 只有 S7 的 DB 区（以及欧姆龙的 EM bank）才有意义，
+        /// 其余协议的实现不必为此多写一份。
+        /// </summary>
+        /// <param name="address">完整地址</param>
+        public virtual bool TryAddRegister(PlcAddress address)
+        {
+            return address != null && TryAddRegister(address.Area, address.Address);
+        }
+
+        /// <summary>按完整地址清零区间。默认忽略块号，转调三元组版本。</summary>
+        /// <param name="address">完整地址</param>
+        /// <param name="length">长度（字/点位个数）</param>
+        public virtual void ResetRegisterValues(PlcAddress address, int length)
+        {
+            if (address != null)
+            {
+                ResetRegisterValues(address.Area, address.Address, length);
+            }
+        }
         #endregion
 
         /// <summary>

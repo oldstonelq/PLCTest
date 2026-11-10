@@ -218,7 +218,22 @@ namespace PlcTest.View.Controls
             }
 
             _syncing = true;
-            _tbAddress.Text = AddressTextParser.Format(PlcAddress.Word(area, offset));
+            if (area == MemoryArea.DB)
+            {
+                // DB 区的块号不在这几个输入框里——偏移框放的是「块内偏移」。
+                // 直接用 Format 会拼出 DB0.DBW0（DbNumber 为 null 时按 0 输出），被块号校验拒掉，
+                // 所以沿用地址里已有的块号；用户还没敲过就用 1，让他接着改。
+                int dbNumber = _address != null
+                    && _address.Area == MemoryArea.DB
+                    && _address.DbNumber.HasValue
+                    ? _address.DbNumber.Value
+                    : 1;
+                _tbAddress.Text = "DB" + dbNumber + ".DBW" + offset;
+            }
+            else
+            {
+                _tbAddress.Text = AddressTextParser.Format(PlcAddress.Word(area, offset));
+            }
             _syncing = false;
 
             // 文本已经由上面写好，这里做一次完整解析（带上长度、能力校验），保证 _address 与界面一致

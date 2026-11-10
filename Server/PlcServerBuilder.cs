@@ -3,11 +3,13 @@ using PlcTest.Protocols;
 using PlcTest.Server.PlcServer.Inovance;
 using PlcTest.Server.PlcServer.Melsec;
 using PlcTest.Server.PlcServer.Omron;
+using PlcTest.Server.PlcServer.Siemens;
 using PlcTest.Server.ServerCommunication;
 using PlcTest.Server.ServerInterface;
 using PlcTest.Server.ServerProtocolManagement.Inovance;
 using PlcTest.Server.ServerProtocolManagement.Melsec;
 using PlcTest.Server.ServerProtocolManagement.Omron;
+using PlcTest.Server.ServerProtocolManagement.Siemens;
 using System;
 using System.IO.Ports;
 
@@ -91,9 +93,10 @@ namespace PlcTest.Server
                 case ProtocolType.InovanceModbusTcp: return UseInovanceModbusTcp();
                 case ProtocolType.InovanceModbusRtu: return UseInovanceModbusRtu();
                 case ProtocolType.OmronFinsTcp: return UseOmronFinsTcp();
+                case ProtocolType.SiemensS71200: return UseSiemensS71200();
                 default:
                     throw new ArgumentOutOfRangeException(nameof(protocol), protocol,
-                        "该协议还没有服务端实现（当前缺西门子 S7）");
+                        "该协议还没有服务端实现");
             }
         }
         #endregion
@@ -190,6 +193,17 @@ namespace PlcTest.Server
             _protocol = new OmronFinsTcpServerProtocol();
             return this;
         }
+
+        /// <summary>
+        /// 西门子 S7-1200 服务端协议。
+        /// 服务端模拟 I / Q / M 三个区的字节内存，DB 区暂不模拟（缺 DB 号维度）。
+        /// </summary>
+        /// <returns>构建器本身</returns>
+        public PlcServerBuilder UseSiemensS71200()
+        {
+            _protocol = new SiemensS71200ServerProtocol();
+            return this;
+        }
         #endregion
 
         /// <summary>
@@ -230,6 +244,12 @@ namespace PlcTest.Server
             {
                 throw new InvalidOperationException(
                     "未配置服务端协议，请先调用 UseProtocol(...) 或 UseMelsecMc3EBinary / UseInovanceModbusTcp / UseOmronFinsTcp 等");
+            }
+
+            // S7 的存储是「字节数组 + 位/字共享」，与三菱的位字分离表完全不同，需要专门的服务端
+            if (_protocol is IS7ServerProtocol s7)
+            {
+                return new S7PlcServer(_communication, s7);
             }
 
             // FINS 有节点地址握手，需要专门的服务端

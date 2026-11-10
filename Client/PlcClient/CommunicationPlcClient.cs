@@ -272,46 +272,64 @@ namespace PlcTest.Client.PlcClient
                 // 协议层拼包/解析抛出的异常统一收敛，不穿透到 UI 线程
                 return ProtocolError<bool>(ex.Message);
             }
-        }
-        /// <summary>
-        /// 读取位数组数据。
+        }        /// <summary>
+        /// 读取位数组数据。超过单帧容量时由协议给出分段计划，这里按计划逐帧收发再拼起来。
         /// </summary>
         /// <param name="address">统一地址模型</param>
         /// <returns>读取结果。</returns>
         public Result<bool[]> ReadBitArray(PlcAddress address)
         {
-            Result<bool[]> result = new Result<bool[]>();
             try
             {
                 //1.校验地址与区域访问能力
                 string addressError = CheckAddress(address, AreaAccess.Bit);
                 if (addressError != null)
                 {
-                    result.ErrorMsg = addressError;
-                    result.Kind = ErrorKind.Validation;
-                    return result;
+                    return Result<bool[]>.Fail(addressError, ErrorKind.Validation);
                 }
                 address = Normalize(address, true);
-                //2.拼接数据报文并构建完整报文
-                byte[] BuildReadData = _communicationProtocol.BuildReadData(address);
-                byte[] BuildCompletePack = _communicationProtocol.BuildCompletePack(BuildReadData);
-                byte[] receiveBytes;
-                string commError;
-                if (!TrySendAndReceive(BuildCompletePack, out receiveBytes, out commError))
-                {
-                    result.ErrorMsg = commError;
-                    result.Kind = ErrorKind.Transport;
-                    return result;
-                }
-                //3.数据校验与解析
-                result = _communicationProtocol.ParseReadBitResponse(receiveBytes, address.Length);
 
-                return result;
+                IReadOnlyList<PlcAddress> plan = PlanSegments(address, false);
+                if (plan.Count <= 1)
+                {
+                    return ReadBitChunk(address);
+                }
+
+                //2.分段读写：某段失败就停（已读到的数据没有意义，也不会写回设备）
+                bool[] all = new bool[address.Length];
+                int at = 0;
+                for (int i = 0; i < plan.Count; i++)
+                {
+                    Result<bool[]> one = ReadBitChunk(plan[i]);
+                    if (!one.IsSuccess)
+                    {
+                        return Result<bool[]>.Fail(
+                            $"第 {i + 1}/{plan.Count} 段读取失败：{one.ErrorMsg}", one.Kind);
+                    }
+                    int take = Math.Min(plan[i].Length, all.Length - at);
+                    Array.Copy(one.Data, 0, all, at, take);
+                    at += take;
+                }
+                return Result<bool[]>.Success(all);
             }
             catch (Exception ex)
             {
                 return ProtocolError<bool[]>(ex.Message);
             }
+        }
+
+        /// <summary>读一段位（单帧）。</summary>
+        private Result<bool[]> ReadBitChunk(PlcAddress address)
+        {
+            byte[] buildReadData = _communicationProtocol.BuildReadData(address);
+            byte[] buildCompletePack = _communicationProtocol.BuildCompletePack(buildReadData);
+            byte[] receiveBytes;
+            string commError;
+            if (!TrySendAndReceive(buildCompletePack, out receiveBytes, out commError))
+            {
+                return Result<bool[]>.Fail(commError, ErrorKind.Transport);
+            }
+            return _communicationProtocol.ParseReadBitResponse(receiveBytes, address.Length);
         }
         /// <summary>
         /// 写入单个位数据。
@@ -355,55 +373,79 @@ namespace PlcTest.Client.PlcClient
             {
                 return ProtocolError<bool>(ex.Message);
             }
-        }
-        /// <summary>
-        /// 写入位数组数据。
+        }        /// <summary>
+        /// 写入位数组数据。超过单帧容量时按协议的分段计划拆帧，数据按各段长度顺序切。
         /// </summary>
         /// <param name="address">统一地址模型</param>
         /// <param name="values">位数据数组</param>
         /// <returns>写入结果。</returns>
         public Result<bool> WriteBitArray(PlcAddress address, bool[] values)
         {
-            Result<bool> result = new Result<bool>();
             try
             {
                 //1.检查写入数据是否为空
                 if (values == null || values.Length == 0)
                 {
-                    result.ErrorMsg = "写入数据为空";
-                    result.Kind = ErrorKind.Validation;
-                    return result;
+                    return Result<bool>.Fail("写入数据为空", ErrorKind.Validation);
                 }
                 //2.校验地址与区域访问能力
                 string addressError = CheckAddress(address, AreaAccess.Bit);
                 if (addressError != null)
                 {
-                    result.ErrorMsg = addressError;
-                    result.Kind = ErrorKind.Validation;
-                    return result;
+                    return Result<bool>.Fail(addressError, ErrorKind.Validation);
                 }
                 address = Normalize(address, true);
-                //3.计算打包后字节
-                byte[] mData = _communicationProtocol.GetWriteBitData(values);
-                //4.拼接数据报文并构建完整报文
-                byte[] BuildWriteData = _communicationProtocol.BuildWriteData(address, mData);
-                byte[] BuildCompletePack = _communicationProtocol.BuildCompletePack(BuildWriteData);
-                byte[] receiveBytes;
-                string commError;
-                if (!TrySendAndReceive(BuildCompletePack, out receiveBytes, out commError))
+
+                IReadOnlyList<PlcAddress> plan = PlanSegments(address, true);
+                if (plan.Count <= 1)
                 {
-                    result.ErrorMsg = commError;
-                    result.Kind = ErrorKind.Transport;
-                    return result;
+                    // 单帧路径不校验数据个数：汇川的 32 位计数器一个地址要吃 2 个 short，
+                    // 「长度 == 个数」不是所有协议都成立，交给协议自己的 BuildWriteData 判断
+                    return WriteBitChunk(address, values);
                 }
-                //5.数据校验与解析
-                result = _communicationProtocol.ParseWriteResponse(receiveBytes);
-                return result;
+
+                // 分段才要求长度一致：切片按段长走，个数对不上会切出半个段
+                if (values.Length != address.Length)
+                {
+                    return Result<bool>.Fail(
+                        $"写入数据个数 {values.Length} 与地址长度 {address.Length} 不一致，无法分段", ErrorKind.Validation);
+                }
+
+                //3.分段写：中途失败要说明是第几段，已写入的段无法回滚
+                int at = 0;
+                for (int i = 0; i < plan.Count; i++)
+                {
+                    bool[] slice = new bool[plan[i].Length];
+                    Array.Copy(values, at, slice, 0, slice.Length);
+                    Result<bool> one = WriteBitChunk(plan[i], slice);
+                    if (!one.IsSuccess)
+                    {
+                        return Result<bool>.Fail(
+                            $"第 {i + 1}/{plan.Count} 段写入失败：{one.ErrorMsg}", one.Kind);
+                    }
+                    at += slice.Length;
+                }
+                return Result<bool>.Success(true);
             }
             catch (Exception ex)
             {
                 return ProtocolError<bool>(ex.Message);
             }
+        }
+
+        /// <summary>写一段位（单帧）。</summary>
+        private Result<bool> WriteBitChunk(PlcAddress address, bool[] values)
+        {
+            byte[] mData = _communicationProtocol.GetWriteBitData(values);
+            byte[] buildWriteData = _communicationProtocol.BuildWriteData(address, mData);
+            byte[] buildCompletePack = _communicationProtocol.BuildCompletePack(buildWriteData);
+            byte[] receiveBytes;
+            string commError;
+            if (!TrySendAndReceive(buildCompletePack, out receiveBytes, out commError))
+            {
+                return Result<bool>.Fail(commError, ErrorKind.Transport);
+            }
+            return _communicationProtocol.ParseWriteResponse(receiveBytes);
         }
         /// <summary>
         /// 读取单个字数据
@@ -449,45 +491,63 @@ namespace PlcTest.Client.PlcClient
             {
                 return ProtocolError<short>(ex.Message);
             }
-        }
-        /// <summary>
-        /// 读取字数组数据
+        }        /// <summary>
+        /// 读取字数组数据。超过单帧容量时按协议的分段计划逐帧读，再按顺序拼接。
         /// </summary>
         /// <param name="address">统一地址模型</param>
         /// <returns>读取结果。</returns>
         public Result<short[]> ReadWordArray(PlcAddress address)
         {
-            Result<short[]> result = new Result<short[]>();
             try
             {
                 //1.校验地址与区域访问能力
                 string addressError = CheckAddress(address, AreaAccess.Word);
                 if (addressError != null)
                 {
-                    result.ErrorMsg = addressError;
-                    result.Kind = ErrorKind.Validation;
-                    return result;
+                    return Result<short[]>.Fail(addressError, ErrorKind.Validation);
                 }
                 address = Normalize(address, false);
-                //2.拼接数据报文并构建完整报文
-                byte[] BuildReadData = _communicationProtocol.BuildReadData(address);
-                byte[] BuildCompletePack = _communicationProtocol.BuildCompletePack(BuildReadData);
-                byte[] receiveBytes;
-                string commError;
-                if (!TrySendAndReceive(BuildCompletePack, out receiveBytes, out commError))
+
+                IReadOnlyList<PlcAddress> plan = PlanSegments(address, false);
+                if (plan.Count <= 1)
                 {
-                    result.ErrorMsg = commError;
-                    result.Kind = ErrorKind.Transport;
-                    return result;
+                    return ReadWordChunk(address);
                 }
-                //3.数据校验与解析
-                result = _communicationProtocol.ParseReadWordResponse(receiveBytes, address.Length);
-                return result;
+
+                short[] all = new short[address.Length];
+                int at = 0;
+                for (int i = 0; i < plan.Count; i++)
+                {
+                    Result<short[]> one = ReadWordChunk(plan[i]);
+                    if (!one.IsSuccess)
+                    {
+                        return Result<short[]>.Fail(
+                            $"第 {i + 1}/{plan.Count} 段读取失败：{one.ErrorMsg}", one.Kind);
+                    }
+                    int take = Math.Min(plan[i].Length, all.Length - at);
+                    Array.Copy(one.Data, 0, all, at, take);
+                    at += take;
+                }
+                return Result<short[]>.Success(all);
             }
             catch (Exception ex)
             {
                 return ProtocolError<short[]>(ex.Message);
             }
+        }
+
+        /// <summary>读一段字（单帧）。</summary>
+        private Result<short[]> ReadWordChunk(PlcAddress address)
+        {
+            byte[] buildReadData = _communicationProtocol.BuildReadData(address);
+            byte[] buildCompletePack = _communicationProtocol.BuildCompletePack(buildReadData);
+            byte[] receiveBytes;
+            string commError;
+            if (!TrySendAndReceive(buildCompletePack, out receiveBytes, out commError))
+            {
+                return Result<short[]>.Fail(commError, ErrorKind.Transport);
+            }
+            return _communicationProtocol.ParseReadWordResponse(receiveBytes, address.Length);
         }
         /// <summary>
         /// 写入单个字数据。
@@ -530,59 +590,100 @@ namespace PlcTest.Client.PlcClient
             {
                 return ProtocolError<bool>(ex.Message);
             }
-        }
-        /// <summary>
-        /// 写入字数组数据
+        }        /// <summary>
+        /// 写入字数组数据。超过单帧容量时按协议的分段计划拆帧。
         /// </summary>
         /// <param name="address">统一地址模型</param>
         /// <param name="values">字数据数组</param>
         /// <returns>写入结果。</returns>
         public Result<bool> WriteWordArray(PlcAddress address, short[] values)
         {
-            Result<bool> result = new Result<bool>();
             try
             {
-                //1.检查写入数据是否为空
                 if (values == null || values.Length == 0)
                 {
-                    result.ErrorMsg = "写入数据为空";
-                    result.Kind = ErrorKind.Validation;
-                    return result;
+                    return Result<bool>.Fail("写入数据为空", ErrorKind.Validation);
                 }
-                //2.校验地址与区域访问能力
+                //1.校验地址与区域访问能力
                 string addressError = CheckAddress(address, AreaAccess.Word);
                 if (addressError != null)
                 {
-                    result.ErrorMsg = addressError;
-                    result.Kind = ErrorKind.Validation;
-                    return result;
+                    return Result<bool>.Fail(addressError, ErrorKind.Validation);
                 }
                 address = Normalize(address, false);
-                //3.计算打包后字节
-                byte[] mData = _communicationProtocol.GetWriteWordData(values);
-                //4.拼接数据报文并构建完整报文
-                byte[] BuildWriteData = _communicationProtocol.BuildWriteData(address, mData);
-                byte[] BuildCompletePack = _communicationProtocol.BuildCompletePack(BuildWriteData);
-                byte[] receiveBytes;
-                string commError;
-                if (!TrySendAndReceive(BuildCompletePack, out receiveBytes, out commError))
+
+                IReadOnlyList<PlcAddress> plan = PlanSegments(address, true);
+                if (plan.Count <= 1)
                 {
-                    result.ErrorMsg = commError;
-                    result.Kind = ErrorKind.Transport;
-                    return result;
+                    // 单帧路径不校验数据个数：汇川的 32 位计数器一个地址要吃 2 个 short，
+                    // 「长度 == 个数」不是所有协议都成立，交给协议自己的 BuildWriteData 判断
+                    return WriteWordChunk(address, values);
                 }
-                //5.数据校验与解析
-                result = _communicationProtocol.ParseWriteResponse(receiveBytes);
-                return result;
+
+                // 分段才要求长度一致：切片按段长走，个数对不上会切出半个段
+                if (values.Length != address.Length)
+                {
+                    return Result<bool>.Fail(
+                        $"写入数据个数 {values.Length} 与地址长度 {address.Length} 不一致，无法分段", ErrorKind.Validation);
+                }
+
+                int at = 0;
+                for (int i = 0; i < plan.Count; i++)
+                {
+                    short[] slice = new short[plan[i].Length];
+                    Array.Copy(values, at, slice, 0, slice.Length);
+                    Result<bool> one = WriteWordChunk(plan[i], slice);
+                    if (!one.IsSuccess)
+                    {
+                        return Result<bool>.Fail(
+                            $"第 {i + 1}/{plan.Count} 段写入失败：{one.ErrorMsg}", one.Kind);
+                    }
+                    at += slice.Length;
+                }
+                return Result<bool>.Success(true);
             }
             catch (Exception ex)
             {
                 return ProtocolError<bool>(ex.Message);
             }
         }
+
+        /// <summary>写一段字（单帧）。</summary>
+        private Result<bool> WriteWordChunk(PlcAddress address, short[] values)
+        {
+            byte[] mData = _communicationProtocol.GetWriteWordData(values);
+            byte[] buildWriteData = _communicationProtocol.BuildWriteData(address, mData);
+            byte[] buildCompletePack = _communicationProtocol.BuildCompletePack(buildWriteData);
+            byte[] receiveBytes;
+            string commError;
+            if (!TrySendAndReceive(buildCompletePack, out receiveBytes, out commError))
+            {
+                return Result<bool>.Fail(commError, ErrorKind.Transport);
+            }
+            return _communicationProtocol.ParseWriteResponse(receiveBytes);
+        }
         #endregion
 
         #region 私有方法
+        /// <summary>
+        /// 取分段计划。协议不实现 <see cref="IFrameSegmentProtocol"/> 时返回「一段」，
+        /// 调用方就永远只走单帧路径——三菱/汇川/欧姆龙的行为不会因为这次改动而变化。
+        /// </summary>
+        private IReadOnlyList<PlcAddress> PlanSegments(PlcAddress address, bool isWrite)
+        {
+            IFrameSegmentProtocol segment = _communicationProtocol as IFrameSegmentProtocol;
+            if (segment == null)
+            {
+                return new[] { address };
+            }
+
+            IReadOnlyList<PlcAddress> plan = isWrite ? segment.PlanWrite(address) : segment.PlanRead(address);
+            return plan == null || plan.Count == 0 ? new[] { address } : plan;
+        }
+
+        /// <summary>
+        /// 校验地址：区域是否支持本次访问、编号是否越界。
+        /// </summary>
         /// <summary>
         /// 校验地址是否可用于本次操作：地址非空、长度为正、区域支持所需的访问方式。
         /// </summary>

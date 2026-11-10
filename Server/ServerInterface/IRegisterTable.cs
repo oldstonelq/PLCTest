@@ -18,6 +18,20 @@ namespace PlcTest.Server.ServerInterface
         /// <summary>尝试向指定区域添加一个寄存器地址。</summary>
         bool TryAddRegister(MemoryArea area, int address);
 
+        /// <summary>
+        /// 按完整地址添加寄存器——用于「地址里还带块号 / 存储体」的协议。
+        /// <para>
+        /// 为什么需要重载：<c>(area, address)</c> 表达不了 DB 号，S7 的 <c>DB1.DBW0</c> 与 <c>DB2.DBW0</c>
+        /// 会被当成同一个地址；欧姆龙的 EM bank 同理。默认实现会忽略块号、转调上面那个方法，
+        /// 只有真的需要按块区分的服务端（S7）才覆盖。
+        /// </para>
+        /// </summary>
+        /// <param name="address">完整地址，可带 DbNumber</param>
+        bool TryAddRegister(PlcAddress address);
+
+        /// <summary>按完整地址把区间内的值恢复为初始值（块号同理，默认忽略）。</summary>
+        void ResetRegisterValues(PlcAddress address, int length);
+
         /// <summary>清空指定区域的全部寄存器。</summary>
         void ClearRegisters(MemoryArea area);
 
