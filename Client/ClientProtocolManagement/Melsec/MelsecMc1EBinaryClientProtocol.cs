@@ -1,47 +1,79 @@
-﻿using PLCTest.Models;
-using PLCTest.PLCInterface;
+using PlcTest.Models;
+using PlcTest.Client.ClientInterface;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using static PLCTest.Models.Enums;
+using PlcTest.Protocols;
 
-namespace PLCTest.Client.ClientProtocolManagement.Melsec
+namespace PlcTest.Client.ClientProtocolManagement.Melsec
 {
-    public class MelsecMc1EBinaryClientProtocol : IPLCClientProtocol
+    /// <summary>
+    /// 三菱MC协议1E二进制协议实现类
+    /// </summary>
+    public class MelsecMc1EBinaryClientProtocol : IPlcClientProtocol
     {
         /// <summary>
         /// 获取寄存器地址的真实编码（返回 int，可包含扩展编码）
         /// </summary>
-        /// <param name="MemoryArea">寄存器区域</param>
+        /// <param name="memoryArea">寄存器区域</param>
         /// <returns>寄存器地址的真实编码</returns>
-        public int GetMemoryCode(MemoryArea MemoryArea)
+        /// <summary>
+        /// 适用机型，决定软元件编号上限。默认 FX3G / FX3GC（依据 Document/Melsec/1E寄存器地址.png）。
+        /// </summary>
+        public Melsec1ECpuModel CpuModel { get; set; } = Melsec1ECpuModel.Fx3G;
+
+        public int GetMemoryCode(MemoryArea memoryArea)
         {
-            switch (MemoryArea)
+            // 2 字节软元件代码取自 1E 软元件表；单字符软元件用空格(0x20)补齐，与 3E 的 '*' 不同
+            return Melsec1EDeviceCatalog.Get(memoryArea).Code;
+        }
+        /// <summary>
+        /// 该软元件区域允许的访问方式。
+        /// A 兼容 1E 帧支持的软元件较少：位软元件 X/Y/M/S/TS/CS，字软元件 D/R/TN/CN。
+        /// </summary>
+        /// <param name="memoryArea">寄存器区域</param>
+        /// <returns>允许的访问方式</returns>
+        public AreaAccess GetAreaAccess(MemoryArea memoryArea)
+        {
+            // 位/字能力由 1E 软元件表统一声明：TS/CS 是触点只支持位，TN/CN 是当前值只支持字
+            return Melsec1EDeviceCatalog.Get(memoryArea).Access;
+        }
+
+        /// <summary>
+        /// 软元件编号上限取自 <see cref="Melsec1EDeviceCatalog"/>，按 <see cref="CpuModel"/> 机型取值（默认 FX3G/FX3GC）。
+        /// </summary>
+        /// <param name="memoryArea">寄存器区域</param>
+        /// <returns>最大编号；-1 表示协议不做限制</returns>
+        public int GetMaxIndex(MemoryArea memoryArea)
+        {
+            return Melsec1EDeviceCatalog.Get(memoryArea).GetMaxIndex(CpuModel);
+        }
+
+
+
+        /// <summary>
+        /// 根据请求推断整帧长度：1E 二进制响应没有长度字段，只能由"功能码 + 点数"推算。
+        /// 响应 = 副标题(1) + 结束码(2) + 数据。
+        /// </summary>
+        public int GetResponseFrameLength(byte[] request, byte[] buffer, int available)
+        {
+            if (request == null || request.Length < 12) return -1;
+            int points = request[10] | (request[11] << 8);
+            // 1E 二进制响应头 = 副头部(1) + 结束代码(1)，共 2 字节（手册 6.2 节：正常 80H 00H）
+            // 结束代码为 5BH（异常响应）时，后面还有 2 字节错误信息、且没有数据区：80H 5BH 12H 00H
+            if (buffer != null && available >= 2 && buffer[1] == 0x5B)
             {
-                case MemoryArea.D:
-                    return 0x4420;   //数据寄存器
-                case MemoryArea.R:
-                    return 0x5220;   //扩展寄存器
-                case MemoryArea.TN:
-                    return 0x544E;   //定时器-当前值 
-                case MemoryArea.TS:
-                    return 0x5453;   //定时器-触点
-                case MemoryArea.CN:
-                    return 0x434E;   //计数器-当前值
-                case MemoryArea.CS:
-                    return 0x4353;   //计数器-触点
-                case MemoryArea.X:
-                    return 0x5820;   //输入
-                case MemoryArea.Y:
-                    return 0x5920;   //输出
-                case MemoryArea.M:
-                    return 0x4D20;   //辅助继电器
-                case MemoryArea.S:
-                    return 0x5320;   //状态
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(MemoryArea), "无效寄存器类型");
+                return 4;
+            }
+
+            switch (request[0])
+            {
+                // 位读取：每字节 2 点
+                case 0x00: return 2 + (points + 1) / 2;
+                // 字读取：每点 2 字节
+                case 0x01: return 2 + points * 2;
+                // 写入：只有副头部 + 结束代码
+                case 0x02:
+                case 0x03: return 2;
+                default: return -1;
             }
         }
         /// <summary>
@@ -94,10 +126,10 @@ namespace PLCTest.Client.ClientProtocolManagement.Melsec
         /// </summary>
         /// <param name="address">PLC地址模型</param>
         /// <returns>读取命令报文</returns>
-        public byte[] BuildReadData(PLCAddress address)
+        public byte[] BuildReadData(PlcAddress address)
         {
             int memory = GetMemoryCode(address.Area);
-            int adress = address.Address;
+            int startAddress = address.Address;
             bool isBit = address.IsBit;
             int length = address.Length;
             byte[] Data = new byte[12];
@@ -109,10 +141,10 @@ namespace PLCTest.Client.ClientProtocolManagement.Melsec
             Data[2] = 0x0A;
             Data[3] = 0x00;
             //起始地址
-            Data[4] = BitConverter.GetBytes(adress)[0];
-            Data[5] = BitConverter.GetBytes(adress)[1];
-            Data[6] = BitConverter.GetBytes(adress)[2];
-            Data[7] = BitConverter.GetBytes(adress)[3];
+            Data[4] = BitConverter.GetBytes(startAddress)[0];
+            Data[5] = BitConverter.GetBytes(startAddress)[1];
+            Data[6] = BitConverter.GetBytes(startAddress)[2];
+            Data[7] = BitConverter.GetBytes(startAddress)[3];
             //寄存器类型
             Data[8] = (byte)(memory);
             Data[9] = (byte)(memory >> 8);
@@ -127,10 +159,10 @@ namespace PLCTest.Client.ClientProtocolManagement.Melsec
         /// <param name="address">PLC地址模型</param>
         /// <param name="data">写入数据</param>
         /// <returns>写命令报文</returns>
-        public byte[] BuildWriteData(PLCAddress address, byte[] data)
+        public byte[] BuildWriteData(PlcAddress address, byte[] data)
         {
             int memory = GetMemoryCode(address.Area);
-            int adress = address.Address;
+            int startAddress = address.Address;
             bool isBit = address.IsBit;
             int length = address.Length;
             byte[] Data = new byte[12+data.Length];
@@ -142,10 +174,10 @@ namespace PLCTest.Client.ClientProtocolManagement.Melsec
             Data[2] = 0x0A;
             Data[3] = 0x00;
             //起始地址
-            Data[4] = BitConverter.GetBytes(adress)[0];
-            Data[5] = BitConverter.GetBytes(adress)[1];
-            Data[6] = BitConverter.GetBytes(adress)[2];
-            Data[7] = BitConverter.GetBytes(adress)[3];
+            Data[4] = BitConverter.GetBytes(startAddress)[0];
+            Data[5] = BitConverter.GetBytes(startAddress)[1];
+            Data[6] = BitConverter.GetBytes(startAddress)[2];
+            Data[7] = BitConverter.GetBytes(startAddress)[3];
             //寄存器类型
             Data[8] = (byte)(memory);
             Data[9] = (byte)(memory >> 8);
@@ -159,72 +191,79 @@ namespace PLCTest.Client.ClientProtocolManagement.Melsec
         /// <summary>
         /// 拼接完整数据包
         /// </summary>
-        /// <param name="_data">命令报文</param>
+        /// <param name="data">命令报文</param>
         /// <returns>完整命令报文</returns>
-        public byte[] BuildCompletePack(byte[] _data)
+        public byte[] BuildCompletePack(byte[] data)
         {
             //1E没有头直接把读报文和写报文直接返回
-            return _data;
+            return data;
         }
         /// <summary>
         /// 解析写返回
         /// </summary>
-        /// <param name="_data">返回数据</param>
+        /// <param name="data">返回数据</param>
         /// <returns>返回写入结果</returns>
-        public Result<bool> ParseWriteResponse(byte[] _data)
+        public Result<bool> ParseWriteResponse(byte[] data)
         {
-            // 响应格式：副标题(1) + 结束代码(2)
-            if (_data == null || _data.Length < 2)
+            // 响应格式：副标题(1) + 结束代码(1)
+            if (data == null || data.Length < 2)
                 return Result<bool>.Fail("响应数据过短。");
 
-            // 检查结束代码（小端）
-            if (_data[1] == 0x0000)
+            // 1E 的结束代码只有 1 字节，读成 16 位会把相邻数据吞进来
+            byte endCode = data[1];
+            if (endCode == 0)
                 return Result<bool>.Success(true);
             else
-                return Result<bool>.Fail($"写入失败，结束代码: 0x{_data[1]:X4}");
+                return Result<bool>.DeviceFail($"写入失败，结束代码: 0x{endCode:X2}", endCode);
         }
         /// <summary>
         /// 解析读位数据返回
         /// </summary>
-        /// <param name="_data">返回数据</param>
+        /// <param name="data">返回数据</param>
         /// <param name="size">读取数据长度</param>
         /// <returns>位数据数组</returns>
-        public Result<bool[]> ParseReadBitResponse(byte[] _data, int size)
+        public Result<bool[]> ParseReadBitResponse(byte[] data, int size)
         {
-            // 响应格式：副标题(1) + 结束代码(2) + 数据(size字节)
-            if (_data == null || _data.Length < 2 + size)
+            // 响应格式：副标题(1) + 结束代码(1) + 位数据（每字节 2 点：高 4 位=偶数位，低 4 位=奇数位）
+            int dataLen = (size + 1) / 2;
+            if (data == null || data.Length < 2 + dataLen)
                 return Result<bool[]>.Fail("响应数据长度不足。");
-            
-            if (_data[1] != 0)
-                return Result<bool[]>.Fail($"读取失败，结束代码: 0x{_data[1]:X4}");
+
+            byte endCode = data[1];
+            if (endCode != 0)
+                return Result<bool[]>.DeviceFail($"读取失败，结束代码: 0x{endCode:X2}", endCode);
 
             bool[] bits = new bool[size];
             for (int i = 0; i < size; i++)
-                bits[i] = _data[2 + i] != 0x00;
+            {
+                byte val = data[2 + i / 2];
+                bits[i] = (i % 2 == 0) ? (val & 0x10) != 0 : (val & 0x01) != 0;
+            }
 
             return Result<bool[]>.Success(bits);
         }
         /// <summary>
         /// 解析读字数据返回
         /// </summary>
-        /// <param name="_data">返回数据</param>
+        /// <param name="data">返回数据</param>
         /// <param name="size">读取数据长度</param>
         /// <returns>字数据数组</returns>
-        public Result<short[]> ParseReadWordResponse(byte[] _data, int size)
+        public Result<short[]> ParseReadWordResponse(byte[] data, int size)
         {
-            // 响应格式：副标题(1) + 结束代码(2) + 数据(size * 2字节)
+            // 响应格式：副标题(1) + 结束代码(1) + 数据(size * 2字节)
             int dataLen = size * 2;
-            if (_data == null || _data.Length < 2 + dataLen)
+            if (data == null || data.Length < 2 + dataLen)
                 return Result<short[]>.Fail("响应数据长度不足。");
-           
-            if (_data[1] != 0)
-                return Result<short[]>.Fail($"读取失败，结束代码: 0x{_data[1]:X4}");
+
+            byte endCode = data[1];
+            if (endCode != 0)
+                return Result<short[]>.DeviceFail($"读取失败，结束代码: 0x{endCode:X2}", endCode);
 
             short[] values = new short[size];
             for (int i = 0; i < size; i++)
             {
                 byte[] wordBytes = new byte[2];
-                Array.Copy(_data, 2 + i * 2, wordBytes, 0, 2);
+                Array.Copy(data, 2 + i * 2, wordBytes, 0, 2);
                 if (!BitConverter.IsLittleEndian)
                     Array.Reverse(wordBytes);
                 values[i] = BitConverter.ToInt16(wordBytes, 0);

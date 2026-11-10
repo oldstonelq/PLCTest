@@ -1,87 +1,56 @@
-﻿using PLCTest.Models;
-using PLCTest.PLCInterface;
+using PlcTest.Models;
+using PlcTest.Client.ClientInterface;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using static PLCTest.Models.Enums;
+using PlcTest.Protocols;
+using PlcTest.Tool;
 
-namespace PLCTest.ClientProtocolManagement.Melsec
+namespace PlcTest.Client.ClientProtocolManagement.Melsec
 {
     /// <summary>
     /// 三菱MC4E二进制通讯协议
     /// </summary>
-    public class MelsecMc4EBinaryClientProtocol : IPLCClientProtocol
+    public class MelsecMc4EBinaryClientProtocol : IPlcClientProtocol, IProtocolOptionHost
     {
         /// <summary>
         ///获取寄存器地址的真实编码
         /// </summary>
-        /// <param name="MemoryArea">寄存器区域</param>
+        /// <param name="memoryArea">寄存器区域</param>
         /// <returns>寄存器地址的真实编码</returns>
-        public int GetMemoryCode(MemoryArea MemoryArea)
+        public int GetMemoryCode(MemoryArea memoryArea)
         {
-            switch (MemoryArea)    //软元件                    类型     编号范围   进制 
-            {
-                case MemoryArea.SM://特殊继电器               位数据   000000~001023  10进制
-                    return 0x91;
-                case MemoryArea.SD://特殊寄存器               字数据   000000~001023  10进制
-                    return 0xA9;
-                case MemoryArea.X://输入                      位数据   000000~0007FF  16进制
-                    return 0x9C;
-                case MemoryArea.Y://输出                      位数据   000000~0007FF  16进制
-                    return 0x9D;
-                case MemoryArea.M://内部继电器*2              位数据   000000~008191  10进制
-                    return 0x90;
-                case MemoryArea.L://锁存继电器*2              位数据   000000~002027  10进制
-                    return 0x92;
-                case MemoryArea.F://报警器                    位数据   000000~001023  10进制
-                    return 0x93;
-                case MemoryArea.V://变址继电器                位数据   000000~001023  10进制
-                    return 0x94;
-                case MemoryArea.B://链接继电器                位数据   000000~0007FF  16进制
-                    return 0xA0;
-                case MemoryArea.D://数据寄存器                字数据   000000~011135  10进制
-                    return 0xA8;
-                case MemoryArea.W://链接寄存器                字数据   000000~0007FF  16进制
-                    return 0xB4;
-                case MemoryArea.TS://定时器*3 -触点           位数据   000000~000511  10进制
-                    return 0XC1;
-                case MemoryArea.TC://定时器*3 -线圈           位数据   000000~000511  10进制
-                    return 0xC0;
-                case MemoryArea.TN://定时器*3 -当前值         字数据   000000~000511  10进制
-                    return 0xC2;
-                case MemoryArea.SS://累计定时器*3 -触点       位数据   000000~000511  10进制
-                    return 0xC7;
-                case MemoryArea.SC://累计定时器*3 -线圈       位数据   000000~000511  10进制
-                    return 0xC6;
-                case MemoryArea.SN://累计定时器*3 -当前值     字数据   000000~000511  10进制
-                    return 0xC8;
-                case MemoryArea.CS://计数器*3 -触点           位数据   000000~000511  10进制
-                    return 0xC4;
-                case MemoryArea.CC://计数器*3 -线圈           位数据   000000~000511  10进制
-                    return 0xC3;
-                case MemoryArea.CN://计数器*3 -当前值         字数据   000000~000511  10进制
-                    return 0xC5;
-                case MemoryArea.SB://链接特殊继电器           位数据   000000~0003FF  16进制
-                    return 0xA1;
-                case MemoryArea.SW://链接特殊寄存器           字数据   000000~0003FF  16进制
-                    return 0xB5;
-                case MemoryArea.S://步进继电器*2              位数据   000000~002027  10进制
-                    return 0x98;
-                case MemoryArea.DX://直接输入                 位数据   000000~0007FF  16进制
-                    return 0xA2;
-                case MemoryArea.DY://直接输出                 位数据   000000~0007FF  16进制
-                    return 0xA3;
-                case MemoryArea.Z://变址寄存器                字数据   000000~000009  10进制
-                    return 0xCC;
-                case MemoryArea.R://文件寄存器*4              字数据   000000~032767  16进制
-                    return 0xAF;
-                case MemoryArea.ZR://文件寄存器*6             字数据   000000~00FFFF  16进制
-                    return 0xB0;
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(MemoryArea), "无效寄存器类型");
-            }
+            // 二进制软元件代码取自 Melsec3E4EDeviceCatalog（3E / 4E 共用同一张表）
+            return Melsec3E4EDeviceCatalog.Get(memoryArea).BinaryCode;
+        }
+        /// <summary>
+        /// 该软元件区域允许的访问方式。
+        /// 位软元件（M/X/Y 等）既可位访问也可字访问（字访问时每字 16 点）；字软元件（D/W/R 等）只能字访问。
+        /// </summary>
+        /// <param name="memoryArea">寄存器区域</param>
+        /// <returns>允许的访问方式</returns>
+        public AreaAccess GetAreaAccess(MemoryArea memoryArea)
+        {
+            // 位/字能力由 Melsec3E4EDeviceCatalog 统一声明，协议不再自己维护第二套规则
+            return Melsec3E4EDeviceCatalog.Get(memoryArea).Access;
+        }
+
+        /// <summary>
+        /// 软元件编号上限取自 <see cref="Melsec3E4EDeviceCatalog"/>（与 3E 共用同一张表）。
+        /// </summary>
+        /// <param name="memoryArea">寄存器区域</param>
+        /// <returns>最大编号；-1 表示协议不做限制</returns>
+        public int GetMaxIndex(MemoryArea memoryArea)
+        {
+            return Melsec3E4EDeviceCatalog.Get(memoryArea).DefaultMaxIndex;
+        }
+
+        /// <summary>
+        /// 根据响应前缀推断整帧长度：4E 二进制响应为 13 字节头 + [11..12] 小端"数据长度"（从结束码起算）。
+        /// </summary>
+        public int GetResponseFrameLength(byte[] request, byte[] buffer, int available)
+        {
+            if (buffer == null || available < 13) return -1;
+            if (buffer[0] != 0xD4 || buffer[1] != 0x00) return -1;
+            return 13 + (buffer[11] | (buffer[12] << 8));
         }
         /// <summary>
         /// 写入位数据转Byte数组
@@ -133,10 +102,31 @@ namespace PLCTest.ClientProtocolManagement.Melsec
         /// </summary>
         /// <param name="address">PLC地址模型</param>
         /// <returns>读取命令报文</returns>
-        public byte[] BuildReadData(PLCAddress address)
+        /// <summary>
+        /// 目标网络号（0–255）。直连本机 CPU 时为 0；经 MELSECNET / CC-Link 路由时才需要改。
+        /// 写进请求帧头的网络号字节。
+        /// </summary>
+        public int NetworkNumber { get; set; } = 0;
+
+        /// <summary>
+        /// 目标模块站号（0–255）。直连本机 CPU 时为 0。
+        /// </summary>
+        public int StationNumber { get; set; } = 0;
+
+        /// <summary>
+        /// 应用界面传来的协议选项（网络号 / 站号）。越界值夹到字节范围，避免拼帧时写坏。
+        /// </summary>
+        /// <param name="options">选项集，可能为 null</param>
+        public void ApplyOptions(ProtocolOptions options)
+        {
+            NetworkNumber = ProtocolOptionValues.ClampInt(options, "NetworkNumber", NetworkNumber, 0, 255);
+            StationNumber = ProtocolOptionValues.ClampInt(options, "StationNumber", StationNumber, 0, 255);
+        }
+
+        public byte[] BuildReadData(PlcAddress address)
         {
             int memory = GetMemoryCode(address.Area);
-            int adress = address.Address;
+            int startAddress = address.Address;
             bool isBit = address.IsBit;
             int length = address.Length;
             byte[] Data = new byte[10];
@@ -147,9 +137,9 @@ namespace PLCTest.ClientProtocolManagement.Melsec
             Data[2] = isBit ? (byte)0x01 : (byte)0x00;
             Data[3] = 0x00;
             //起始地址
-            Data[4] = BitConverter.GetBytes(adress)[0];
-            Data[5] = BitConverter.GetBytes(adress)[1];
-            Data[6] = BitConverter.GetBytes(adress)[2];
+            Data[4] = BitConverter.GetBytes(startAddress)[0];
+            Data[5] = BitConverter.GetBytes(startAddress)[1];
+            Data[6] = BitConverter.GetBytes(startAddress)[2];
             //软元件类型
             Data[7] = (byte)memory;
             //软元件点数
@@ -163,10 +153,10 @@ namespace PLCTest.ClientProtocolManagement.Melsec
         /// <param name="address">PLC地址模型</param>
         /// <param name="data">写入数据</param>
         /// <returns>写命令报文</returns>
-        public byte[] BuildWriteData(PLCAddress address, byte[] data)
+        public byte[] BuildWriteData(PlcAddress address, byte[] data)
         {
             int memory = GetMemoryCode(address.Area);
-            int adress = address.Address;
+            int startAddress = address.Address;
             bool isBit = address.IsBit;
             int length = address.Length;
             byte[] Data = new byte[10 + data.Length];
@@ -177,9 +167,9 @@ namespace PLCTest.ClientProtocolManagement.Melsec
             Data[2] = isBit ? (byte)0x01 : (byte)0x00;
             Data[3] = 0x00;
             //起始地址
-            Data[4] = BitConverter.GetBytes(adress)[0];
-            Data[5] = BitConverter.GetBytes(adress)[1];
-            Data[6] = BitConverter.GetBytes(adress)[2];
+            Data[4] = BitConverter.GetBytes(startAddress)[0];
+            Data[5] = BitConverter.GetBytes(startAddress)[1];
+            Data[6] = BitConverter.GetBytes(startAddress)[2];
             //软元件类型
             Data[7] = (byte)memory;
             //软元件点数
@@ -191,11 +181,11 @@ namespace PLCTest.ClientProtocolManagement.Melsec
         /// <summary>
         /// 拼接完整数据包
         /// </summary>
-        /// <param name="_data">命令报文</param>
+        /// <param name="data">命令报文</param>
         /// <returns>完整命令报文</returns>
-        public byte[] BuildCompletePack(byte[] _data)
+        public byte[] BuildCompletePack(byte[] data)
         {
-            byte[] Command = new byte[15 + _data.Length];
+            byte[] Command = new byte[15 + data.Length];
             //副标题
             Command[0] = 0x54;
             Command[1] = 0x00;
@@ -206,45 +196,48 @@ namespace PLCTest.ClientProtocolManagement.Melsec
             Command[4] = 0x00;
             Command[5] = 0x00;
             //网络号
-            Command[6] = 0x00;
+            Command[6] = (byte)NetworkNumber;
             //PLC编号
             Command[7] = 0xFF;
             //目标模块IO编号
             Command[8] = 0xFF;
             Command[9] = 0x03;
             //目标模块站号
-            Command[10] = 0x00;
+            Command[10] = (byte)StationNumber;
             //请求数据长度(剩余数据长度，CPU+data长度)
             Command[11] = (byte)((Command.Length - 13) % 256);
             Command[12] = (byte)((Command.Length - 13) / 256);
             //CPU监视定时器
             Command[13] = 0x0A;
             Command[14] = 0x00;
-            _data.CopyTo(Command, 15);
+            data.CopyTo(Command, 15);
             return Command;
         }
         /// <summary>
         /// 解析写返回
         /// </summary>
-        /// <param name="_data">返回数据</param>
+        /// <param name="data">返回数据</param>
         /// <returns>返回写入结果</returns>
-        public Result<bool> ParseWriteResponse(byte[] _data)
+        public Result<bool> ParseWriteResponse(byte[] data)
         {
             Result<bool> result = new Result<bool>();
 
-            if (_data == null || _data.Length < 15)
+            if (data == null || data.Length < 15)
             {
                 result.ErrorMsg = "返回数据长度错误";
                 return result;
             }
-            if (!CheckResponseHeader(_data))
+            if (!CheckResponseHeader(data))
             {
                 result.ErrorMsg = "响应副标题错误";
                 return result;
             }
-            if (BitConverter.ToUInt16(_data, 13) != 0)
+            ushort endCode = BitConverter.ToUInt16(data, 13);
+            if (endCode != 0)
             {
-                result.ErrorMsg = "结束代码错误";
+                result.ErrorMsg = $"结束代码错误: 0x{endCode:X4}";
+                result.Kind = ErrorKind.DeviceEndCode;
+                result.EndCode = endCode;
                 return result;
             }
 
@@ -255,26 +248,35 @@ namespace PLCTest.ClientProtocolManagement.Melsec
         /// <summary>
         /// 解析读位数据返回
         /// </summary>
-        /// <param name="_data">返回数据</param>
+        /// <param name="data">返回数据</param>
         /// <param name="size">读取数据长度</param>
         /// <returns>位数据数组</returns>
-        public Result<bool[]> ParseReadBitResponse(byte[] _data, int size)
+        public Result<bool[]> ParseReadBitResponse(byte[] data, int size)
         {
             Result<bool[]> result = new Result<bool[]>();
 
-            if (_data == null || _data.Length <= 15)
+            // 4E 协议位软元件单次读取上限为 7168 点
+            if (size <= 0 || size > 7168)
+            {
+                result.ErrorMsg = "读取点数超出范围（1-7168）";
+                return result;
+            }
+            if (data == null || data.Length <= 15)
             {
                 result.ErrorMsg = "返回数据长度错误";
                 return result;
             }
-            if (!CheckResponseHeader(_data))
+            if (!CheckResponseHeader(data))
             {
                 result.ErrorMsg = "响应副标题错误";
                 return result;
             }
-            if (BitConverter.ToUInt16(_data, 13) != 0)
+            ushort endCode = BitConverter.ToUInt16(data, 13);
+            if (endCode != 0)
             {
-                result.ErrorMsg = "结束代码错误";
+                result.ErrorMsg = $"结束代码错误: 0x{endCode:X4}";
+                result.Kind = ErrorKind.DeviceEndCode;
+                result.EndCode = endCode;
                 return result;
             }
 
@@ -282,9 +284,9 @@ namespace PLCTest.ClientProtocolManagement.Melsec
             bool[] RealData = new bool[size];
             int byteCount = (size + 1) / 2;
             int dataOffset = 15;//数据起始位置
-            for (int bIdx = 0; bIdx < byteCount && dataOffset + bIdx < _data.Length; bIdx++)
+            for (int bIdx = 0; bIdx < byteCount && dataOffset + bIdx < data.Length; bIdx++)
             {
-                byte val = _data[dataOffset + bIdx];
+                byte val = data[dataOffset + bIdx];
                 int idx0 = bIdx * 2;
                 if (idx0 < size)
                     RealData[idx0] = (val & 0x10) != 0;
@@ -299,32 +301,41 @@ namespace PLCTest.ClientProtocolManagement.Melsec
         /// <summary>
         /// 解析读字数据返回
         /// </summary>
-        /// <param name="_data">返回数据</param>
+        /// <param name="data">返回数据</param>
         /// <param name="size">读取数据长度</param>
         /// <returns>字数据数组</returns>
-        public Result<short[]> ParseReadWordResponse(byte[] _data, int size)
+        public Result<short[]> ParseReadWordResponse(byte[] data, int size)
         {
             Result<short[]> result = new Result<short[]>();
 
-            if (_data == null || _data.Length <= 15)
+            // 4E 协议字软元件单次读取上限为 960 点
+            if (size <= 0 || size > 960)
+            {
+                result.ErrorMsg = "读取点数超出范围（1-960）";
+                return result;
+            }
+            if (data == null || data.Length <= 15)
             {
                 result.ErrorMsg = "返回数据长度错误";
                 return result;
             }
-            if (!CheckResponseHeader(_data))
+            if (!CheckResponseHeader(data))
             {
                 result.ErrorMsg = "响应副标题错误";
                 return result;
             }
-            if (BitConverter.ToUInt16(_data, 13) != 0)
+            ushort endCode = BitConverter.ToUInt16(data, 13);
+            if (endCode != 0)
             {
-                result.ErrorMsg = "结束代码错误";
+                result.ErrorMsg = $"结束代码错误: 0x{endCode:X4}";
+                result.Kind = ErrorKind.DeviceEndCode;
+                result.EndCode = endCode;
                 return result;
             }
 
             // 解析返回数据：每字 2 字节（小端）
             int dataOffset = 15;//数据起始位置
-            int dataLen = _data.Length - dataOffset;
+            int dataLen = data.Length - dataOffset;
             int expectedLen = size * 2;
             if (dataLen < expectedLen)
             {
@@ -335,7 +346,7 @@ namespace PLCTest.ClientProtocolManagement.Melsec
             short[] RealData = new short[size];
             for (int i = 0; i < size; i++)
             {
-                RealData[i] = BitConverter.ToInt16(_data, dataOffset + i * 2);
+                RealData[i] = BitConverter.ToInt16(data, dataOffset + i * 2);
             }
             result.IsSuccess = true;
             result.Data = RealData;

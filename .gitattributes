@@ -1,0 +1,22 @@
+# 换行策略：仓库内一律以 LF 存储，检出到工作区用 CRLF
+# 本项目是 Windows 下的 WinForms（net472），设计器与 VS 默认都用 CRLF；
+# 显式声明后，core.autocrlf 的取值就不再影响结果，也不会再出现
+#   warning: LF will be replaced by CRLF in xxx.cs
+* text=auto eol=crlf
+
+# 二进制：禁止做换行转换与文本合并
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.doc binary
+*.docx binary
+*.xls binary
+*.xlsx binary
+*.zip binary
+*.7z binary
+*.exe binary
+*.dll binary
+*.pdb binary

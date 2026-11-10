@@ -1,18 +1,15 @@
-﻿using PLCTest.PLCInterface;
+using PlcTest.Client.ClientInterface;
 using System;
-using System.Collections.Generic;
-using System.IO.Ports;
-using System.Linq;
+using System.IO;
 using System.Net.Sockets;
-using System.Text;
-using System.Threading.Tasks;
+using System.Threading;
 
-namespace PLCTest.ClientCommunication
+namespace PlcTest.Client.ClientCommunication
 {
     /// <summary>
     /// TCP通讯类 实现基础PLC通讯接口
     /// </summary>
-    public class TcpClientCommunication : IClientCommunication
+    public class TcpClientCommunication : IClientCommunication, IFrameTransport
     {
         #region 私有对象
         /// <summary>
@@ -23,6 +20,10 @@ namespace PLCTest.ClientCommunication
         /// 网络数据流
         /// </summary>
         private NetworkStream _stream;
+        /// <summary>
+        /// 收发串行锁：同一连接上"一问一答"必须成对，防止 UI 读线程与按钮写操作交叉
+        /// </summary>
+        private readonly SemaphoreSlim _ioLock = new SemaphoreSlim(1, 1);
         #endregion
 
         #region 通讯配置参数
@@ -42,10 +43,6 @@ namespace PLCTest.ClientCommunication
         /// 读写超时 ms
         /// </summary>
         public int ReadWriteTimeout { get; set; } = 1000;
-        /// <summary>
-        /// 接收缓冲区最大长度(PLC报文通用4096足够)
-        /// </summary>
-        private const int BufferMaxLength = 4096;
         #endregion
 
         #region 构造函数
@@ -76,7 +73,7 @@ namespace PLCTest.ClientCommunication
                 }
                 catch
                 {
-                    DisConnectServer();
+                    DisconnectServer();
                     return false;
                 }
             }
@@ -92,7 +89,7 @@ namespace PLCTest.ClientCommunication
         {
             // 已连接先释放旧连接
             if (IsConnected)
-                DisConnectServer();
+                DisconnectServer();
 
             _tcpClient = new TcpClient();
             // 设置连接超时
@@ -101,6 +98,8 @@ namespace PLCTest.ClientCommunication
 
             if (!connectSuccess)
             {
+                // 结束挂起的异步连接，避免残留连接对象
+                try { _tcpClient.EndConnect(connectResult); } catch { }
                 _tcpClient.Close();
                 _tcpClient = null;
                 throw new TimeoutException($"连接PLC[{IpAddress}:{Port}]超时{ConnectTimeout}ms");
@@ -117,7 +116,7 @@ namespace PLCTest.ClientCommunication
         /// <summary>
         /// 断开连接并释放资源
         /// </summary>
-        public  void DisConnectServer()
+        public void DisconnectServer()
         {
             try
             {
@@ -143,10 +142,16 @@ namespace PLCTest.ClientCommunication
         /// 发送报文并同步读取返回数据
         /// </summary>
         /// <param name="sendData">下发指令字节数组</param>
+        /// <param name="responseLengthResolver">响应帧长度解析器，为 null 时回退到空闲判据</param>
         /// <returns>PLC返回响应报文</returns>
         /// <exception cref="Exception">未连接、读写超时、通讯中断抛出异常</exception>
-        public byte[] SendAndRecevieData(byte[] sendData)
+        public byte[] SendAndReceiveData(byte[] sendData, ResponseFrameLengthResolver responseLengthResolver)
         {
+            if (sendData == null || sendData.Length == 0)
+                throw new ArgumentException("发送报文不能为空", nameof(sendData));
+
+            // 同一连接上的收发必须串行：否则 A 的请求可能读到 B 的响应
+            _ioLock.Wait();
             try
             {
                 if (!IsConnected || _stream == null)
@@ -154,64 +159,56 @@ namespace PLCTest.ClientCommunication
 
                 // 下发指令
                 _stream.Write(sendData, 0, sendData.Length);
+                _stream.Flush();
 
-                // 接收缓冲区
-                byte[] recvBuffer = new byte[BufferMaxLength];
-                int recvLen = _stream.Read(recvBuffer, 0, BufferMaxLength);
-
-                if (recvLen <= 0)
-                    throw new Exception("无返回数据，连接已断开");
-
-                // 截取有效长度报文返回
-                byte[] result = new byte[recvLen];
-                Array.Copy(recvBuffer, result, recvLen);
-                return result;
+                return ReadCompleteResponse(sendData, responseLengthResolver);
             }
-            catch (Exception ex)
+            finally
             {
-                return new byte[0];
+                _ioLock.Release();
             }
+        }
+
+        /// <summary>
+        /// 读取一帧完整响应：帧长读满与空闲判据都在 <see cref="ResponseFrameAssembler"/>，
+        /// 这里只负责把 TCP 的「读一段 / 还有没有数据 / 读不到时的提示」交出去。
+        /// </summary>
+        private byte[] ReadCompleteResponse(byte[] request, ResponseFrameLengthResolver resolver)
+        {
+            return ResponseFrameAssembler.ReadFrame(request, resolver, this);
         }
         #endregion
 
-        #region 异步扩展（适配UI不卡死）
+        #region IFrameTransport（供 ResponseFrameAssembler 使用）
         /// <summary>
-        /// 异步收发
+        /// 读一段：TCP 是字节流，一次 Read 可能只拿到半帧，ReadTimeout 到期会抛 IOException。
         /// </summary>
-        public async Task<byte[]> SendAndRecevieDataAsync(byte[] sendData)
+        int IFrameTransport.Read(byte[] buffer, int offset, int count, bool firstRead)
         {
-            if (!IsConnected || _stream == null)
-                throw new Exception("TCP未建立连接");
-
-            await _stream.WriteAsync(sendData, 0, sendData.Length);
-            byte[] buffer = new byte[BufferMaxLength];
-            int len = await _stream.ReadAsync(buffer, 0, BufferMaxLength);
-
-            if (len <= 0)
-                throw new Exception("异步读取数据为空");
-            
-            byte[] res = new byte[len];
-            Array.Copy(buffer, res, len);
-            return res;
+            try
+            {
+                return _stream.Read(buffer, offset, count);
+            }
+            catch (IOException ex)
+            {
+                throw new Exception(firstRead ? "读取PLC响应超时或被对端断开" : "读取PLC响应超时，帧未收全", ex);
+            }
         }
 
         /// <summary>
-        /// 异步连接
+        /// 已到达但还没读走的字节数是否为 0（空闲判据用）
         /// </summary>
-        public async Task ConnectServerAsync()
+        bool IFrameTransport.HasPendingData
         {
-            if (IsConnected) DisConnectServer();
-            _tcpClient = new TcpClient();
-            var connectTask = _tcpClient.ConnectAsync(IpAddress, Port);
-            if (await Task.WhenAny(connectTask, Task.Delay(ConnectTimeout)) != connectTask)
-            {
-                _tcpClient.Close();
-                throw new TimeoutException("异步连接PLC超时");
-            }
-            await connectTask;
-            _stream = _tcpClient.GetStream();
-            _stream.ReadTimeout = ReadWriteTimeout;
-            _stream.WriteTimeout = ReadWriteTimeout;
+            get { return _stream != null && _stream.DataAvailable; }
+        }
+
+        /// <summary>
+        /// 首段或续读时读不到数据的提示
+        /// </summary>
+        string IFrameTransport.EmptyResponseMessage
+        {
+            get { return "无返回数据，连接已断开"; }
         }
         #endregion
     }

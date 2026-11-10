@@ -1,10 +1,10 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace PLCTest.Tool
+namespace PlcTest.Tool
 {
     /// <summary>
     /// 转化工具类
@@ -53,11 +53,11 @@ namespace PLCTest.Tool
         /// 假定每两个字节为一组，默认顺序为 高字节 在前、低字节 在后（highByteFirst = true）。
         /// 如果字节数量为奇数，会把最后一个剩余字节作为高字节（或低字节），另一端补0。
         /// </summary>
-        public static void StoreReadBytesAsHighLow(byte[] readBytes, ref byte[] byteHight, ref byte[] byteLow, bool highByteFirst = true)
+        public static void StoreReadBytesAsHighLow(byte[] readBytes, ref byte[] byteHigh, ref byte[] byteLow, bool highByteFirst = true)
         {
             if (readBytes == null || readBytes.Length == 0)
             {
-                byteHight = new byte[0];
+                byteHigh = new byte[0];
                 byteLow = new byte[0];
                 return;
             }
@@ -65,7 +65,7 @@ namespace PLCTest.Tool
             int pairs = readBytes.Length / 2;
             bool hasRemainder = (readBytes.Length % 2) != 0;
 
-            byteHight = new byte[pairs + (hasRemainder ? 1 : 0)];
+            byteHigh = new byte[pairs + (hasRemainder ? 1 : 0)];
             byteLow = new byte[pairs + (hasRemainder ? 1 : 0)];
 
             for (int i = 0; i < pairs; i++)
@@ -73,13 +73,13 @@ namespace PLCTest.Tool
                 int idx = i * 2;
                 if (highByteFirst)
                 {
-                    byteHight[i] = readBytes[idx];
+                    byteHigh[i] = readBytes[idx];
                     byteLow[i] = readBytes[idx + 1];
                 }
                 else
                 {
                     byteLow[i] = readBytes[idx];
-                    byteHight[i] = readBytes[idx + 1];
+                    byteHigh[i] = readBytes[idx + 1];
                 }
             }
 
@@ -88,13 +88,13 @@ namespace PLCTest.Tool
                 int lastIdx = pairs * 2;
                 if (highByteFirst)
                 {
-                    byteHight[pairs] = readBytes[lastIdx];
+                    byteHigh[pairs] = readBytes[lastIdx];
                     byteLow[pairs] = 0;
                 }
                 else
                 {
                     byteLow[pairs] = readBytes[lastIdx];
-                    byteHight[pairs] = 0;
+                    byteHigh[pairs] = 0;
                 }
             }
         }
@@ -165,12 +165,12 @@ namespace PLCTest.Tool
 
         #region IntConverter
         /// <summary>
-        /// 将给定值 currentValue 的指定 bitPosition 位置设为 1 并返回新值。
+        /// 翻转给定值 currentValue 的指定 bitPosition 位并返回新值。
         /// bitPosition 约定：0 表示最低位 (bit0)，15 表示最高位 (bit15)。
-        /// 使用示例：currentValue = SetBitToOne(currentValue, bitPosition);
-        /// 或者：this.CurrentValue = SetBitToOne(this.CurrentValue, bitPosition);
+        /// 使用示例：currentValue = ToggleBit(currentValue, bitPosition);
+        /// 或者：this.CurrentValue = ToggleBit(this.CurrentValue, bitPosition);
         /// </summary>
-        public static int SetBitToOne(int currentValue, int bitPosition)
+        public static int ToggleBit(int currentValue, int bitPosition)
         {
             if (bitPosition < 0 || bitPosition > 15)
                 throw new System.ArgumentOutOfRangeException(nameof(bitPosition), "bitPosition 必须在 0 到 15 之间。");
